@@ -1,0 +1,16 @@
+# services/api/requirements.txt
+fastapi
+uvicorn[standard]
+sqlmodel
+psycopg2-binary
+alembic
+pydantic-settings
+python-multipart
+python-jose[cryptography]
+cryptography
+httpx
+requests
+pytest
+boto3
+# For production async postgres if needed, but psycopg2 is fine for sync, asyncpg for async
+asyncpg
