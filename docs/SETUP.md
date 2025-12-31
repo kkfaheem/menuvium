@@ -4,10 +4,17 @@
 - Docker & Docker Compose
 - Node.js 18+ (for local tooling if not using Docker)
 - Python 3.11+
-- AWS CLI (configured)
+- AWS CLI (configured for deploys)
 
 ## Running Locally
-We use Docker Compose to run the full stack locally.
+We use Docker Compose to run the full stack locally. The goal is 1:1 parity with AWS production so local changes transfer cleanly.
+
+### Local/Production Parity Contract
+- Use the same environment variable names locally and in AWS.
+- Keep service versions aligned (Postgres, Python, Node).
+- Run database migrations the same way in all environments.
+- Avoid local-only code paths; prefer config flags with identical defaults.
+- Keep the request/response surface identical (ports differ, APIs do not).
 
 1. **Start Services**
    ```bash
@@ -23,6 +30,24 @@ We use Docker Compose to run the full stack locally.
    - API Health: [http://localhost:8000/health](http://localhost:8000/health)
    - API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
+### Environment Variables
+Use a single source of truth for config keys. Create `services/api/.env` and `apps/web/.env.local` and keep the keys in sync with AWS Parameter Store/Secrets Manager.
+
+Recommended baseline (add as needed):
+- API
+  - `DATABASE_URL` (same format in local and prod)
+  - `API_BASE_URL` (used by web; local is `http://localhost:8000`)
+  - `CORS_ORIGINS` (include `http://localhost:3000` locally)
+- Web
+  - `NEXT_PUBLIC_API_BASE_URL` (local: `http://localhost:8000`)
+
+### Database Migrations
+Always run migrations the same way in local and prod.
+```bash
+cd services/api
+alembic upgrade head
+```
+
 ## Testing
 ### API
 Run tests from the API service directory.
@@ -37,6 +62,13 @@ There is no test runner configured yet; use linting for now.
 cd apps/web
 npm run lint
 ```
+
+## Deploy Readiness (1:1 Transfer Checklist)
+- CDK stack mirrors local services (DB, API, Web) with matching versions.
+- Secrets/config stored in AWS (SSM/Secrets Manager) using the same keys as local `.env` files.
+- Migrations run in deploy process before API starts.
+- Health checks available (`/health`) for load balancer/target groups.
+- CORS settings include production web origin.
 
 ## Project Structure
 - `apps/web`: Next.js frontend.
