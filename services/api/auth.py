@@ -18,7 +18,7 @@ def get_keys(region, user_pool_id):
     return []
 
 def verify_token(token: str):
-    auth_mode = os.getenv("AUTH_MODE", "MOCK")
+    auth_mode = os.getenv("AUTH_MODE", "COGNITO")
     
     if auth_mode == "MOCK":
         # Return a fixed mock user for local dev flow

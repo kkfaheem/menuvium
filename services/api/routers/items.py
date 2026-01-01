@@ -3,12 +3,13 @@ import os
 import boto3
 from botocore.exceptions import ClientError
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select
 from database import get_session
 from models import Item, Category, Menu, ItemPhoto, Organization, ItemCreate, ItemUpdate, ItemRead, DietaryTag, Allergen
 from dependencies import get_current_user
+from pathlib import Path
 
 router = APIRouter(prefix="/items", tags=["items"])
 SessionDep = Depends(get_session)
@@ -23,19 +24,30 @@ class PresignedUrlResponse(BaseModel):
     s3_key: str
     public_url: str
 
+def _local_uploads_enabled() -> bool:
+    return os.getenv("LOCAL_UPLOADS") == "1" or os.getenv("AUTH_MODE") == "MOCK"
+
+def _local_upload_dir() -> Path:
+    return Path(__file__).resolve().parent.parent / "uploads"
+
+def _safe_local_path(key: str) -> Path:
+    base = _local_upload_dir().resolve()
+    target = (base / key).resolve()
+    if not str(target).startswith(str(base) + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid upload key")
+    return target
+
 @router.post("/upload-url", response_model=PresignedUrlResponse)
-def generate_upload_url(req: PresignedUrlRequest, user: dict = UserDep):
+def generate_upload_url(req: PresignedUrlRequest, request: Request, user: dict = UserDep):
     bucket_name = os.getenv("S3_BUCKET_NAME")
     if not bucket_name:
-        # Fallback for local dev if no bucket - maybe just return a dummy URL or error
-        # For now, let's error if strictly needed, or handle mock mode
-        if os.getenv("AUTH_MODE") == "MOCK":
-             # Mock upload flow
-             key = f"mock/{uuid.uuid4()}-{req.filename}"
+        if _local_uploads_enabled():
+             key = f"items/{uuid.uuid4()}-{os.path.basename(req.filename)}"
+             base_url = str(request.base_url).rstrip("/")
              return {
-                 "upload_url": "http://localhost:8000/mock-upload", # We'd need to mock this too
+                 "upload_url": f"{base_url}/items/local-upload/{key}",
                  "s3_key": key,
-                 "public_url": f"https://mock-s3.com/{key}"
+                 "public_url": f"{base_url}/uploads/{key}"
              }
         raise HTTPException(status_code=500, detail="S3 configuration missing")
 
@@ -60,6 +72,19 @@ def generate_upload_url(req: PresignedUrlRequest, user: dict = UserDep):
         "s3_key": key,
         "public_url": f"https://{bucket_name}.s3.amazonaws.com/{key}"
     }
+
+@router.put("/local-upload/{key:path}")
+async def local_upload(key: str, request: Request):
+    if not _local_uploads_enabled():
+        raise HTTPException(status_code=404, detail="Local uploads disabled")
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty upload")
+    target = _safe_local_path(key)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with target.open("wb") as f:
+        f.write(body)
+    return {"ok": True}
 
 @router.post("/", response_model=ItemRead)
 def create_item(item_in: ItemCreate, session: Session = SessionDep, user: dict = UserDep):

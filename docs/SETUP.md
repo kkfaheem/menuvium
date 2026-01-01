@@ -35,11 +35,14 @@ Use a single source of truth for config keys. Create `services/api/.env` and `ap
 
 Recommended baseline (add as needed):
 - API
-  - `DATABASE_URL` (same format in local and prod)
-  - `API_BASE_URL` (used by web; local is `http://localhost:8000`)
+  - `DATABASE_URL` (local only; optional if using discrete DB_* vars)
+  - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` (prod; matches CDK)
   - `CORS_ORIGINS` (include `http://localhost:3000` locally)
+  - `AUTH_MODE` (`MOCK` locally, `COGNITO` in prod)
+  - `S3_BUCKET_NAME` (prod only)
+  - `LOCAL_UPLOADS` (local only; set to `1` for filesystem uploads)
 - Web
-  - `NEXT_PUBLIC_API_BASE_URL` (local: `http://localhost:8000`)
+  - `NEXT_PUBLIC_API_URL` (local: `http://localhost:8000`)
 
 ### Database Migrations
 Always run migrations the same way in local and prod.

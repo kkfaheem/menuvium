@@ -13,7 +13,9 @@ async def lifespan(app: FastAPI):
     yield
 
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import os
+from pathlib import Path
 
 app = FastAPI(title="Menuvium API", lifespan=lifespan)
 
@@ -26,6 +28,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if os.getenv("LOCAL_UPLOADS") == "1" or os.getenv("AUTH_MODE") == "MOCK":
+    upload_dir = Path(__file__).resolve().parent / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
 
 from routers import organizations, menus, categories, items, metadata
 app.include_router(organizations.router)

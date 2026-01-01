@@ -6,6 +6,7 @@ import * as ecs_patterns from 'aws-cdk-lib/aws-ecs-patterns';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as ecr from 'aws-cdk-lib/aws-ecr';
 
 export class MenuviumStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -23,6 +24,8 @@ export class MenuviumStack extends cdk.Stack {
             vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
             instanceType: ec2.InstanceType.of(ec2.InstanceClass.BURSTABLE3, ec2.InstanceSize.MICRO), // Free tier friendly
             allocatedStorage: 20,
+            credentials: rds.Credentials.fromGeneratedSecret('postgres'),
+            databaseName: 'menuvium',
         });
 
         // 3. Auth (Cognito)
@@ -41,6 +44,22 @@ export class MenuviumStack extends cdk.Stack {
             }],
         });
 
+        const apiRepo = new ecr.Repository(this, 'MenuviumApiRepo');
+
+        const corsOrigins = this.node.tryGetContext('corsOrigins') || process.env.CORS_ORIGINS;
+        const apiEnvironment: Record<string, string> = {
+            DB_HOST: db.dbInstanceEndpointAddress,
+            DB_PORT: db.dbInstanceEndpointPort,
+            DB_NAME: 'menuvium',
+            DB_USER: 'postgres',
+            COGNITO_USER_POOL_ID: userPool.userPoolId,
+            COGNITO_CLIENT_ID: userPoolClient.userPoolClientId,
+            S3_BUCKET_NAME: bucket.bucketName,
+        };
+        if (corsOrigins) {
+            apiEnvironment.CORS_ORIGINS = corsOrigins;
+        }
+
         // 5. API (Fargate)
         const cluster = new ecs.Cluster(this, 'MenuviumCluster', { vpc });
         const apiService = new ecs_patterns.ApplicationLoadBalancedFargateService(this, 'MenuviumApiService', {
@@ -48,15 +67,10 @@ export class MenuviumStack extends cdk.Stack {
             memoryLimitMiB: 512,
             cpu: 256,
             taskImageOptions: {
-                image: ecs.ContainerImage.fromRegistry('menuvium-api:latest'), // Placeholder, would need ECR
-                environment: {
-                    DATABASE_URL: `postgresql://postgres:password@${db.dbInstanceEndpointAddress}:5432/menuvium`, // NOTE: Actual password should be secret
-                    COGNITO_USER_POOL_ID: userPool.userPoolId,
-                    COGNITO_CLIENT_ID: userPoolClient.userPoolClientId,
-                    S3_BUCKET_NAME: bucket.bucketName,
-                },
+                image: ecs.ContainerImage.fromEcrRepository(apiRepo, 'latest'),
+                environment: apiEnvironment,
                 secrets: {
-                    // DB_PASSWORD: ... from secrets manager
+                    DB_PASSWORD: ecs.Secret.fromSecretsManager(db.secret!, 'password'),
                 }
             },
             publicLoadBalancer: true,
@@ -74,5 +88,6 @@ export class MenuviumStack extends cdk.Stack {
         new cdk.CfnOutput(this, 'UserPoolId', { value: userPool.userPoolId });
         new cdk.CfnOutput(this, 'UserPoolClientId', { value: userPoolClient.userPoolClientId });
         new cdk.CfnOutput(this, 'BucketName', { value: bucket.bucketName });
+        new cdk.CfnOutput(this, 'ApiRepoName', { value: apiRepo.repositoryName });
     }
 }

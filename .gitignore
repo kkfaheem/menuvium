@@ -1,0 +1,32 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+
+# Local uploads and logs
+services/api/uploads/
+*.log
+
+# Node/Next.js
+node_modules/
+apps/web/.next/
+apps/web/out/
+
+# CDK
+infra/cdk/cdk.out/
+
+# Env files (keep examples)
+.env
+.env.*
+!.env.example

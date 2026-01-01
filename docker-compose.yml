@@ -22,6 +22,7 @@ services:
       DATABASE_URL: postgresql://postgres:password@db:5432/menuvium
       CORS_ORIGINS: http://localhost:3000
       AUTH_MODE: MOCK
+      LOCAL_UPLOADS: "1"
     depends_on:
       - db
     volumes:

@@ -9,6 +9,8 @@ on:
 jobs:
   backend-test:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite://
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
