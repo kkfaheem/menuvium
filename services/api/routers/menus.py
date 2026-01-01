@@ -1,9 +1,18 @@
 import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 from database import get_session
-from models import Menu, Organization, MenuRead
+from models import (
+    Menu,
+    Organization,
+    MenuRead,
+    Category,
+    Item,
+    ItemPhoto,
+    ItemDietaryTagLink,
+    ItemAllergenLink,
+)
 from dependencies import get_current_user
 
 router = APIRouter(prefix="/menus", tags=["menus"])
@@ -106,8 +115,18 @@ def delete_menu(menu_id: uuid.UUID, session: Session = SessionDep, user: dict = 
     if org.owner_id != user["sub"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # TODO: Cascade delete items/categories? SQLModel might handle if configured, 
-    # but strictly we should ensure cleanup.
+    categories = session.exec(select(Category.id).where(Category.menu_id == menu_id)).all()
+    category_ids = [row[0] if isinstance(row, tuple) else row for row in categories]
+    if category_ids:
+        item_ids = session.exec(select(Item.id).where(Item.category_id.in_(category_ids))).all()
+        item_ids = [row[0] if isinstance(row, tuple) else row for row in item_ids]
+        if item_ids:
+            session.exec(delete(ItemPhoto).where(ItemPhoto.item_id.in_(item_ids)))
+            session.exec(delete(ItemDietaryTagLink).where(ItemDietaryTagLink.item_id.in_(item_ids)))
+            session.exec(delete(ItemAllergenLink).where(ItemAllergenLink.item_id.in_(item_ids)))
+            session.exec(delete(Item).where(Item.id.in_(item_ids)))
+        session.exec(delete(Category).where(Category.id.in_(category_ids)))
+
     session.delete(db_menu)
     session.commit()
     return {"ok": True}

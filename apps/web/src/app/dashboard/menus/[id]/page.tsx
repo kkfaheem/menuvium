@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, ArrowLeft, GripVertical, Trash2, Edit, Save, X, Image as ImageIcon, Loader2 } from "lucide-react";
+import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useParams, useRouter } from "next/navigation";
@@ -26,6 +26,7 @@ interface Menu {
     id: string;
     name: string;
     slug: string;
+    is_active: boolean;
     categories: Category[];
 }
 
@@ -34,6 +35,13 @@ export default function MenuDetailPage() {
     const router = useRouter();
     const { user } = useAuthenticator((context) => [context.user]);
     const [menu, setMenu] = useState<Menu | null>(null);
+    const [menuName, setMenuName] = useState("");
+    const [menuActive, setMenuActive] = useState(true);
+    const [isSavingMenu, setIsSavingMenu] = useState(false);
+    const [isDeletingMenu, setIsDeletingMenu] = useState(false);
+    const [pageDirty, setPageDirty] = useState(false);
+    const [hasLoadedMenu, setHasLoadedMenu] = useState(false);
+    const [menuBaseline, setMenuBaseline] = useState<{ name: string; is_active: boolean } | null>(null);
     const [loading, setLoading] = useState(true);
     const [dietaryTags, setDietaryTags] = useState<{ id: string, name: string }[]>([]);
     const [allergens, setAllergens] = useState<{ id: string, name: string }[]>([]);
@@ -103,6 +111,19 @@ export default function MenuDetailPage() {
             }));
 
             setMenu({ ...menuData, categories: categoriesWithItems });
+            const baseline = { name: menuData.name || "", is_active: Boolean(menuData.is_active) };
+            const shouldSyncMenuFields =
+                !menuBaseline ||
+                (menuName.trim() === menuBaseline.name && menuActive === menuBaseline.is_active);
+            setMenuBaseline(baseline);
+            if (shouldSyncMenuFields) {
+                setMenuName(baseline.name);
+                setMenuActive(baseline.is_active);
+            }
+            if (!hasLoadedMenu) {
+                setPageDirty(false);
+                setHasLoadedMenu(true);
+            }
         } catch (e) {
             console.error(e);
         } finally {
@@ -129,6 +150,7 @@ export default function MenuDetailPage() {
             if (res.ok) {
                 setNewCategoryName("");
                 setIsAddingCategory(false);
+                setPageDirty(true);
                 fetchMenu(menu.id);
             }
         } catch (e) {
@@ -144,6 +166,7 @@ export default function MenuDetailPage() {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+            setPageDirty(true);
             if (menu) fetchMenu(menu.id);
         } catch (e) {
             console.error(e);
@@ -269,6 +292,7 @@ export default function MenuDetailPage() {
             if (res.ok) {
                 setEditingItem(null);
                 setFileToUpload(null);
+                setPageDirty(true);
                 if (menu) fetchMenu(menu.id);
             } else {
                 const err = await res.json();
@@ -290,6 +314,74 @@ export default function MenuDetailPage() {
             ? current.filter((x: string) => x !== id)
             : [...current, id];
         setEditingItem({ ...editingItem, [key]: updated });
+        setPageDirty(true);
+    };
+
+    const handleSaveMenu = async () => {
+        if (!menu) return;
+        if (!menuName.trim()) {
+            alert("Menu name is required");
+            return;
+        }
+        setIsSavingMenu(true);
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/${menu.id}`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    name: menuName.trim(),
+                    is_active: menuActive
+                })
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                alert(`Failed to save menu: ${err.detail || "Unknown error"}`);
+                return;
+            }
+            const data = await res.json();
+            setMenu({ ...menu, ...data });
+            setMenuName(data.name || menuName);
+            setMenuActive(Boolean(data.is_active));
+            setMenuBaseline({ name: data.name || menuName, is_active: Boolean(data.is_active) });
+            setPageDirty(false);
+        } catch (e) {
+            console.error(e);
+            alert("Error saving menu");
+        } finally {
+            setIsSavingMenu(false);
+        }
+    };
+
+    const handleDeleteMenu = async () => {
+        if (!menu) return;
+        if (!confirm("This will permanently delete the menu and its items. Continue?")) return;
+        const confirmation = prompt(`Type "${menu.name}" to confirm deletion.`);
+        if (confirmation !== menu.name) {
+            alert("Menu name did not match. Delete cancelled.");
+            return;
+        }
+        setIsDeletingMenu(true);
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/${menu.id}`, {
+                method: "DELETE",
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (res.ok) {
+                router.push("/dashboard/menus");
+            } else {
+                alert("Failed to delete menu");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error deleting menu");
+        } finally {
+            setIsDeletingMenu(false);
+        }
     };
 
     if (loading) return <div className="text-white/40 flex items-center gap-2"><Loader2 className="animate-spin" /> Loading menu...</div>;
@@ -301,14 +393,41 @@ export default function MenuDetailPage() {
                 <Link href="/dashboard/menus" className="text-sm text-white/40 hover:text-white mb-4 inline-flex items-center gap-1 transition-colors">
                     <ArrowLeft className="w-4 h-4" /> Back to Menus
                 </Link>
-                <div className="flex justify-between items-end">
+                <div className="flex flex-wrap justify-between items-end gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight mb-2">{menu.name}</h1>
+                        <input
+                            className="text-3xl font-bold tracking-tight mb-2 bg-transparent border-b border-transparent focus:outline-none focus:border-white/20 transition-colors"
+                            value={menuName}
+                            onChange={(e) => {
+                                setMenuName(e.target.value);
+                                setPageDirty(true);
+                            }}
+                            aria-label="Menu name"
+                        />
                         <p className="text-white/40 font-mono text-sm">/r/{menu.id}</p>
                     </div>
-                    <Link href={`/r/${menu.id}`} target="_blank" className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg font-bold transition-all text-sm">
-                        View Public Page
-                    </Link>
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => {
+                                setMenuActive(!menuActive);
+                                setPageDirty(true);
+                            }}
+                            className={`h-9 min-w-[88px] px-3 rounded-lg text-xs font-bold transition-colors border ${menuActive ? "bg-white/10 text-white border-white/20" : "bg-white/5 text-white/50 border-white/10"}`}
+                        >
+                            {menuActive ? "ACTIVE" : "INACTIVE"}
+                        </button>
+                        <button
+                            onClick={handleSaveMenu}
+                            disabled={isSavingMenu || !pageDirty}
+                            className={`h-9 px-4 rounded-lg font-bold transition-all text-sm inline-flex items-center gap-2 justify-center min-w-[110px] whitespace-nowrap ${isSavingMenu || !pageDirty ? "bg-white/10 text-white/40 cursor-not-allowed" : "bg-white text-black hover:bg-white/90"}`}
+                        >
+                            {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
+                            {isSavingMenu ? "Saving..." : "Save"}
+                        </button>
+                        <Link href={`/r/${menu.id}`} target="_blank" className="h-9 px-4 rounded-lg font-bold transition-all text-sm inline-flex items-center bg-white/5 text-white/70 hover:bg-white/10 hover:text-white">
+                            View Public Page
+                        </Link>
+                    </div>
                 </div>
             </header>
 
@@ -341,7 +460,14 @@ export default function MenuDetailPage() {
                                 </div>
                             )}
                             {category.items?.map(item => (
-                                <div key={item.id} className="p-3 bg-white/5 rounded-xl flex justify-between items-center group hover:bg-white/10 transition-colors cursor-pointer" onClick={() => setEditingItem({ ...item, categoryId: category.id })}>
+                                <div
+                                    key={item.id}
+                                    className="p-3 bg-white/5 rounded-xl flex justify-between items-center group hover:bg-white/10 transition-colors cursor-pointer"
+                                    onClick={() => {
+                                        setEditingItem({ ...item, categoryId: category.id });
+                                        setFileToUpload(null);
+                                    }}
+                                >
                                     <div className="flex items-center gap-4">
                                         {(item.photo_url || (item as any).photos?.[0]?.url) && (
                                             <img src={item.photo_url || (item as any).photos?.[0]?.url} alt={item.name} className="w-10 h-10 rounded-lg object-cover bg-white/5" />
@@ -362,6 +488,7 @@ export default function MenuDetailPage() {
                                 onClick={() => {
                                     setEditingItem({ categoryId: category.id });
                                     setFileToUpload(null);
+                                    setPageDirty(true);
                                 }}
                                 className="w-full py-3 border-2 border-dashed border-white/10 rounded-xl text-white/40 hover:text-white hover:border-white/20 transition-all text-sm font-medium flex items-center justify-center gap-2"
                             >
@@ -378,7 +505,16 @@ export default function MenuDetailPage() {
                         <div className="flex gap-4">
                             <input
                                 value={newCategoryName}
-                                onChange={(e) => setNewCategoryName(e.target.value)}
+                                onChange={(e) => {
+                                    setNewCategoryName(e.target.value);
+                                    if (e.target.value.trim()) setPageDirty(true);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        handleAddCategory();
+                                    }
+                                }}
                                 placeholder="Category Name (e.g. Appetizers)"
                                 className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-blue-500 transition-colors"
                                 autoFocus
@@ -390,7 +526,10 @@ export default function MenuDetailPage() {
                                 Save
                             </button>
                             <button
-                                onClick={() => setIsAddingCategory(false)}
+                                onClick={() => {
+                                    setIsAddingCategory(false);
+                                    setNewCategoryName("");
+                                }}
                                 className="bg-white/10 text-white px-4 rounded-xl font-bold hover:bg-white/20"
                             >
                                 Cancel
@@ -399,7 +538,10 @@ export default function MenuDetailPage() {
                     </div>
                 ) : (
                     <button
-                        onClick={() => setIsAddingCategory(true)}
+                        onClick={() => {
+                            setIsAddingCategory(true);
+                            setPageDirty(true);
+                        }}
                         className="w-full py-6 border-2 border-dashed border-white/10 rounded-3xl text-white/40 hover:text-white hover:border-white/20 transition-all font-bold text-lg flex items-center justify-center gap-3"
                     >
                         <Plus className="w-6 h-6" /> Add Category
@@ -407,13 +549,43 @@ export default function MenuDetailPage() {
                 )}
             </div>
 
+            <div className="mt-10 border border-red-500/20 bg-red-500/5 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                    <h3 className="font-bold text-red-400">Delete Menu</h3>
+                    <p className="text-sm text-white/50">This removes the menu and its items permanently.</p>
+                </div>
+                <button
+                    onClick={handleDeleteMenu}
+                    disabled={isDeletingMenu}
+                    className="px-4 py-2 rounded-lg font-bold text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                    {isDeletingMenu ? "Deleting..." : "Delete Menu"}
+                </button>
+            </div>
+
             {/* Item Editor Modal */}
             {editingItem && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-                    <div className="bg-[#111] border border-white/10 w-full max-w-lg rounded-3xl shadow-2xl scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+                    <div
+                        className="bg-[#111] border border-white/10 w-full max-w-lg rounded-3xl shadow-2xl scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
+                        onKeyDown={(e) => {
+                            const target = e.target as HTMLElement;
+                            const isTextarea = target.tagName === "TEXTAREA";
+                            if (e.key === "Enter" && !isTextarea) {
+                                e.preventDefault();
+                                handleSaveItem();
+                            }
+                        }}
+                    >
                         <div className="p-6 pb-2 flex-shrink-0 flex justify-between items-center">
                             <h2 className="text-xl font-bold">{editingItem.id ? "Edit Item" : "Add Item"}</h2>
-                            <button onClick={() => setEditingItem(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                            <button
+                                onClick={() => {
+                                    setEditingItem(null);
+                                    setFileToUpload(null);
+                                }}
+                                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                            >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -425,7 +597,10 @@ export default function MenuDetailPage() {
                                     className="w-full bg-white/5 border border-white/10 rounded-xl p-3 focus:outline-none focus:border-blue-500 transition-colors"
                                     placeholder="e.g. Margherita Pizza"
                                     value={editingItem.name || ""}
-                                    onChange={e => setEditingItem({ ...editingItem, name: e.target.value })}
+                                    onChange={e => {
+                                        setEditingItem({ ...editingItem, name: e.target.value });
+                                        setPageDirty(true);
+                                    }}
                                 />
                             </div>
                             <div>
@@ -434,7 +609,10 @@ export default function MenuDetailPage() {
                                     className="w-full bg-white/5 border border-white/10 rounded-xl p-3 focus:outline-none focus:border-blue-500 transition-colors min-h-[80px]"
                                     placeholder="e.g. Tomato sauce, mozzarella, and fresh basil."
                                     value={editingItem.description || ""}
-                                    onChange={e => setEditingItem({ ...editingItem, description: e.target.value })}
+                                    onChange={e => {
+                                        setEditingItem({ ...editingItem, description: e.target.value });
+                                        setPageDirty(true);
+                                    }}
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -446,13 +624,19 @@ export default function MenuDetailPage() {
                                         className="w-full bg-white/5 border border-white/10 rounded-xl p-3 focus:outline-none focus:border-blue-500 transition-colors"
                                         placeholder="0.00"
                                         value={editingItem.price || ""}
-                                        onChange={e => setEditingItem({ ...editingItem, price: parseFloat(e.target.value) })}
+                                        onChange={e => {
+                                            setEditingItem({ ...editingItem, price: parseFloat(e.target.value) });
+                                            setPageDirty(true);
+                                        }}
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Status</label>
                                     <button
-                                        onClick={() => setEditingItem({ ...editingItem, is_sold_out: !editingItem.is_sold_out })}
+                                        onClick={() => {
+                                            setEditingItem({ ...editingItem, is_sold_out: !editingItem.is_sold_out });
+                                            setPageDirty(true);
+                                        }}
                                         className={`w-full p-3 rounded-xl border font-bold text-sm transition-all ${editingItem.is_sold_out ? 'bg-red-500/20 border-red-500/50 text-red-500' : 'bg-green-500/20 border-green-500/50 text-green-500'}`}
                                     >
                                         {editingItem.is_sold_out ? 'SOLD OUT' : 'AVAILABLE'}
@@ -500,7 +684,11 @@ export default function MenuDetailPage() {
                                         type="file"
                                         accept="image/*"
                                         className="hidden"
-                                        onChange={(e) => e.target.files?.[0] && setFileToUpload(e.target.files[0])}
+                                        onChange={(e) => {
+                                            if (!e.target.files?.[0]) return;
+                                            setFileToUpload(e.target.files[0]);
+                                            setPageDirty(true);
+                                        }}
                                     />
                                     {fileToUpload ? (
                                         <div className="text-center">
@@ -538,6 +726,7 @@ export default function MenuDetailPage() {
                                                 });
                                                 if (res.ok) {
                                                     setEditingItem(null);
+                                                    setPageDirty(true);
                                                     if (menu) fetchMenu(menu.id);
                                                 }
                                             } catch (e) {
@@ -551,7 +740,15 @@ export default function MenuDetailPage() {
                                 )}
                             </div>
                             <div className="flex gap-3">
-                                <button onClick={() => setEditingItem(null)} className="px-6 py-3 rounded-xl font-bold hover:bg-white/10 transition-colors">Cancel</button>
+                                <button
+                                    onClick={() => {
+                                        setEditingItem(null);
+                                        setFileToUpload(null);
+                                    }}
+                                    className="px-6 py-3 rounded-xl font-bold hover:bg-white/10 transition-colors"
+                                >
+                                    Cancel
+                                </button>
                                 <button
                                     onClick={handleSaveItem}
                                     disabled={isSavingItem || !editingItem.name || (!editingItem.price && editingItem.price !== 0)}

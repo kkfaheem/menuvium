@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, ArrowRight, Loader2 } from "lucide-react";
+import { Plus, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useRouter } from "next/navigation";
@@ -174,26 +174,6 @@ export default function MenusPage() {
         }
     };
 
-    const handleDeleteMenu = async (menuId: string, e: React.MouseEvent) => {
-        e.preventDefault(); // Prevent navigation
-        if (!confirm("Are you sure you want to delete this menu?")) return;
-
-        try {
-            const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/${menuId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                fetchMenus();
-            } else {
-                alert("Failed to delete menu");
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    };
-
     if (loading && !menus.length && !selectedLocation) return <div className="text-white/40">Loading context...</div>;
 
     return (
@@ -240,29 +220,23 @@ export default function MenusPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {menus.map(menu => (
-                    <Link key={menu.id} href={`/dashboard/menus/${menu.id}`} className="group block bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all hover:scale-[1.02] relative">
-                        <button
-                            onClick={(e) => handleDeleteMenu(menu.id, e)}
-                            className="absolute top-4 right-4 p-2 text-white/20 hover:text-red-500 transition-colors z-10"
-                            title="Delete Menu"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" /><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
-                        </button>
-
+                    <Link
+                        key={menu.id}
+                        href={`/dashboard/menus/${menu.id}`}
+                        className={`group block bg-white/5 border border-white/10 rounded-2xl p-6 transition-all hover:scale-[1.02] ${menu.is_active ? 'hover:bg-white/10' : 'opacity-60 hover:opacity-80'}`}
+                    >
                         <div className="flex justify-between items-start mb-4">
                             <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500 font-bold text-xl">
                                 {menu.name[0]}
                             </div>
-                            <div className={`px-2 py-1 rounded text-xs font-bold ${menu.is_active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                {menu.is_active ? 'ACTIVE' : 'DRAFT'}
+                            <div className="flex items-center gap-2">
+                                <div className={`px-2 py-1 rounded text-xs font-bold ${menu.is_active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-300'}`}>
+                                    {menu.is_active ? 'ACTIVE' : 'INACTIVE'}
+                                </div>
                             </div>
                         </div>
                         <h3 className="text-xl font-bold mb-1 group-hover:text-blue-400 transition-colors">{menu.name}</h3>
-                        <p className="text-white/40 text-sm mb-4">Internal Slug: {menu.slug || 'N/A'}</p>
 
-                        <div className="flex items-center text-sm font-medium text-white/40 group-hover:text-white transition-colors">
-                            Manage Items <ArrowRight className="w-4 h-4 ml-1" />
-                        </div>
                     </Link>
                 ))}
             </div>
