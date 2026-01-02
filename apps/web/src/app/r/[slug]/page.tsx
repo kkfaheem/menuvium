@@ -63,6 +63,7 @@ export default function PublicMenuPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
+    const [soldOutDisplay, setSoldOutDisplay] = useState<"dim" | "hide">("dim");
 
     // Modal State
     const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -70,6 +71,15 @@ export default function PublicMenuPage() {
     useEffect(() => {
         if (menuId) fetchMenu();
     }, [menuId]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const stored = (localStorage.getItem("menuvium_sold_out_display") as "dim" | "hide") || "dim";
+        setSoldOutDisplay(stored);
+    }, []);
+
+    const visibleItems = (items: Item[]) =>
+        items.filter((item) => !(soldOutDisplay === "hide" && item.is_sold_out));
 
     const fetchMenu = async () => {
         try {
@@ -85,13 +95,16 @@ export default function PublicMenuPage() {
     };
 
     // Filter Logic
-    const filteredCategories = menu?.categories.map(cat => ({
-        ...cat,
-        items: cat.items.filter(item =>
+    const filteredCategories = menu?.categories.map(cat => {
+        const searchFiltered = cat.items.filter(item =>
             item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             item.description?.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-    })).filter(cat => cat.items.length > 0) || [];
+        );
+        return {
+            ...cat,
+            items: visibleItems(searchFiltered)
+        };
+    }).filter(cat => cat.items.length > 0) || [];
 
     const previewTheme = searchParams.get("theme");
     const resolvedTheme = (previewTheme || menu?.theme || "noir") as MenuThemeId;
@@ -160,15 +173,15 @@ export default function PublicMenuPage() {
                     <section key={category.id} id={`cat-${category.id}`} className="scroll-mt-48">
                         <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
                             {category.name}
-                            <span className="text-xs font-mono font-normal text-white/20 bg-white/5 px-2 py-1 rounded-full">{category.items.length}</span>
+                            <span className="text-xs font-mono font-normal text-white/20 bg-white/5 px-2 py-1 rounded-full">{visibleItems(category.items).length}</span>
                         </h2>
 
                         <div className="grid gap-6">
-                            {category.items.map(item => (
+                            {visibleItems(category.items).map(item => (
                                 <div
                                     key={item.id}
                                     onClick={() => setSelectedItem(item)}
-                                    className={`group relative bg-white/[0.03] active:scale-[0.98] transition-all duration-200 rounded-3xl p-4 flex gap-4 cursor-pointer overflow-hidden border border-white/5 hover:border-white/10 ${item.is_sold_out ? "opacity-50 grayscale" : ""}`}
+                                    className={`group relative bg-white/[0.03] active:scale-[0.98] transition-all duration-200 rounded-3xl p-4 flex gap-4 cursor-pointer overflow-hidden border border-white/5 hover:border-white/10 ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-50 grayscale" : ""}`}
                                 >
                                     <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
                                         <div>
@@ -273,14 +286,14 @@ export default function PublicMenuPage() {
                     <section key={category.id} id={`cat-${category.id}`} className="scroll-mt-44">
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-2xl ${playfair.className}`}>{category.name}</h2>
-                            <span className="text-xs text-[#9C8F86]">{category.items.length} items</span>
+                            <span className="text-xs text-[#9C8F86]">{visibleItems(category.items).length} items</span>
                         </div>
                         <div className="bg-white rounded-3xl border border-[#E6DED4] divide-y divide-[#F0E8DE] overflow-hidden">
-                            {category.items.map(item => (
+                            {visibleItems(category.items).map(item => (
                                 <button
                                     key={item.id}
                                     onClick={() => setSelectedItem(item)}
-                                    className={`w-full text-left px-4 py-4 flex items-start gap-3 hover:bg-[#FCFAF7] transition-colors ${item.is_sold_out ? "opacity-60" : ""}`}
+                                    className={`w-full text-left px-4 py-4 flex items-start gap-3 hover:bg-[#FCFAF7] transition-colors ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
                                 >
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between gap-3">
@@ -343,14 +356,14 @@ export default function PublicMenuPage() {
                     <section key={category.id} id={`cat-${category.id}`} className="scroll-mt-44">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className={`text-2xl tracking-wide ${bebas.className}`}>{category.name}</h2>
-                            <span className="text-xs text-[#A67E44]">{category.items.length} items</span>
+                            <span className="text-xs text-[#A67E44]">{visibleItems(category.items).length} items</span>
                         </div>
                         <div className="grid gap-4">
-                            {category.items.map(item => (
+                            {visibleItems(category.items).map(item => (
                                 <div
                                     key={item.id}
                                     onClick={() => setSelectedItem(item)}
-                                    className={`group cursor-pointer bg-white rounded-2xl border-2 border-[#F4D8B8] p-4 shadow-sm hover:-translate-y-0.5 transition-all ${item.is_sold_out ? "opacity-60" : ""}`}
+                                    className={`group cursor-pointer bg-white rounded-2xl border-2 border-[#F4D8B8] p-4 shadow-sm hover:-translate-y-0.5 transition-all ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
@@ -406,14 +419,14 @@ export default function PublicMenuPage() {
                     <section key={category.id} id={`cat-${category.id}`} className="scroll-mt-44">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-semibold">{category.name}</h2>
-                            <span className="text-xs text-[#7C9198]">{category.items.length} items</span>
+                            <span className="text-xs text-[#7C9198]">{visibleItems(category.items).length} items</span>
                         </div>
                         <div className="bg-white rounded-2xl border border-[#D6E3E8] divide-y divide-[#EEF4F6]">
-                            {category.items.map(item => (
+                            {visibleItems(category.items).map(item => (
                                 <button
                                     key={item.id}
                                     onClick={() => setSelectedItem(item)}
-                                    className={`w-full text-left px-4 py-4 flex items-center justify-between gap-4 hover:bg-[#F7FBFC] transition-colors ${item.is_sold_out ? "opacity-60" : ""}`}
+                                    className={`w-full text-left px-4 py-4 flex items-center justify-between gap-4 hover:bg-[#F7FBFC] transition-colors ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
                                 >
                                     <div className="min-w-0">
                                         <h3 className="font-semibold text-base truncate">{item.name}</h3>

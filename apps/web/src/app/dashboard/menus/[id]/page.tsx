@@ -143,6 +143,7 @@ export default function MenuDetailPage() {
     const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
     const [tagLabels, setTagLabels] = useState(TAG_LABELS_DEFAULTS);
     const [tagGroups, setTagGroups] = useState<Record<string, "diet" | "spice" | "highlights">>({});
+    const [soldOutDisplay, setSoldOutDisplay] = useState<"dim" | "hide">("dim");
 
     const normalize = (value: string) => value.trim().toLowerCase();
     const orderTags = <T extends { id: string; name: string }>(source: T[], names: string[]) =>
@@ -223,6 +224,8 @@ export default function MenuDetailPage() {
                 setTagGroups({});
             }
         }
+        const storedSoldOut = (localStorage.getItem("menuvium_sold_out_display") as "dim" | "hide") || "dim";
+        setSoldOutDisplay(storedSoldOut);
     }, []);
 
     const fetchMetadata = async () => {
@@ -965,14 +968,18 @@ export default function MenuDetailPage() {
                                                     </div>
                                                 )}
                                                 <SortableContext
-                                                    items={(category.items || []).map((item) => `item-${item.id}`)}
+                                                    items={(category.items || [])
+                                                        .filter((item) => !(soldOutDisplay === "hide" && item.is_sold_out))
+                                                        .map((item) => `item-${item.id}`)}
                                                     strategy={verticalListSortingStrategy}
                                                 >
-                                                    {category.items?.map((item) => (
+                                                    {category.items
+                                                        ?.filter((item) => !(soldOutDisplay === "hide" && item.is_sold_out))
+                                                        .map((item) => (
                                                         <SortableItemRow
                                                             key={item.id}
                                                             id={`item-${item.id}`}
-                                                            className="p-3 bg-[var(--cms-panel-strong)] rounded-xl flex justify-between items-center group hover:bg-[var(--cms-pill)] transition-colors cursor-pointer"
+                                                            className={`p-3 bg-[var(--cms-panel-strong)] rounded-xl flex justify-between items-center group hover:bg-[var(--cms-pill)] transition-colors cursor-pointer ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
                                                         >
                                                             {({ attributes: itemAttributes, listeners: itemListeners }) => (
                                                                 <div

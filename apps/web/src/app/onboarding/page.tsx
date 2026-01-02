@@ -30,6 +30,32 @@ export default function OnboardingPage() {
         }
     }, [user, router]);
 
+    useEffect(() => {
+        if (!user) return;
+        const checkExistingMenus = async () => {
+            try {
+                const token = await getAuthToken();
+                const orgRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/organizations/`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (!orgRes.ok) return;
+                const orgs = await orgRes.json();
+                if (!orgs.length) return;
+                const menusRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/menus/?org_id=${orgs[0].id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (!menusRes.ok) return;
+                const menus = await menusRes.json();
+                if (menus.length) {
+                    router.push("/dashboard/menus");
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        checkExistingMenus();
+    }, [user, router]);
+
     const getAuthToken = async () => {
         const session = await fetchAuthSession();
         const token = session.tokens?.idToken?.toString();

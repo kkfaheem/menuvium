@@ -4,6 +4,7 @@ import { Authenticator, ThemeProvider, useAuthenticator } from "@aws-amplify/ui-
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Fraunces, Space_Grotesk } from "next/font/google";
+import { fetchAuthSession } from "aws-amplify/auth";
 
 const fraunces = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600"] });
@@ -13,9 +14,42 @@ export default function LoginPage() {
     const { authStatus } = useAuthenticator(context => [context.authStatus]);
 
     useEffect(() => {
-        if (authStatus === 'authenticated') {
-            router.push('/onboarding');
-        }
+        if (authStatus !== 'authenticated') return;
+        const resolveLanding = async () => {
+            try {
+                const session = await fetchAuthSession();
+                const token = session.tokens?.idToken?.toString();
+                if (!token) {
+                    router.push("/onboarding");
+                    return;
+                }
+                const orgRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/organizations/`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (!orgRes.ok) {
+                    router.push("/onboarding");
+                    return;
+                }
+                const orgs = await orgRes.json();
+                if (!orgs.length) {
+                    router.push("/onboarding");
+                    return;
+                }
+                const menusRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/?org_id=${orgs[0].id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (!menusRes.ok) {
+                    router.push("/onboarding");
+                    return;
+                }
+                const menus = await menusRes.json();
+                router.push(menus.length ? "/dashboard/menus" : "/onboarding");
+            } catch (e) {
+                console.error(e);
+                router.push("/onboarding");
+            }
+        };
+        resolveLanding();
     }, [authStatus, router]);
 
     const isConfigured = process.env.NEXT_PUBLIC_USER_POOL_ID && process.env.NEXT_PUBLIC_USER_POOL_ID !== 'us-east-1_dummy';

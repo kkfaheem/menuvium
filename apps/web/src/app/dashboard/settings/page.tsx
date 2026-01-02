@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Sun, Moon, ShieldCheck, Plus, X } from "lucide-react";
-import { updatePassword } from "aws-amplify/auth";
+import { Sun, Moon, Plus, X } from "lucide-react";
 import { ALLERGEN_TAGS, DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
 
 type Theme = "dark" | "light";
@@ -25,8 +24,11 @@ type TagLabels = {
     allergens: string;
 };
 
+type SoldOutDisplay = "dim" | "hide";
+
 export default function SettingsPage() {
     const [theme, setTheme] = useState<Theme>("dark");
+    const [soldOutDisplay, setSoldOutDisplay] = useState<SoldOutDisplay>("dim");
     const [tags, setTags] = useState<DietaryTag[]>([]);
     const [allergens, setAllergens] = useState<Allergen[]>([]);
     const [savingTag, setSavingTag] = useState(false);
@@ -38,13 +40,6 @@ export default function SettingsPage() {
     const [newSpiceTag, setNewSpiceTag] = useState("");
     const [newHighlightTag, setNewHighlightTag] = useState("");
     const [newAllergenTag, setNewAllergenTag] = useState("");
-    const [passwordState, setPasswordState] = useState({
-        current: "",
-        next: "",
-        confirm: ""
-    });
-    const [passwordSaving, setPasswordSaving] = useState(false);
-    const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
 
     const normalize = (value: string) => value.trim().toLowerCase();
     const normalizeKey = (value: string) => value.trim();
@@ -54,6 +49,8 @@ export default function SettingsPage() {
             const savedTheme = (localStorage.getItem("menuvium_cms_theme") as Theme) || "dark";
             setTheme(savedTheme);
             document.documentElement.dataset.cmsTheme = savedTheme;
+            const savedSoldOut = (localStorage.getItem("menuvium_sold_out_display") as SoldOutDisplay) || "dim";
+            setSoldOutDisplay(savedSoldOut);
             const storedLabels = localStorage.getItem("menuvium_tag_labels");
             if (storedLabels) {
                 try {
@@ -135,6 +132,13 @@ export default function SettingsPage() {
         if (typeof window !== "undefined") {
             localStorage.setItem("menuvium_cms_theme", nextTheme);
             document.documentElement.dataset.cmsTheme = nextTheme;
+        }
+    };
+
+    const setSoldOutDisplayAndPersist = (next: SoldOutDisplay) => {
+        setSoldOutDisplay(next);
+        if (typeof window !== "undefined") {
+            localStorage.setItem("menuvium_sold_out_display", next);
         }
     };
 
@@ -306,30 +310,6 @@ export default function SettingsPage() {
         });
     };
 
-    const handleChangePassword = async () => {
-        if (!passwordState.current || !passwordState.next || !passwordState.confirm) {
-            setPasswordMessage("Fill all password fields.");
-            return;
-        }
-        if (passwordState.next !== passwordState.confirm) {
-            setPasswordMessage("New passwords do not match.");
-            return;
-        }
-        setPasswordSaving(true);
-        setPasswordMessage(null);
-        try {
-            await updatePassword({
-                oldPassword: passwordState.current,
-                newPassword: passwordState.next
-            });
-            setPasswordMessage("Password updated.");
-            setPasswordState({ current: "", next: "", confirm: "" });
-        } catch (e: any) {
-            setPasswordMessage(e?.message || "Failed to update password.");
-        } finally {
-            setPasswordSaving(false);
-        }
-    };
 
     return (
         <div className="max-w-4xl space-y-8">
@@ -377,41 +357,24 @@ export default function SettingsPage() {
                     </section>
 
                     <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
-                        <h2 className="text-lg font-bold mb-1">Change Password</h2>
-                        <p className="text-sm text-[var(--cms-muted)] mb-4">Update your account password.</p>
-                        <div className="grid gap-3 max-w-md">
-                            <input
-                                type="password"
-                                placeholder="Current password"
-                                value={passwordState.current}
-                                onChange={(e) => setPasswordState({ ...passwordState, current: e.target.value })}
-                                className="h-11 bg-transparent border border-[var(--cms-border)] rounded-xl px-4 focus:outline-none focus:border-[var(--cms-text)]"
-                            />
-                            <input
-                                type="password"
-                                placeholder="New password"
-                                value={passwordState.next}
-                                onChange={(e) => setPasswordState({ ...passwordState, next: e.target.value })}
-                                className="h-11 bg-transparent border border-[var(--cms-border)] rounded-xl px-4 focus:outline-none focus:border-[var(--cms-text)]"
-                            />
-                            <input
-                                type="password"
-                                placeholder="Confirm new password"
-                                value={passwordState.confirm}
-                                onChange={(e) => setPasswordState({ ...passwordState, confirm: e.target.value })}
-                                className="h-11 bg-transparent border border-[var(--cms-border)] rounded-xl px-4 focus:outline-none focus:border-[var(--cms-text)]"
-                            />
-                        <button
-                            onClick={handleChangePassword}
-                            disabled={passwordSaving}
-                            className="h-11 px-4 rounded-xl font-bold text-sm inline-flex items-center gap-2 bg-[var(--cms-text)] text-[var(--cms-bg)] disabled:opacity-50"
-                        >
-                            <ShieldCheck className="w-4 h-4" />
-                            {passwordSaving ? "Updating..." : "Update Password"}
-                        </button>
-                        {passwordMessage && <p className="text-xs text-[var(--cms-muted)]">{passwordMessage}</p>}
+                        <h2 className="text-lg font-bold mb-1">Sold-out items</h2>
+                        <p className="text-sm text-[var(--cms-muted)] mb-4">Choose how sold-out items appear on menus.</p>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setSoldOutDisplayAndPersist("dim")}
+                                className={`h-10 px-4 rounded-xl text-sm font-bold transition-colors border ${soldOutDisplay === "dim" ? "bg-[var(--cms-pill)] border-[var(--cms-border)]" : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                            >
+                                Dim items
+                            </button>
+                            <button
+                                onClick={() => setSoldOutDisplayAndPersist("hide")}
+                                className={`h-10 px-4 rounded-xl text-sm font-bold transition-colors border ${soldOutDisplay === "hide" ? "bg-[var(--cms-pill)] border-[var(--cms-border)]" : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                            >
+                                Hide items
+                            </button>
                         </div>
                     </section>
+
                 </>
             )}
 

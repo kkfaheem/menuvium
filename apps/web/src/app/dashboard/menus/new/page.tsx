@@ -13,7 +13,12 @@ export default function NewMenuPage() {
                 </Link>
             </header>
 
-            <CreateMenuFlow />
+            <CreateMenuFlow
+                variant="dark"
+                heroLabel="Create Menu"
+                heroTitle="Design a menu guests will crave"
+                heroDescription="Pick a creation path, then fine‑tune everything inside the editor."
+            />
         </div>
     );
 }
