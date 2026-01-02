@@ -21,9 +21,8 @@ def create_category(category: Category, session: Session = SessionDep, user: dic
     # In a real app we'd fetch Org, but here we can optimize or assume if we trust creating menu logic
     # But let's be safe and check org owner
     # But let's be safe and check org owner
-    from models import Organization, Location
-    location = session.get(Location, menu.location_id)
-    org = session.get(Organization, location.org_id)
+    from models import Organization
+    org = session.get(Organization, menu.org_id)
     if org.owner_id != user["sub"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -53,10 +52,8 @@ def update_category(category_id: uuid.UUID, cat_update: Category, session: Sessi
     
     # Ownership check
     menu = session.get(Menu, db_cat.menu_id)
-    menu = session.get(Menu, db_cat.menu_id)
-    from models import Organization, Location
-    location = session.get(Location, menu.location_id)
-    org = session.get(Organization, location.org_id)
+    from models import Organization
+    org = session.get(Organization, menu.org_id)
     if org.owner_id != user["sub"]:
         raise HTTPException(status_code=403, detail="Not authorized")
         
@@ -76,10 +73,8 @@ def delete_category(category_id: uuid.UUID, session: Session = SessionDep, user:
         raise HTTPException(status_code=404, detail="Category not found")
 
     menu = session.get(Menu, db_cat.menu_id)
-    menu = session.get(Menu, db_cat.menu_id)
-    from models import Organization, Location
-    location = session.get(Location, menu.location_id)
-    org = session.get(Organization, location.org_id)
+    from models import Organization
+    org = session.get(Organization, menu.org_id)
     if org.owner_id != user["sub"]:
          raise HTTPException(status_code=403, detail="Not authorized")
 

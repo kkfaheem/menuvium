@@ -3,20 +3,10 @@
 import { LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { useEffect, useState } from "react";
 
 export default function DashboardPage() {
     const { user } = useAuthenticator(context => [context.user]);
-    // Mock user check usually handled by layout, but we need username here
-    const [mockUser, setMockUser] = useState(false);
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            setMockUser(localStorage.getItem('menuvium_mock_user') === 'true');
-        }
-    }, []);
-
-    const displayName = user?.username || (mockUser ? "Mock Admin" : "User");
+    const displayName = user?.username || "User";
 
     return (
         <div>
@@ -29,7 +19,7 @@ export default function DashboardPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="p-6 bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl">
-                    <p className="text-sm text-[var(--cms-muted)] uppercase tracking-widest mb-2 font-semibold">Active Locations</p>
+                    <p className="text-sm text-[var(--cms-muted)] uppercase tracking-widest mb-2 font-semibold">Companies</p>
                     <p className="text-3xl font-bold">1</p>
                 </div>
                 <div className="p-6 bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl">

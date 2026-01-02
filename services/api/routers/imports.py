@@ -39,9 +39,7 @@ def _get_menu_or_404(menu_id: uuid.UUID, session: Session, user: dict) -> Menu:
     menu = session.get(Menu, menu_id)
     if not menu:
         raise HTTPException(status_code=404, detail="Menu not found")
-    from models import Location
-    location = session.get(Location, menu.location_id)
-    org = session.get(Organization, location.org_id)
+    org = session.get(Organization, menu.org_id)
     if org.owner_id != user["sub"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     return menu

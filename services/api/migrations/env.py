@@ -8,7 +8,7 @@ from sqlmodel import SQLModel
 from alembic import context
 # Import models to populate metadata
 from main import app  # Ensures models are loaded if imported there, or import models directly
-from models import Organization, Location  # Adjust import based on path
+from models import Organization  # Adjust import based on path
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

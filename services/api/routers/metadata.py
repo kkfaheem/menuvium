@@ -20,7 +20,19 @@ def list_dietary_tags(session: Session = SessionDep):
     tags = session.exec(select(DietaryTag)).all()
     # Seed if empty?
     if not tags:
-        seed_tags = ["Vegan", "Vegetarian", "Gluten-Free", "Spicy", "Nut-Free"]
+        seed_tags = [
+            "Vegetarian",
+            "Vegan",
+            "Eggless",
+            "Halal",
+            "Jain",
+            "Mild",
+            "Spicy",
+            "Extra Spicy",
+            "Bestseller",
+            "Chef's Special",
+            "New"
+        ]
         for t in seed_tags:
             tag = DietaryTag(name=t)
             session.add(tag)
@@ -46,7 +58,7 @@ def create_dietary_tag(payload: DietaryTagCreate, session: Session = SessionDep)
 def list_allergens(session: Session = SessionDep):
     allergens = session.exec(select(Allergen)).all()
     if not allergens:
-        seed_allergens = ["Peanuts", "Tree Nuts", "Milk", "Egg", "Wheat", "Soy", "Fish", "Shellfish"]
+        seed_allergens = ["Contains Nuts", "Contains Dairy", "Contains Gluten"]
         for a in seed_allergens:
             al = Allergen(name=a)
             session.add(al)

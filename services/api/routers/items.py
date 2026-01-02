@@ -25,7 +25,7 @@ class PresignedUrlResponse(BaseModel):
     public_url: str
 
 def _local_uploads_enabled() -> bool:
-    return os.getenv("LOCAL_UPLOADS") == "1" or os.getenv("AUTH_MODE") == "MOCK"
+    return os.getenv("LOCAL_UPLOADS") == "1"
 
 def _local_upload_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "uploads"
@@ -94,11 +94,7 @@ def create_item(item_in: ItemCreate, session: Session = SessionDep, user: dict =
         raise HTTPException(status_code=404, detail="Category not found")
     
     menu = session.get(Menu, category.menu_id)
-    menu = session.get(Menu, category.menu_id)
-    # Fix: Traverse via location
-    from models import Location
-    location = session.get(Location, menu.location_id)
-    org = session.get(Organization, location.org_id)
+    org = session.get(Organization, menu.org_id)
     
     if org.owner_id != user["sub"]:
         raise HTTPException(status_code=403, detail="Not authorized")
@@ -134,11 +130,7 @@ def add_item_photo(item_id: uuid.UUID, photo: ItemPhoto, session: Session = Sess
     # Verify ownership
     category = session.get(Category, item.category_id)
     menu = session.get(Menu, category.menu_id)
-    category = session.get(Category, item.category_id)
-    menu = session.get(Menu, category.menu_id)
-    from models import Location
-    location = session.get(Location, menu.location_id)
-    org = session.get(Organization, location.org_id)
+    org = session.get(Organization, menu.org_id)
     if org.owner_id != user["sub"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -156,11 +148,7 @@ def update_item(item_id: uuid.UUID, item_update: ItemUpdate, session: Session = 
         
     category = session.get(Category, db_item.category_id)
     menu = session.get(Menu, category.menu_id)
-    category = session.get(Category, db_item.category_id)
-    menu = session.get(Menu, category.menu_id)
-    from models import Location
-    location = session.get(Location, menu.location_id)
-    org = session.get(Organization, location.org_id)
+    org = session.get(Organization, menu.org_id)
     if org.owner_id != user["sub"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -199,11 +187,7 @@ def delete_item(item_id: uuid.UUID, session: Session = SessionDep, user: dict = 
 
     category = session.get(Category, db_item.category_id)
     menu = session.get(Menu, category.menu_id)
-    category = session.get(Category, db_item.category_id)
-    menu = session.get(Menu, category.menu_id)
-    from models import Location
-    location = session.get(Location, menu.location_id)
-    org = session.get(Organization, location.org_id)
+    org = session.get(Organization, menu.org_id)
     if org.owner_id != user["sub"]:
         raise HTTPException(status_code=403, detail="Not authorized")
         

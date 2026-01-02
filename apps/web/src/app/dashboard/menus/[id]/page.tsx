@@ -4,6 +4,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2, Check, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
+import { fetchAuthSession } from "aws-amplify/auth";
 import { useParams, useRouter } from "next/navigation";
 import {
     DndContext,
@@ -21,6 +22,7 @@ import {
     defaultAnimateLayoutChanges
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { ALLERGEN_TAGS, DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
 
 // Types
 interface Item {
@@ -45,23 +47,10 @@ interface Menu {
     name: string;
     slug: string;
     is_active: boolean;
+    theme?: string;
     categories: Category[];
 }
 
-interface ParsedItem {
-    name: string;
-    description?: string;
-    price?: number | null;
-}
-
-interface ParsedCategory {
-    name: string;
-    items: ParsedItem[];
-}
-
-interface ParsedMenu {
-    categories: ParsedCategory[];
-}
 
 function SortableCategoryCard({
     id,
@@ -152,10 +141,59 @@ export default function MenuDetailPage() {
     const [menuNameDraft, setMenuNameDraft] = useState("");
     const [activeDragId, setActiveDragId] = useState<string | null>(null);
     const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
-    const [importFile, setImportFile] = useState<File | null>(null);
-    const [parsedMenu, setParsedMenu] = useState<ParsedMenu | null>(null);
-    const [isParsingImport, setIsParsingImport] = useState(false);
-    const [isApplyingImport, setIsApplyingImport] = useState(false);
+    const [tagLabels, setTagLabels] = useState(TAG_LABELS_DEFAULTS);
+    const [tagGroups, setTagGroups] = useState<Record<string, "diet" | "spice" | "highlights">>({});
+
+    const normalize = (value: string) => value.trim().toLowerCase();
+    const orderTags = <T extends { id: string; name: string }>(source: T[], names: string[]) =>
+        names.map((name) => source.find((tag) => normalize(tag.name) === normalize(name))).filter(Boolean) as T[];
+
+    const orderByDefaults = (list: { id: string; name: string }[], defaults: string[]) => {
+        const order = new Map(defaults.map((name, index) => [normalize(name), index]));
+        return [...list].sort((a, b) => {
+            const aRank = order.get(normalize(a.name));
+            const bRank = order.get(normalize(b.name));
+            if (aRank !== undefined || bRank !== undefined) {
+                return (aRank ?? Number.MAX_SAFE_INTEGER) - (bRank ?? Number.MAX_SAFE_INTEGER);
+            }
+            return a.name.localeCompare(b.name);
+        });
+    };
+
+    const ensureTagGroups = (existing: { id: string; name: string }[]) => {
+        const defaults = new Map<string, "diet" | "spice" | "highlights">();
+        DIET_TAGS.forEach((name) => defaults.set(normalize(name), "diet"));
+        SPICE_TAGS.forEach((name) => defaults.set(normalize(name), "spice"));
+        HIGHLIGHT_TAGS.forEach((name) => defaults.set(normalize(name), "highlights"));
+        const next = { ...tagGroups };
+        let changed = false;
+        existing.forEach((tag) => {
+            if (next[tag.id]) return;
+            const group = defaults.get(normalize(tag.name)) ?? "highlights";
+            next[tag.id] = group;
+            changed = true;
+        });
+        if (changed && typeof window !== "undefined") {
+            localStorage.setItem("menuvium_tag_groups", JSON.stringify(next));
+            setTagGroups(next);
+        }
+    };
+
+    useEffect(() => {
+        if (!dietaryTags.length) return;
+        ensureTagGroups(dietaryTags);
+    }, [dietaryTags, tagGroups]);
+
+    const groupedTags = {
+        diet: dietaryTags.filter((tag) => tagGroups[tag.id] === "diet"),
+        spice: dietaryTags.filter((tag) => tagGroups[tag.id] === "spice"),
+        highlights: dietaryTags.filter((tag) => tagGroups[tag.id] === "highlights")
+    };
+
+    const dietTagList = orderByDefaults(groupedTags.diet, DIET_TAGS);
+    const spiceTagList = orderByDefaults(groupedTags.spice, SPICE_TAGS);
+    const highlightTagList = orderByDefaults(groupedTags.highlights, HIGHLIGHT_TAGS);
+    const allergenTagList = orderTags(allergens, ALLERGEN_TAGS);
 
     useEffect(() => {
         if (params.id) {
@@ -163,6 +201,29 @@ export default function MenuDetailPage() {
             fetchMetadata();
         }
     }, [params.id, user]);
+
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const storedLabels = localStorage.getItem("menuvium_tag_labels");
+        if (storedLabels) {
+            try {
+                const parsed = JSON.parse(storedLabels) as Partial<typeof TAG_LABELS_DEFAULTS>;
+                setTagLabels({ ...TAG_LABELS_DEFAULTS, ...parsed });
+            } catch {
+                setTagLabels(TAG_LABELS_DEFAULTS);
+            }
+        }
+        const storedGroups = localStorage.getItem("menuvium_tag_groups");
+        if (storedGroups) {
+            try {
+                const parsed = JSON.parse(storedGroups) as Record<string, "diet" | "spice" | "highlights">;
+                setTagGroups(parsed);
+            } catch {
+                setTagGroups({});
+            }
+        }
+    }, []);
 
     const fetchMetadata = async () => {
         try {
@@ -178,11 +239,12 @@ export default function MenuDetailPage() {
     };
 
     const getAuthToken = async () => {
-        if (user) {
-            const session: any = await (user as any).getSession();
-            return session.getIdToken().getJwtToken();
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (!token) {
+            throw new Error("Not authenticated");
         }
-        return "mock-token";
+        return token;
     };
 
     const fetchMenu = async (id: string) => {
@@ -402,63 +464,6 @@ export default function MenuDetailPage() {
 
     const expandAllCategories = () => {
         setCollapsedCategoryIds(new Set());
-    };
-
-    const handleParseImport = async () => {
-        if (!menu || !importFile) return;
-        setIsParsingImport(true);
-        try {
-            const token = await getAuthToken();
-            const formData = new FormData();
-            formData.append("file", importFile);
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/imports/menu/parse?menu_id=${menu.id}`, {
-                method: "POST",
-                headers: { "Authorization": `Bearer ${token}` },
-                body: formData
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                alert(err.detail || "Failed to parse menu");
-                return;
-            }
-            setParsedMenu(await res.json());
-        } catch (e) {
-            console.error(e);
-            alert("Failed to parse menu");
-        } finally {
-            setIsParsingImport(false);
-        }
-    };
-
-    const handleApplyImport = async () => {
-        if (!menu || !parsedMenu) return;
-        if (!confirm("Importing will add categories and items to this menu. Continue?")) return;
-        setIsApplyingImport(true);
-        try {
-            const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/imports/menu/apply?menu_id=${menu.id}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
-                body: JSON.stringify(parsedMenu)
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                alert(err.detail || "Failed to apply import");
-                return;
-            }
-            setParsedMenu(null);
-            setImportFile(null);
-            setPageDirty(true);
-            fetchMenu(menu.id);
-        } catch (e) {
-            console.error(e);
-            alert("Failed to apply import");
-        } finally {
-            setIsApplyingImport(false);
-        }
     };
 
     const handleDragEnd = async (event: { active: { id: string | number }; over?: { id: string | number } }) => {
@@ -825,6 +830,9 @@ export default function MenuDetailPage() {
                                 {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
                                 {isSavingMenu ? "Saving..." : "Save"}
                             </button>
+                            <Link href={`/dashboard/menus/${menu.id}/themes`} className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]">
+                                Themes
+                            </Link>
                             <Link href={`/r/${menu.id}`} target="_blank" className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]">
                                 View Public Page
                             </Link>
@@ -1094,51 +1102,6 @@ export default function MenuDetailPage() {
                 )}
             </div>
 
-            <div className="mt-10 border border-[var(--cms-border)] bg-[var(--cms-panel)] rounded-2xl p-6">
-                <h3 className="font-bold text-lg mb-1">Import Menu</h3>
-                <p className="text-sm text-[var(--cms-muted)] mb-4">Upload a menu image or PDF. We will parse and let you review before importing.</p>
-                <div className="flex flex-wrap items-center gap-3">
-                    <input
-                        type="file"
-                        accept="image/*,.pdf"
-                        onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                        className="text-sm"
-                    />
-                    <button
-                        onClick={handleParseImport}
-                        disabled={!importFile || isParsingImport}
-                        className="h-10 px-4 rounded-lg font-bold text-sm bg-[var(--cms-text)] text-[var(--cms-bg)] disabled:opacity-50"
-                    >
-                        {isParsingImport ? "Parsing..." : "Parse"}
-                    </button>
-                    {parsedMenu && (
-                        <button
-                            onClick={handleApplyImport}
-                            disabled={isApplyingImport}
-                            className="h-10 px-4 rounded-lg font-bold text-sm bg-[var(--cms-panel-strong)] text-[var(--cms-text)] border border-[var(--cms-border)] disabled:opacity-50"
-                        >
-                            {isApplyingImport ? "Importing..." : "Import"}
-                        </button>
-                    )}
-                </div>
-
-                {parsedMenu && (
-                    <div className="mt-6 space-y-4">
-                        {parsedMenu.categories.map((cat, idx) => (
-                            <div key={`${cat.name}-${idx}`} className="border border-[var(--cms-border)] rounded-xl p-4">
-                                <h4 className="font-bold mb-2">{cat.name}</h4>
-                                <ul className="text-sm text-[var(--cms-muted)] space-y-1">
-                                    {cat.items.map((item, itemIdx) => (
-                                        <li key={`${item.name}-${itemIdx}`}>
-                                            {item.name}{item.price != null ? ` — $${item.price}` : ""}{item.description ? ` · ${item.description}` : ""}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
 
             <div className="mt-10 border border-red-500/20 bg-red-500/5 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
@@ -1156,9 +1119,9 @@ export default function MenuDetailPage() {
 
             {/* Item Editor Modal */}
             {editingItem && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div
-                        className="bg-[var(--cms-panel)] border border-[var(--cms-border)] w-full max-w-lg rounded-3xl shadow-2xl scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
+                        className="bg-[var(--cms-panel)] border border-[var(--cms-border)] w-full max-w-lg rounded-[28px] shadow-[0_30px_80px_-40px_rgba(0,0,0,0.6)] scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
                         onKeyDown={(e) => {
                             const target = e.target as HTMLElement;
                             const isTextarea = target.tagName === "TEXTAREA";
@@ -1168,8 +1131,11 @@ export default function MenuDetailPage() {
                             }
                         }}
                     >
-                        <div className="p-6 pb-2 flex-shrink-0 flex justify-between items-center">
-                            <h2 className="text-xl font-bold">{editingItem.id ? "Edit Item" : "Add Item"}</h2>
+                        <div className="p-6 pb-4 flex-shrink-0 flex justify-between items-center border-b border-[var(--cms-border)]">
+                            <div>
+                                <h2 className="text-xl font-bold">{editingItem.id ? "Edit Item" : "Add Item"}</h2>
+                                <p className="text-xs text-[var(--cms-muted)] mt-1">Keep it concise and scannable on mobile.</p>
+                            </div>
                             <button
                                 onClick={() => {
                                     setEditingItem(null);
@@ -1181,96 +1147,11 @@ export default function MenuDetailPage() {
                             </button>
                         </div>
 
-                        <div className="p-6 pt-2 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
-                            <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Name</label>
-                                <input
-                                    className="w-full bg-transparent border border-[var(--cms-border)] rounded-xl p-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors"
-                                    placeholder="e.g. Margherita Pizza"
-                                    value={editingItem.name || ""}
-                                    onChange={e => {
-                                        setEditingItem({ ...editingItem, name: e.target.value });
-                                        setPageDirty(true);
-                                    }}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Description</label>
-                                <textarea
-                                    className="w-full bg-transparent border border-[var(--cms-border)] rounded-xl p-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors min-h-[80px]"
-                                    placeholder="e.g. Tomato sauce, mozzarella, and fresh basil."
-                                    value={editingItem.description || ""}
-                                    onChange={e => {
-                                        setEditingItem({ ...editingItem, description: e.target.value });
-                                        setPageDirty(true);
-                                    }}
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Price ($)</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className="w-full bg-transparent border border-[var(--cms-border)] rounded-xl p-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors"
-                                        placeholder="0.00"
-                                        value={editingItem.price || ""}
-                                        onChange={e => {
-                                            setEditingItem({ ...editingItem, price: parseFloat(e.target.value) });
-                                            setPageDirty(true);
-                                        }}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Status</label>
-                                    <button
-                                        onClick={() => {
-                                            setEditingItem({ ...editingItem, is_sold_out: !editingItem.is_sold_out });
-                                            setPageDirty(true);
-                                        }}
-                                        className={`w-full p-3 rounded-xl border font-bold text-sm transition-all ${editingItem.is_sold_out ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-[var(--cms-pill)] border-[var(--cms-border)] text-[var(--cms-text)]'}`}
-                                    >
-                                        {editingItem.is_sold_out ? 'SOLD OUT' : 'AVAILABLE'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Dietary Tags */}
-                            <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Dietary Tags</label>
-                                <div className="flex flex-wrap gap-2">
-                                    {dietaryTags.map(tag => (
-                                        <button
-                                            key={tag.id}
-                                            onClick={() => toggleMetadata('tags', tag.id)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? 'bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)]' : 'bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]'}`}
-                                        >
-                                            {tag.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Allergens */}
-                            <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Contains Allergens</label>
-                                <div className="flex flex-wrap gap-2">
-                                    {allergens.map(alg => (
-                                        <button
-                                            key={alg.id}
-                                            onClick={() => toggleMetadata('allergens', alg.id)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${(editingItem as any).allergen_ids?.includes(alg.id) ? 'bg-red-500/10 border-red-500/40 text-red-500' : 'bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]'}`}
-                                        >
-                                            {alg.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
+                        <div className="p-6 pt-5 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
                             {/* Photo Upload */}
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Photo</label>
-                                <label className="p-8 border-2 border-dashed border-[var(--cms-border)] rounded-xl flex flex-col items-center justify-center text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all cursor-pointer relative overflow-hidden bg-[var(--cms-panel-strong)]">
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Photo</label>
+                                <label className="group p-6 border border-dashed border-[var(--cms-border)] rounded-2xl flex flex-col items-center justify-center text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all cursor-pointer relative overflow-hidden bg-[var(--cms-panel-strong)]/60">
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -1288,22 +1169,140 @@ export default function MenuDetailPage() {
                                         </div>
                                     ) : (editingItem.photo_url || (editingItem as any).photos?.[0]?.url) ? (
                                         <div className="absolute inset-0">
-                                            <img src={editingItem.photo_url || (editingItem as any).photos?.[0]?.url} className="w-full h-full object-cover opacity-50 hover:opacity-100 transition-opacity" />
+                                            <img src={editingItem.photo_url || (editingItem as any).photos?.[0]?.url} className="w-full h-full object-cover opacity-60 hover:opacity-100 transition-opacity" />
                                             <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity text-xs font-bold">
                                                 Click to change
                                             </div>
                                         </div>
                                     ) : (
                                         <>
-                                            <ImageIcon className="w-8 h-8 mb-2" />
-                                            <span className="text-sm font-medium">Click to upload photo</span>
+                                            <ImageIcon className="w-8 h-8 mb-2 text-[var(--cms-muted)] group-hover:text-[var(--cms-text)] transition-colors" />
+                                            <span className="text-sm font-medium">Upload a photo</span>
+                                            <span className="text-xs text-[var(--cms-muted)] mt-1">PNG or JPG, up to 10MB</span>
                                         </>
                                     )}
                                 </label>
                             </div>
+                            <div>
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Name</label>
+                                <input
+                                    className="w-full bg-[var(--cms-panel-strong)]/60 border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors text-sm"
+                                    placeholder="e.g. Margherita Pizza"
+                                    value={editingItem.name || ""}
+                                    onChange={e => {
+                                        setEditingItem({ ...editingItem, name: e.target.value });
+                                        setPageDirty(true);
+                                    }}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Description</label>
+                                <textarea
+                                    className="w-full bg-[var(--cms-panel-strong)]/60 border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors min-h-[96px] text-sm"
+                                    placeholder="e.g. Tomato sauce, mozzarella, and fresh basil."
+                                    value={editingItem.description || ""}
+                                    onChange={e => {
+                                        setEditingItem({ ...editingItem, description: e.target.value });
+                                        setPageDirty(true);
+                                    }}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Price ($)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-full bg-[var(--cms-panel-strong)]/60 border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors text-sm"
+                                        placeholder="0.00"
+                                        value={editingItem.price || ""}
+                                        onChange={e => {
+                                            setEditingItem({ ...editingItem, price: parseFloat(e.target.value) });
+                                            setPageDirty(true);
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Status</label>
+                                    <button
+                                        onClick={() => {
+                                            setEditingItem({ ...editingItem, is_sold_out: !editingItem.is_sold_out });
+                                            setPageDirty(true);
+                                        }}
+                                        className={`w-full px-4 py-3 rounded-2xl border font-semibold text-sm transition-all inline-flex items-center justify-between ${editingItem.is_sold_out ? "bg-red-500/10 border-red-500/30 text-red-500" : "bg-[var(--cms-panel-strong)]/60 border-[var(--cms-border)] text-[var(--cms-text)]"}`}
+                                    >
+                                        <span>{editingItem.is_sold_out ? "Sold Out" : "Available"}</span>
+                                        <span className={`h-2 w-2 rounded-full ${editingItem.is_sold_out ? "bg-red-500" : "bg-emerald-400"}`} />
+                                    </button>
+                                </div>
+                            </div>
+                            {/* Tags */}
+                            <div>
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-3">Tags</label>
+                                <div className="space-y-4">
+                                    <div>
+                                        <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">{tagLabels.diet}</div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {dietTagList.map(tag => (
+                                                <button
+                                                    key={tag.id}
+                                                    onClick={() => toggleMetadata('tags', tag.id)}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)]" : "bg-[var(--cms-panel-strong)]/60 border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                                                >
+                                                    {tag.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">{tagLabels.spice}</div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {spiceTagList.map(tag => (
+                                                <button
+                                                    key={tag.id}
+                                                    onClick={() => toggleMetadata('tags', tag.id)}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)]" : "bg-[var(--cms-panel-strong)]/60 border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                                                >
+                                                    {tag.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">{tagLabels.highlights}</div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {highlightTagList.map(tag => (
+                                                <button
+                                                    key={tag.id}
+                                                    onClick={() => toggleMetadata('tags', tag.id)}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)]" : "bg-[var(--cms-panel-strong)]/60 border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                                                >
+                                                    {tag.name}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Allergens */}
+                            <div>
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">{tagLabels.allergens}</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {allergenTagList.map(alg => (
+                                        <button
+                                            key={alg.id}
+                                            onClick={() => toggleMetadata('allergens', alg.id)}
+                                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).allergen_ids?.includes(alg.id) ? "bg-red-500/10 border-red-500/40 text-red-500" : "bg-[var(--cms-panel-strong)]/60 border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                                        >
+                                            {alg.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
 
                         </div>
-                        <div className="p-6 pt-4 border-t border-[var(--cms-border)] flex justify-between gap-3 flex-shrink-0 bg-[var(--cms-panel)] rounded-b-3xl">
+                        <div className="p-6 pt-4 border-t border-[var(--cms-border)] flex justify-between gap-3 flex-shrink-0 bg-[var(--cms-panel)] rounded-b-[28px]">
                             <div>
                                 {editingItem.id && (
                                     <button
@@ -1324,7 +1323,7 @@ export default function MenuDetailPage() {
                                                 console.error(e);
                                             }
                                         }}
-                                        className="px-4 py-3 rounded-xl font-bold text-red-500 hover:bg-red-500/10 transition-colors flex items-center gap-2"
+                                        className="px-4 py-3 rounded-xl font-semibold text-red-500 hover:bg-red-500/10 transition-colors flex items-center gap-2"
                                     >
                                         <Trash2 className="w-4 h-4" /> Delete
                                     </button>
@@ -1336,14 +1335,14 @@ export default function MenuDetailPage() {
                                         setEditingItem(null);
                                         setFileToUpload(null);
                                     }}
-                                    className="px-6 py-3 rounded-xl font-bold hover:bg-[var(--cms-pill)] transition-colors"
+                                    className="px-6 py-3 rounded-xl font-semibold hover:bg-[var(--cms-pill)] transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleSaveItem}
                                     disabled={isSavingItem || !editingItem.name || (!editingItem.price && editingItem.price !== 0)}
-                                    className="px-6 py-3 bg-[var(--cms-text)] text-[var(--cms-bg)] rounded-xl font-bold hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    className="px-6 py-3 bg-[var(--cms-text)] text-[var(--cms-bg)] rounded-xl font-semibold hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-2"
                                 >
                                     {isSavingItem && <Loader2 className="w-4 h-4 animate-spin" />}
                                     {isSavingItem ? 'Saving...' : 'Save Item'}

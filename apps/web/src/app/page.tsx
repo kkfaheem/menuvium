@@ -1,30 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { MoveRight, LayoutDashboard, Settings, LogOut } from "lucide-react";
+import { MoveRight } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function Home() {
-    const { user, signOut, authStatus } = useAuthenticator(context => [context.user, context.authStatus]);
-    const [isMock, setIsMock] = useState(false);
+    const { user, authStatus } = useAuthenticator(context => [context.user, context.authStatus]);
     const [mounted, setMounted] = useState(false);
     const router = useRouter();
 
     useEffect(() => {
         setMounted(true);
-        if (typeof window !== 'undefined') {
-            const mockValue = localStorage.getItem('menuvium_mock_user') === 'true';
-            setIsMock(mockValue);
-        }
     }, [authStatus]);
 
     useEffect(() => {
-        if (mounted && (user || isMock)) {
+        if (mounted && user) {
             router.push('/dashboard');
         }
-    }, [user, isMock, mounted, router]);
+    }, [user, mounted, router]);
 
     // To prevent hydration mismatch, we must ensure the client renders 
     // exactly what the server did for the first frame.

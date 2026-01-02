@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { useRouter } from "next/navigation";
+import { fetchAuthSession } from "aws-amplify/auth";
 
 // Types
 interface Menu {
@@ -19,115 +18,70 @@ export default function MenusPage() {
     const { user } = useAuthenticator((context) => [context.user]);
     const [menus, setMenus] = useState<Menu[]>([]);
     const [loading, setLoading] = useState(true);
-    const [isCreating, setIsCreating] = useState(false);
-    const router = useRouter();
 
-    const [locations, setLocations] = useState<any[]>([]);
-    const [selectedLocation, setSelectedLocation] = useState<string>("");
+    const [organizations, setOrganizations] = useState<any[]>([]);
+    const [selectedOrg, setSelectedOrg] = useState<string>("");
 
     useEffect(() => {
-        fetchLocations();
+        fetchOrganizations();
     }, [user]);
 
     useEffect(() => {
-        if (selectedLocation) fetchMenus();
-    }, [selectedLocation]);
+        if (selectedOrg) fetchMenus();
+    }, [selectedOrg]);
+
+    useEffect(() => {
+        if (!selectedOrg || typeof window === "undefined") return;
+        localStorage.setItem("menuvium_last_org_id", selectedOrg);
+    }, [selectedOrg]);
 
     const getAuthToken = async () => {
-        if (user) {
-            const session: any = await (user as any).getSession();
-            return session.getIdToken().getJwtToken();
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (!token) {
+            throw new Error("Not authenticated");
         }
-        return "mock-token";
+        return token;
     };
 
-    const fetchLocations = async () => {
-        console.log("[fetchLocations] Starting...");
+    const fetchOrganizations = async () => {
         try {
             const token = await getAuthToken();
-            console.log("[fetchLocations] Got token:", token.substring(0, 20) + "...");
-
             const orgRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/organizations/`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            console.log("[fetchLocations] Org response status:", orgRes.status);
 
             if (!orgRes.ok) {
-                console.error("[fetchLocations] Failed to fetch orgs");
                 return;
             }
             const orgs = await orgRes.json();
-            console.log("[fetchLocations] Got orgs:", orgs.length);
 
             if (orgs.length === 0) {
-                console.log("[fetchLocations] No organizations found");
                 return;
             }
             const preferredOrgId =
                 typeof window !== "undefined" ? localStorage.getItem("menuvium_last_org_id") : null;
-            const preferredLocationId =
-                typeof window !== "undefined" ? localStorage.getItem("menuvium_last_location_id") : null;
 
-            const locationLists = await Promise.all(
-                orgs.map(async (org: { id: string }) => {
-                    const locRes = await fetch(
-                        `${process.env.NEXT_PUBLIC_API_URL}/organizations/${org.id}/locations`,
-                        {
-                            headers: { 'Authorization': `Bearer ${token}` }
-                        }
-                    );
-                    if (!locRes.ok) {
-                        return [];
-                    }
-                    const locs = await locRes.json();
-                    return locs;
-                })
-            );
-
-            const locs = locationLists.flat();
-            console.log("[fetchLocations] Got locations:", locs.length);
-            setLocations(locs);
-
-            if (locs.length > 0) {
-                const preferredLocation = preferredLocationId
-                    ? locs.find((loc: { id: string }) => loc.id === preferredLocationId)
+            setOrganizations(orgs);
+            if (orgs.length > 0) {
+                const preferredOrg = preferredOrgId
+                    ? orgs.find((org: { id: string }) => org.id === preferredOrgId)
                     : null;
-                if (preferredLocation) {
-                    console.log("[fetchLocations] Using preferred location:", preferredLocation.id);
-                    setSelectedLocation(preferredLocation.id);
-                } else if (preferredOrgId) {
-                    const preferredOrgLocation = locs.find(
-                        (loc: { org_id: string }) => loc.org_id === preferredOrgId
-                    );
-                    if (preferredOrgLocation) {
-                        console.log("[fetchLocations] Using preferred org location:", preferredOrgLocation.id);
-                        setSelectedLocation(preferredOrgLocation.id);
-                    } else {
-                        console.log("[fetchLocations] Using first location:", locs[0].id);
-                        setSelectedLocation(locs[0].id);
-                    }
-                } else {
-                    console.log("[fetchLocations] Using first location:", locs[0].id);
-                    setSelectedLocation(locs[0].id);
-                }
-            } else {
-                console.log("[fetchLocations] No locations found");
+                setSelectedOrg(preferredOrg ? preferredOrg.id : orgs[0].id);
             }
         } catch (e) {
-            console.error("[fetchLocations] Error:", e);
+            console.error(e);
         } finally {
-            console.log("[fetchLocations] Setting loading to false");
-            // Always clear loading state
             setLoading(false);
         }
     };
 
     const fetchMenus = async () => {
-        if (!selectedLocation) return;
+        if (!selectedOrg) return;
         setLoading(true);
         try {
             const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/?location_id=${selectedLocation}`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/?org_id=${selectedOrg}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
@@ -141,38 +95,7 @@ export default function MenusPage() {
         }
     };
 
-    const handleCreateMenu = async (name: string) => {
-        if (!name || !selectedLocation) return;
-        setIsCreating(true);
-        try {
-            const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    name,
-                    // Slug is optional now, backend handles it or we can omit
-                    location_id: selectedLocation
-                })
-            });
-
-            if (res.ok) {
-                fetchMenus();
-            } else {
-                const err = await res.json();
-                alert(`Failed to create menu: ${err.detail || 'Unknown error'}`);
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsCreating(false);
-        }
-    };
-
-    if (loading && !menus.length && !selectedLocation) return <div className="text-white/40">Loading context...</div>;
+    if (loading && !menus.length && !selectedOrg) return <div className="text-white/40">Loading context...</div>;
 
     return (
         <div>
@@ -182,33 +105,26 @@ export default function MenusPage() {
                     <p className="text-[var(--cms-muted)]">Manage your restaurant's menus.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    {locations.length > 0 && (
+                    {organizations.length > 0 && (
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-[var(--cms-muted)]">Location:</span>
+                            <span className="text-sm text-[var(--cms-muted)]">Company:</span>
                             <select
-                                value={selectedLocation}
-                                onChange={(e) => setSelectedLocation(e.target.value)}
+                                value={selectedOrg}
+                                onChange={(e) => setSelectedOrg(e.target.value)}
                                 className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-lg px-3 py-2 text-sm text-[var(--cms-text)] focus:outline-none"
                             >
-                                {locations.map(loc => (
-                                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                                {organizations.map(org => (
+                                    <option key={org.id} value={org.id}>{org.name}</option>
                                 ))}
                             </select>
                         </div>
                     )}
-                    <button
-                        onClick={async () => {
-                            if (!selectedLocation) return;
-                            const name = window.prompt("Menu name");
-                            if (!name || !name.trim()) return;
-                            handleCreateMenu(name.trim());
-                        }}
-                        disabled={isCreating || !selectedLocation}
-                        className="bg-[var(--cms-text)] text-[var(--cms-bg)] px-4 py-2 rounded-lg font-bold hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-2"
+                    <Link
+                        href="/dashboard/menus/new"
+                        className="bg-[var(--cms-text)] text-[var(--cms-bg)] px-4 py-2 rounded-lg font-bold hover:opacity-90 inline-flex items-center gap-2"
                     >
-                        {isCreating && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Create
-                    </button>
+                        Create Menu
+                    </Link>
                 </div>
             </header>
 

@@ -15,23 +15,20 @@ export default function DashboardLayout({
     const router = useRouter();
     const { user, signOut } = useAuthenticator((context) => [context.user]);
     const [mounted, setMounted] = useState(false);
-    const [isMock, setIsMock] = useState(false);
 
     useEffect(() => {
         setMounted(true);
         if (typeof window !== 'undefined') {
-            const mock = localStorage.getItem('menuvium_mock_user') === 'true';
-            setIsMock(mock);
             const savedTheme = (localStorage.getItem('menuvium_cms_theme') as "dark" | "light") || "dark";
             document.documentElement.dataset.cmsTheme = savedTheme;
-            if (!user && !mock) {
+            if (!user) {
                 router.push('/login');
             }
         }
     }, [user, router]);
 
     if (!mounted) return <div className="min-h-screen bg-[#0a0a0a]" suppressHydrationWarning />;
-    if (!user && !isMock) return null;
+    if (!user) return null;
 
     return (
         <div className="flex min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] transition-colors">
@@ -62,14 +59,7 @@ export default function DashboardLayout({
                     </Link>
                 </nav>
                 <button
-                    onClick={() => {
-                        if (isMock) {
-                            localStorage.removeItem('menuvium_mock_user');
-                            router.push('/');
-                        } else {
-                            signOut();
-                        }
-                    }}
+                    onClick={() => signOut()}
                     className="flex items-center gap-3 p-3 text-[var(--cms-muted-strong)] hover:text-[var(--cms-text)] transition-all mt-auto"
                 >
                     <LogOut className="w-5 h-5" />

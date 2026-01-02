@@ -18,16 +18,6 @@ def get_keys(region, user_pool_id):
     return []
 
 def verify_token(token: str):
-    auth_mode = os.getenv("AUTH_MODE", "COGNITO")
-    
-    if auth_mode == "MOCK":
-        # Return a fixed mock user for local dev flow
-        return {
-            "sub": "00000000-0000-0000-0000-000000000000",
-            "email": "mock@menuvium.com",
-            "cognito:groups": ["owner"]
-        }
-
     region = os.getenv("AWS_REGION", "us-east-1")
     user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
     client_id = os.getenv("COGNITO_CLIENT_ID")

@@ -4,7 +4,7 @@ from sqlmodel.pool import StaticPool
 import pytest
 from main import app
 from database import get_session
-import os
+from dependencies import get_current_user
 
 # Setup in-memory DB for tests
 engine = create_engine(
@@ -19,6 +19,7 @@ def get_session_override():
         yield session
 
 app.dependency_overrides[get_session] = get_session_override
+app.dependency_overrides[get_current_user] = lambda: {"sub": "test-user"}
 
 @pytest.fixture(name="session")  
 def session_fixture():  
@@ -34,12 +35,9 @@ def session_fixture():
 client = TestClient(app)
 
 def test_create_organization():
-    # Force Mock Auth
-    os.environ["AUTH_MODE"] = "MOCK"
-    
     response = client.post(
         "/organizations/", 
-        json={"name": "Test Kitchen", "slug": "test-kitchen", "owner_id": "ignored_in_mock"},
+        json={"name": "Test Kitchen", "slug": "test-kitchen", "owner_id": "ignored"},
         headers={"Authorization": "Bearer mocktoken"}
     )
     assert response.status_code == 200, response.text
@@ -48,24 +46,9 @@ def test_create_organization():
     assert data["slug"] == "test-kitchen"
     assert "id" in data
 
-def test_create_location():
-    os.environ["AUTH_MODE"] = "MOCK"
-    
-    # Create Org first
-    org_res = client.post(
-        "/organizations/", 
-        json={"name": "Burger Joint", "slug": "burger-joint", "owner_id": "ignored"},
+def test_list_organizations():
+    response = client.get(
+        "/organizations/",
         headers={"Authorization": "Bearer mocktoken"}
     )
-    org_id = org_res.json()["id"]
-    
-    # Create Location
-    res = client.post(
-        f"/organizations/{org_id}/locations",
-        json={"name": "Downtown", "address": "123 Main St", "org_id": org_id},
-        headers={"Authorization": "Bearer mocktoken"}
-    )
-    assert res.status_code == 200, res.text
-    data = res.json()
-    assert data["name"] == "Downtown"
-    assert data["org_id"] == org_id
+    assert response.status_code == 200, response.text

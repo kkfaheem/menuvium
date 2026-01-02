@@ -10,19 +10,7 @@ class Organization(SQLModel, table=True):
     owner_id: str = Field(index=True) # Cognito sub
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
-    locations: List["Location"] = Relationship(back_populates="organization")
-
-class Location(SQLModel, table=True):
-    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    org_id: uuid.UUID = Field(foreign_key="organization.id")
-    name: str
-    address: str
-    phone: Optional[str] = None
-    operating_hours: Optional[str] = None # Stores JSON string
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    
-    organization: Organization = Relationship(back_populates="locations")
-    menus: List["Menu"] = Relationship(back_populates="location")
+    menus: List["Menu"] = Relationship(back_populates="organization")
 
 
 # Base Models
@@ -30,7 +18,8 @@ class MenuBase(SQLModel):
     name: str
     slug: Optional[str] = Field(default=None, index=True) # Optional now, mostly for internal display
     is_active: bool = Field(default=True)
-    location_id: uuid.UUID = Field(foreign_key="location.id", index=True)
+    theme: str = Field(default="noir")
+    org_id: uuid.UUID = Field(foreign_key="organization.id", index=True)
 
 class CategoryBase(SQLModel):
     name: str
@@ -62,7 +51,7 @@ class Menu(MenuBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
-    location: Optional["Location"] = Relationship(back_populates="menus")
+    organization: Optional["Organization"] = Relationship(back_populates="menus")
     categories: List["Category"] = Relationship(back_populates="menu")
 
 
@@ -131,3 +120,8 @@ class CategoryRead(CategoryBase):
 class MenuRead(MenuBase):
     id: uuid.UUID
     categories: List[CategoryRead] = []
+
+class MenuUpdate(SQLModel):
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+    theme: Optional[str] = None

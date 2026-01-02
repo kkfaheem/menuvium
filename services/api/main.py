@@ -29,7 +29,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-if os.getenv("LOCAL_UPLOADS") == "1" or os.getenv("AUTH_MODE") == "MOCK":
+if os.getenv("LOCAL_UPLOADS") == "1":
     upload_dir = Path(__file__).resolve().parent / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
