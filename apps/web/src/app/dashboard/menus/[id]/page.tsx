@@ -1,10 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2 } from "lucide-react";
+import { useState, useEffect, type ReactNode } from "react";
+import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2, Check, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useParams, useRouter } from "next/navigation";
+import {
+    DndContext,
+    PointerSensor,
+    DragOverlay,
+    closestCenter,
+    useSensor,
+    useSensors
+} from "@dnd-kit/core";
+import {
+    SortableContext,
+    useSortable,
+    arrayMove,
+    verticalListSortingStrategy,
+    defaultAnimateLayoutChanges
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // Types
 interface Item {
@@ -14,12 +30,14 @@ interface Item {
     price: number;
     is_sold_out: boolean;
     photo_url?: string;
+    position?: number;
 }
 
 interface Category {
     id: string;
     name: string;
     items: Item[];
+    rank?: number;
 }
 
 interface Menu {
@@ -28,6 +46,83 @@ interface Menu {
     slug: string;
     is_active: boolean;
     categories: Category[];
+}
+
+interface ParsedItem {
+    name: string;
+    description?: string;
+    price?: number | null;
+}
+
+interface ParsedCategory {
+    name: string;
+    items: ParsedItem[];
+}
+
+interface ParsedMenu {
+    categories: ParsedCategory[];
+}
+
+function SortableCategoryCard({
+    id,
+    className,
+    children
+}: {
+    id: string;
+    className: string;
+    children: (props: { attributes: any; listeners: any; isDragging: boolean }) => ReactNode;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id,
+        animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true })
+    });
+    const style = {
+        transform: CSS.Transform.toString({
+            ...transform,
+            scaleX: 1,
+            scaleY: 1
+        }),
+        transition,
+        opacity: isDragging ? 0.7 : undefined,
+        boxShadow: isDragging ? "0 10px 30px rgba(0,0,0,0.2)" : undefined
+    };
+
+    return (
+        <div ref={setNodeRef} style={style} className={className}>
+            {children({ attributes, listeners, isDragging })}
+        </div>
+    );
+}
+
+function SortableItemRow({
+    id,
+    className,
+    children
+}: {
+    id: string;
+    className: string;
+    children: (props: { attributes: any; listeners: any; isDragging: boolean }) => ReactNode;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+        id,
+        animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true })
+    });
+    const style = {
+        transform: CSS.Transform.toString({
+            ...transform,
+            scaleX: 1,
+            scaleY: 1
+        }),
+        transition,
+        opacity: isDragging ? 0.7 : undefined,
+        boxShadow: isDragging ? "0 8px 20px rgba(0,0,0,0.18)" : undefined
+    };
+
+    return (
+        <div ref={setNodeRef} style={style} className={className}>
+            {children({ attributes, listeners, isDragging })}
+        </div>
+    );
 }
 
 export default function MenuDetailPage() {
@@ -50,6 +145,17 @@ export default function MenuDetailPage() {
     const [newCategoryName, setNewCategoryName] = useState("");
     const [editingItem, setEditingItem] = useState<Partial<Item> & { categoryId?: string } | null>(null);
     const [isSavingItem, setIsSavingItem] = useState(false);
+    const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+    const [editingCategoryName, setEditingCategoryName] = useState("");
+    const [isDragging, setIsDragging] = useState(false);
+    const [isEditingMenuName, setIsEditingMenuName] = useState(false);
+    const [menuNameDraft, setMenuNameDraft] = useState("");
+    const [activeDragId, setActiveDragId] = useState<string | null>(null);
+    const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [parsedMenu, setParsedMenu] = useState<ParsedMenu | null>(null);
+    const [isParsingImport, setIsParsingImport] = useState(false);
+    const [isApplyingImport, setIsApplyingImport] = useState(false);
 
     useEffect(() => {
         if (params.id) {
@@ -171,6 +277,251 @@ export default function MenuDetailPage() {
         } catch (e) {
             console.error(e);
         }
+    };
+
+    const handleUpdateCategoryName = async (category: Category) => {
+        if (!menu) return;
+        const name = editingCategoryName.trim();
+        if (!name) return;
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories/${category.id}`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    id: category.id,
+                    name,
+                    rank: category.rank ?? 0,
+                    menu_id: menu.id
+                })
+            });
+            if (res.ok) {
+                setEditingCategoryId(null);
+                setEditingCategoryName("");
+                setPageDirty(true);
+                fetchMenu(menu.id);
+            } else {
+                const err = await res.json();
+                alert(`Failed to update category: ${err.detail || "Unknown error"}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Failed to update category");
+        }
+    };
+
+    const reorderArray = <T,>(arr: T[], fromIndex: number, toIndex: number) => {
+        const next = [...arr];
+        const [moved] = next.splice(fromIndex, 1);
+        next.splice(toIndex, 0, moved);
+        return next;
+    };
+
+    const persistCategoryOrder = async (categories: Category[]) => {
+        if (!menu) return;
+        try {
+            const token = await getAuthToken();
+            await Promise.all(
+                categories.map((cat, index) =>
+                    fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories/${cat.id}`, {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            id: cat.id,
+                            name: cat.name,
+                            rank: index,
+                            menu_id: menu.id
+                        })
+                    })
+                )
+            );
+            setPageDirty(true);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to reorder categories");
+        }
+    };
+
+    const persistItemOrder = async (categoryId: string, items: Item[]) => {
+        try {
+            const token = await getAuthToken();
+            await Promise.all(
+                items.map((item, index) =>
+                    fetch(`${process.env.NEXT_PUBLIC_API_URL}/items/${item.id}`, {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ position: index })
+                    })
+                )
+            );
+            setPageDirty(true);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to reorder items");
+        }
+    };
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: { distance: 6 }
+        })
+    );
+
+    const findCategoryByItemId = (itemSortableId: string) => {
+        if (!menu) return null;
+        return menu.categories.find((cat) =>
+            (cat.items || []).some((item) => `item-${item.id}` === itemSortableId)
+        );
+    };
+
+    const toggleCategoryCollapse = (categoryId: string) => {
+        setCollapsedCategoryIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(categoryId)) {
+                next.delete(categoryId);
+            } else {
+                next.add(categoryId);
+            }
+            return next;
+        });
+    };
+
+    const collapseAllCategories = () => {
+        if (!menu) return;
+        setCollapsedCategoryIds(new Set(menu.categories.map((c) => c.id)));
+    };
+
+    const expandAllCategories = () => {
+        setCollapsedCategoryIds(new Set());
+    };
+
+    const handleParseImport = async () => {
+        if (!menu || !importFile) return;
+        setIsParsingImport(true);
+        try {
+            const token = await getAuthToken();
+            const formData = new FormData();
+            formData.append("file", importFile);
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/imports/menu/parse?menu_id=${menu.id}`, {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${token}` },
+                body: formData
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                alert(err.detail || "Failed to parse menu");
+                return;
+            }
+            setParsedMenu(await res.json());
+        } catch (e) {
+            console.error(e);
+            alert("Failed to parse menu");
+        } finally {
+            setIsParsingImport(false);
+        }
+    };
+
+    const handleApplyImport = async () => {
+        if (!menu || !parsedMenu) return;
+        if (!confirm("Importing will add categories and items to this menu. Continue?")) return;
+        setIsApplyingImport(true);
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/imports/menu/apply?menu_id=${menu.id}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
+                body: JSON.stringify(parsedMenu)
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                alert(err.detail || "Failed to apply import");
+                return;
+            }
+            setParsedMenu(null);
+            setImportFile(null);
+            setPageDirty(true);
+            fetchMenu(menu.id);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to apply import");
+        } finally {
+            setIsApplyingImport(false);
+        }
+    };
+
+    const handleDragEnd = async (event: { active: { id: string | number }; over?: { id: string | number } }) => {
+        setIsDragging(false);
+        setActiveDragId(null);
+        if (!menu || !event.over) return;
+        const activeId = String(event.active.id);
+        const overId = String(event.over.id);
+        if (activeId === overId) return;
+
+        if (activeId.startsWith("cat-") && overId.startsWith("cat-")) {
+            const fromIndex = menu.categories.findIndex((c) => `cat-${c.id}` === activeId);
+            const toIndex = menu.categories.findIndex((c) => `cat-${c.id}` === overId);
+            if (fromIndex < 0 || toIndex < 0) return;
+            const nextCategories = arrayMove(menu.categories, fromIndex, toIndex);
+            setMenu({ ...menu, categories: nextCategories });
+            await persistCategoryOrder(nextCategories);
+            return;
+        }
+
+        if (activeId.startsWith("item-") && overId.startsWith("item-")) {
+            const activeCategory = findCategoryByItemId(activeId);
+            const overCategory = findCategoryByItemId(overId);
+            if (!activeCategory || !overCategory || activeCategory.id !== overCategory.id) return;
+            const fromIndex = (activeCategory.items || []).findIndex((i) => `item-${i.id}` === activeId);
+            const toIndex = (activeCategory.items || []).findIndex((i) => `item-${i.id}` === overId);
+            if (fromIndex < 0 || toIndex < 0) return;
+            const nextItems = arrayMove(activeCategory.items || [], fromIndex, toIndex);
+            const nextCategories = menu.categories.map((cat) =>
+                cat.id === activeCategory.id ? { ...cat, items: nextItems } : cat
+            );
+            setMenu({ ...menu, categories: nextCategories });
+            await persistItemOrder(activeCategory.id, nextItems);
+        }
+    };
+
+    const handleCategoryDrop = async (targetId: string) => {
+        if (!menu || !draggingCategoryId || draggingCategoryId === targetId) return;
+        const fromIndex = menu.categories.findIndex((c) => c.id === draggingCategoryId);
+        const toIndex = menu.categories.findIndex((c) => c.id === targetId);
+        if (fromIndex < 0 || toIndex < 0) return;
+        const nextCategories = reorderArray(menu.categories, fromIndex, toIndex);
+        setMenu({ ...menu, categories: nextCategories });
+        setDraggingCategoryId(null);
+        setIsDragging(false);
+        await persistCategoryOrder(nextCategories);
+    };
+
+    const handleItemDrop = async (category: Category, targetId: string) => {
+        if (!menu || !draggingItem || draggingItem.categoryId !== category.id) return;
+        if (draggingItem.itemId === targetId) return;
+        const items = [...(category.items || [])];
+        const fromIndex = items.findIndex((i) => i.id === draggingItem.itemId);
+        const toIndex = items.findIndex((i) => i.id === targetId);
+        if (fromIndex < 0 || toIndex < 0) return;
+        const nextItems = reorderArray(items, fromIndex, toIndex);
+        const nextCategories = menu.categories.map((cat) =>
+            cat.id === category.id ? { ...cat, items: nextItems } : cat
+        );
+        setMenu({ ...menu, categories: nextCategories });
+        setDraggingItem(null);
+        setIsDragging(false);
+        await persistItemOrder(category.id, nextItems);
     };
 
     const handleFileUpload = async (file: File) => {
@@ -384,123 +735,317 @@ export default function MenuDetailPage() {
         }
     };
 
-    if (loading) return <div className="text-white/40 flex items-center gap-2"><Loader2 className="animate-spin" /> Loading menu...</div>;
-    if (!menu) return <div className="text-white/40">Menu not found</div>;
+    if (loading) return <div className="text-[var(--cms-muted)] flex items-center gap-2"><Loader2 className="animate-spin" /> Loading menu...</div>;
+    if (!menu) return <div className="text-[var(--cms-muted)]">Menu not found</div>;
 
     return (
         <div className="max-w-4xl mx-auto">
             <header className="mb-8">
-                <Link href="/dashboard/menus" className="text-sm text-white/40 hover:text-white mb-4 inline-flex items-center gap-1 transition-colors">
+                <Link href="/dashboard/menus" className="text-sm text-[var(--cms-muted)] hover:text-[var(--cms-text)] inline-flex items-center gap-1 transition-colors">
                     <ArrowLeft className="w-4 h-4" /> Back to Menus
                 </Link>
-                <div className="flex flex-wrap justify-between items-end gap-4">
+                <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <input
-                            className="text-3xl font-bold tracking-tight mb-2 bg-transparent border-b border-transparent focus:outline-none focus:border-white/20 transition-colors"
-                            value={menuName}
-                            onChange={(e) => {
-                                setMenuName(e.target.value);
-                                setPageDirty(true);
-                            }}
-                            aria-label="Menu name"
-                        />
-                        <p className="text-white/40 font-mono text-sm">/r/{menu.id}</p>
+                        {isEditingMenuName ? (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    className="text-3xl font-bold tracking-tight bg-transparent border-b border-[var(--cms-border)] focus:outline-none focus:border-[var(--cms-text)] transition-colors"
+                                    value={menuNameDraft}
+                                    onChange={(e) => setMenuNameDraft(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            const nextName = menuNameDraft.trim();
+                                            if (!nextName) return;
+                                            setMenuName(nextName);
+                                            setPageDirty(true);
+                                            setIsEditingMenuName(false);
+                                        }
+                                    }}
+                                    aria-label="Menu name"
+                                    autoFocus
+                                />
+                                <button
+                                    onClick={() => {
+                                        const nextName = menuNameDraft.trim();
+                                        if (!nextName) return;
+                                        setMenuName(nextName);
+                                        setPageDirty(true);
+                                        setIsEditingMenuName(false);
+                                    }}
+                                    className="p-2 rounded-lg hover:bg-[var(--cms-pill)]"
+                                    title="Save"
+                                >
+                                    <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setMenuNameDraft(menuName);
+                                        setIsEditingMenuName(false);
+                                    }}
+                                    className="p-2 rounded-lg hover:bg-[var(--cms-pill)]"
+                                    title="Cancel"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => {
+                                    setMenuNameDraft(menuName);
+                                    setIsEditingMenuName(true);
+                                }}
+                                className="text-3xl font-bold tracking-tight text-left hover:opacity-80"
+                            >
+                                {menuName}
+                            </button>
+                        )}
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => {
-                                setMenuActive(!menuActive);
-                                setPageDirty(true);
-                            }}
-                            className={`h-9 min-w-[88px] px-3 rounded-lg text-xs font-bold transition-colors border ${menuActive ? "bg-white/10 text-white border-white/20" : "bg-white/5 text-white/50 border-white/10"}`}
-                        >
-                            {menuActive ? "ACTIVE" : "INACTIVE"}
-                        </button>
-                        <button
-                            onClick={handleSaveMenu}
-                            disabled={isSavingMenu || !pageDirty}
-                            className={`h-9 px-4 rounded-lg font-bold transition-all text-sm inline-flex items-center gap-2 justify-center min-w-[110px] whitespace-nowrap ${isSavingMenu || !pageDirty ? "bg-white/10 text-white/40 cursor-not-allowed" : "bg-white text-black hover:bg-white/90"}`}
-                        >
-                            {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {isSavingMenu ? "Saving..." : "Save"}
-                        </button>
-                        <Link href={`/r/${menu.id}`} target="_blank" className="h-9 px-4 rounded-lg font-bold transition-all text-sm inline-flex items-center bg-white/5 text-white/70 hover:bg-white/10 hover:text-white">
-                            View Public Page
-                        </Link>
+                    <div className="flex flex-col items-start gap-3 md:items-end">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                onClick={() => {
+                                    setMenuActive(!menuActive);
+                                    setPageDirty(true);
+                                }}
+                                className="h-8 w-[124px] inline-flex items-center justify-between px-3 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]"
+                            >
+                                <span className="text-xs font-semibold text-[var(--cms-text)] w-[64px] text-left">
+                                    {menuActive ? "Active" : "Inactive"}
+                                </span>
+                                <span className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${menuActive ? "bg-[var(--cms-text)]" : "bg-[var(--cms-panel-strong)]"}`}>
+                                    <span className={`inline-block h-3 w-3 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${menuActive ? "translate-x-4" : "translate-x-1"}`} />
+                                </span>
+                            </button>
+                            <button
+                                onClick={handleSaveMenu}
+                                disabled={isSavingMenu || !pageDirty}
+                                className={`h-8 px-4 rounded-full font-semibold text-sm inline-flex items-center gap-2 justify-center min-w-[92px] ${isSavingMenu || !pageDirty ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed" : "bg-[var(--cms-text)] text-[var(--cms-bg)] hover:opacity-90"}`}
+                            >
+                                {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
+                                {isSavingMenu ? "Saving..." : "Save"}
+                            </button>
+                            <Link href={`/r/${menu.id}`} target="_blank" className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]">
+                                View Public Page
+                            </Link>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-[var(--cms-muted)]">
+                            <button
+                                onClick={collapseAllCategories}
+                                className="hover:text-[var(--cms-text)]"
+                            >
+                                Collapse all
+                            </button>
+                            <span className="text-[var(--cms-border)]">/</span>
+                            <button
+                                onClick={expandAllCategories}
+                                className="hover:text-[var(--cms-text)]"
+                            >
+                                Expand all
+                            </button>
+                        </div>
                     </div>
                 </div>
             </header>
 
             <div className="space-y-8">
-                {menu.categories.map((category) => (
-                    <div key={category.id} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-                        <div className="p-4 bg-white/5 border-b border-white/10 flex justify-between items-center group">
-                            <div className="flex items-center gap-3">
-                                <GripVertical className="text-white/20 cursor-move" />
-                                <h3 className="font-bold text-lg">{category.name}</h3>
-                            </div>
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button className="p-2 hover:bg-white/10 rounded-lg text-white/60 hover:text-white text-xs font-medium">
-                                    Edit
-                                </button>
-                                <button
-                                    onClick={() => handleDeleteCategory(category.id)}
-                                    className="p-2 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="p-4 space-y-2">
-                            {/* Items List */}
-                            {category.items?.length === 0 && (
-                                <div className="text-center py-8 text-white/20 text-sm border-2 border-dashed border-white/5 rounded-xl">
-                                    No items in this category yet.
-                                </div>
-                            )}
-                            {category.items?.map(item => (
-                                <div
-                                    key={item.id}
-                                    className="p-3 bg-white/5 rounded-xl flex justify-between items-center group hover:bg-white/10 transition-colors cursor-pointer"
-                                    onClick={() => {
-                                        setEditingItem({ ...item, categoryId: category.id });
-                                        setFileToUpload(null);
-                                    }}
-                                >
-                                    <div className="flex items-center gap-4">
-                                        {(item.photo_url || (item as any).photos?.[0]?.url) && (
-                                            <img src={item.photo_url || (item as any).photos?.[0]?.url} alt={item.name} className="w-10 h-10 rounded-lg object-cover bg-white/5" />
-                                        )}
-                                        <div>
-                                            <p className="font-medium">{item.name}</p>
-                                            <p className="text-xs text-white/40 line-clamp-1">{item.description}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <span className="font-mono text-sm">${item.price}</span>
-                                        {item.is_sold_out && <span className="text-[10px] bg-red-500/20 text-red-400 px-2 py-1 rounded-full uppercase tracking-wider font-bold">Sold Out</span>}
-                                    </div>
-                                </div>
-                            ))}
-
-                            <button
-                                onClick={() => {
-                                    setEditingItem({ categoryId: category.id });
-                                    setFileToUpload(null);
-                                    setPageDirty(true);
-                                }}
-                                className="w-full py-3 border-2 border-dashed border-white/10 rounded-xl text-white/40 hover:text-white hover:border-white/20 transition-all text-sm font-medium flex items-center justify-center gap-2"
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={(event) => {
+                        setIsDragging(true);
+                        setActiveDragId(String(event.active.id));
+                    }}
+                    onDragEnd={handleDragEnd}
+                    onDragCancel={() => {
+                        setIsDragging(false);
+                        setActiveDragId(null);
+                    }}
+                >
+                    <SortableContext
+                        items={menu.categories.map((category) => `cat-${category.id}`)}
+                        strategy={verticalListSortingStrategy}
+                    >
+                        {menu.categories.map((category) => (
+                            <SortableCategoryCard
+                                key={category.id}
+                                id={`cat-${category.id}`}
+                                className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl overflow-hidden"
                             >
-                                <Plus className="w-4 h-4" /> Add Item
-                            </button>
-                        </div>
-                    </div>
-                ))}
+                                {({ attributes, listeners }) => (
+                                    <>
+                                        <div className="p-4 bg-[var(--cms-panel-strong)] border-b border-[var(--cms-border)] flex justify-between items-center group">
+                                            <div className="flex items-center gap-3">
+                                                <button
+                                                    className="text-[var(--cms-muted)] cursor-grab active:cursor-grabbing"
+                                                    {...attributes}
+                                                    {...listeners}
+                                                    aria-label="Reorder category"
+                                                >
+                                                    <GripVertical className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => toggleCategoryCollapse(category.id)}
+                                                    className="text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
+                                                    aria-label="Toggle category"
+                                                >
+                                                    {collapsedCategoryIds.has(category.id) ? (
+                                                        <ChevronRight className="w-4 h-4" />
+                                                    ) : (
+                                                        <ChevronDown className="w-4 h-4" />
+                                                    )}
+                                                </button>
+                                                {editingCategoryId === category.id ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            value={editingCategoryName}
+                                                            onChange={(e) => setEditingCategoryName(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === "Enter") {
+                                                                    e.preventDefault();
+                                                                    handleUpdateCategoryName(category);
+                                                                }
+                                                            }}
+                                                            className="bg-transparent border border-[var(--cms-border)] rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[var(--cms-text)]"
+                                                            autoFocus
+                                                        />
+                                                        <button
+                                                            onClick={() => handleUpdateCategoryName(category)}
+                                                            className="p-1.5 rounded-lg hover:bg-[var(--cms-pill)]"
+                                                            title="Save"
+                                                        >
+                                                            <Check className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingCategoryId(null);
+                                                                setEditingCategoryName("");
+                                                            }}
+                                                            className="p-1.5 rounded-lg hover:bg-[var(--cms-pill)]"
+                                                            title="Cancel"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingCategoryId(category.id);
+                                                            setEditingCategoryName(category.name);
+                                                        }}
+                                                        className="font-bold text-lg text-left hover:opacity-80"
+                                                    >
+                                                        {category.name}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => handleDeleteCategory(category.id)}
+                                                    className="p-2 hover:bg-red-500/10 rounded-lg text-red-500 hover:text-red-600"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {!collapsedCategoryIds.has(category.id) && (
+                                            <div className="p-4 space-y-2">
+                                                {category.items?.length === 0 && (
+                                                    <div className="text-center py-8 text-[var(--cms-muted)] text-sm border-2 border-dashed border-[var(--cms-border)] rounded-xl">
+                                                        No items in this category yet.
+                                                    </div>
+                                                )}
+                                                <SortableContext
+                                                    items={(category.items || []).map((item) => `item-${item.id}`)}
+                                                    strategy={verticalListSortingStrategy}
+                                                >
+                                                    {category.items?.map((item) => (
+                                                        <SortableItemRow
+                                                            key={item.id}
+                                                            id={`item-${item.id}`}
+                                                            className="p-3 bg-[var(--cms-panel-strong)] rounded-xl flex justify-between items-center group hover:bg-[var(--cms-pill)] transition-colors cursor-pointer"
+                                                        >
+                                                            {({ attributes: itemAttributes, listeners: itemListeners }) => (
+                                                                <div
+                                                                    className="flex w-full items-center justify-between"
+                                                                    onClick={() => {
+                                                                        if (isDragging) return;
+                                                                        setEditingItem({ ...item, categoryId: category.id });
+                                                                        setFileToUpload(null);
+                                                                    }}
+                                                                >
+                                                                    <div className="flex items-center gap-4">
+                                                                        <button
+                                                                            className="text-[var(--cms-muted)] cursor-grab active:cursor-grabbing"
+                                                                            {...itemAttributes}
+                                                                            {...itemListeners}
+                                                                            aria-label="Reorder item"
+                                                                        >
+                                                                            <GripVertical className="w-4 h-4" />
+                                                                        </button>
+                                                                        {(item.photo_url || (item as any).photos?.[0]?.url) && (
+                                                                            <img src={item.photo_url || (item as any).photos?.[0]?.url} alt={item.name} className="w-10 h-10 rounded-lg object-cover bg-[var(--cms-panel-strong)]" />
+                                                                        )}
+                                                                        <div>
+                                                                            <p className="font-medium">{item.name}</p>
+                                                                            <p className="text-xs text-[var(--cms-muted)] line-clamp-1">{item.description}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-4">
+                                                                        <span className="font-mono text-sm">${item.price}</span>
+                                                                        {item.is_sold_out && <span className="text-[10px] bg-red-500/10 text-red-500 px-2 py-1 rounded-full uppercase tracking-wider font-bold">Sold Out</span>}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </SortableItemRow>
+                                                    ))}
+                                                </SortableContext>
+
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingItem({ categoryId: category.id });
+                                                        setFileToUpload(null);
+                                                        setPageDirty(true);
+                                                    }}
+                                                    className="w-full py-3 border-2 border-dashed border-[var(--cms-border)] rounded-xl text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all text-sm font-medium flex items-center justify-center gap-2"
+                                                >
+                                                    <Plus className="w-4 h-4" /> Add Item
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </SortableCategoryCard>
+                        ))}
+                    </SortableContext>
+                    <DragOverlay dropAnimation={null}>
+                        {activeDragId?.startsWith("cat-") && (
+                            <div className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl overflow-hidden shadow-2xl w-[520px]">
+                                <div className="p-4 bg-[var(--cms-panel-strong)] border-b border-[var(--cms-border)] flex items-center gap-3">
+                                    <GripVertical className="w-4 h-4 text-[var(--cms-muted)]" />
+                                    <span className="font-bold text-lg">
+                                        {menu.categories.find((c) => `cat-${c.id}` === activeDragId)?.name}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+                        {activeDragId?.startsWith("item-") && (
+                            <div className="p-3 bg-[var(--cms-panel-strong)] rounded-xl border border-[var(--cms-border)] shadow-2xl flex items-center gap-4 w-[420px]">
+                                <GripVertical className="w-4 h-4 text-[var(--cms-muted)]" />
+                                <span className="font-medium">
+                                    {menu.categories
+                                        .flatMap((cat) => cat.items || [])
+                                        .find((item) => `item-${item.id}` === activeDragId)?.name}
+                                </span>
+                            </div>
+                        )}
+                    </DragOverlay>
+                </DndContext>
 
                 {/* Add Category Section */}
                 {isAddingCategory ? (
-                    <div className="bg-white/5 border border-white/10 p-6 rounded-2xl animate-in fade-in slide-in-from-bottom-2">
+                    <div className="bg-[var(--cms-panel)] border border-[var(--cms-border)] p-6 rounded-2xl animate-in fade-in slide-in-from-bottom-2">
                         <h3 className="font-bold mb-4">New Category</h3>
                         <div className="flex gap-4">
                             <input
@@ -516,12 +1061,12 @@ export default function MenuDetailPage() {
                                     }
                                 }}
                                 placeholder="Category Name (e.g. Appetizers)"
-                                className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-2 focus:outline-none focus:border-blue-500 transition-colors"
+                                className="flex-1 bg-transparent border border-[var(--cms-border)] rounded-xl px-4 py-2 focus:outline-none focus:border-[var(--cms-text)] transition-colors"
                                 autoFocus
                             />
                             <button
                                 onClick={handleAddCategory}
-                                className="bg-blue-600 text-white px-6 rounded-xl font-bold hover:bg-blue-500"
+                                className="bg-[var(--cms-text)] text-[var(--cms-bg)] px-6 rounded-xl font-bold hover:opacity-90"
                             >
                                 Save
                             </button>
@@ -530,7 +1075,7 @@ export default function MenuDetailPage() {
                                     setIsAddingCategory(false);
                                     setNewCategoryName("");
                                 }}
-                                className="bg-white/10 text-white px-4 rounded-xl font-bold hover:bg-white/20"
+                                className="bg-[var(--cms-panel-strong)] text-[var(--cms-text)] px-4 rounded-xl font-bold hover:opacity-90"
                             >
                                 Cancel
                             </button>
@@ -542,17 +1087,63 @@ export default function MenuDetailPage() {
                             setIsAddingCategory(true);
                             setPageDirty(true);
                         }}
-                        className="w-full py-6 border-2 border-dashed border-white/10 rounded-3xl text-white/40 hover:text-white hover:border-white/20 transition-all font-bold text-lg flex items-center justify-center gap-3"
+                        className="w-full py-6 border-2 border-dashed border-[var(--cms-border)] rounded-3xl text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all font-bold text-lg flex items-center justify-center gap-3"
                     >
                         <Plus className="w-6 h-6" /> Add Category
                     </button>
                 )}
             </div>
 
+            <div className="mt-10 border border-[var(--cms-border)] bg-[var(--cms-panel)] rounded-2xl p-6">
+                <h3 className="font-bold text-lg mb-1">Import Menu</h3>
+                <p className="text-sm text-[var(--cms-muted)] mb-4">Upload a menu image or PDF. We will parse and let you review before importing.</p>
+                <div className="flex flex-wrap items-center gap-3">
+                    <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                        className="text-sm"
+                    />
+                    <button
+                        onClick={handleParseImport}
+                        disabled={!importFile || isParsingImport}
+                        className="h-10 px-4 rounded-lg font-bold text-sm bg-[var(--cms-text)] text-[var(--cms-bg)] disabled:opacity-50"
+                    >
+                        {isParsingImport ? "Parsing..." : "Parse"}
+                    </button>
+                    {parsedMenu && (
+                        <button
+                            onClick={handleApplyImport}
+                            disabled={isApplyingImport}
+                            className="h-10 px-4 rounded-lg font-bold text-sm bg-[var(--cms-panel-strong)] text-[var(--cms-text)] border border-[var(--cms-border)] disabled:opacity-50"
+                        >
+                            {isApplyingImport ? "Importing..." : "Import"}
+                        </button>
+                    )}
+                </div>
+
+                {parsedMenu && (
+                    <div className="mt-6 space-y-4">
+                        {parsedMenu.categories.map((cat, idx) => (
+                            <div key={`${cat.name}-${idx}`} className="border border-[var(--cms-border)] rounded-xl p-4">
+                                <h4 className="font-bold mb-2">{cat.name}</h4>
+                                <ul className="text-sm text-[var(--cms-muted)] space-y-1">
+                                    {cat.items.map((item, itemIdx) => (
+                                        <li key={`${item.name}-${itemIdx}`}>
+                                            {item.name}{item.price != null ? ` — $${item.price}` : ""}{item.description ? ` · ${item.description}` : ""}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
             <div className="mt-10 border border-red-500/20 bg-red-500/5 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div>
                     <h3 className="font-bold text-red-400">Delete Menu</h3>
-                    <p className="text-sm text-white/50">This removes the menu and its items permanently.</p>
+                    <p className="text-sm text-[var(--cms-muted)]">This removes the menu and its items permanently.</p>
                 </div>
                 <button
                     onClick={handleDeleteMenu}
@@ -565,9 +1156,9 @@ export default function MenuDetailPage() {
 
             {/* Item Editor Modal */}
             {editingItem && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div
-                        className="bg-[#111] border border-white/10 w-full max-w-lg rounded-3xl shadow-2xl scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
+                        className="bg-[var(--cms-panel)] border border-[var(--cms-border)] w-full max-w-lg rounded-3xl shadow-2xl scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
                         onKeyDown={(e) => {
                             const target = e.target as HTMLElement;
                             const isTextarea = target.tagName === "TEXTAREA";
@@ -584,7 +1175,7 @@ export default function MenuDetailPage() {
                                     setEditingItem(null);
                                     setFileToUpload(null);
                                 }}
-                                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                                className="p-2 hover:bg-[var(--cms-pill)] rounded-full transition-colors"
                             >
                                 <X className="w-5 h-5" />
                             </button>
@@ -592,9 +1183,9 @@ export default function MenuDetailPage() {
 
                         <div className="p-6 pt-2 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Name</label>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Name</label>
                                 <input
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 focus:outline-none focus:border-blue-500 transition-colors"
+                                    className="w-full bg-transparent border border-[var(--cms-border)] rounded-xl p-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors"
                                     placeholder="e.g. Margherita Pizza"
                                     value={editingItem.name || ""}
                                     onChange={e => {
@@ -604,9 +1195,9 @@ export default function MenuDetailPage() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Description</label>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Description</label>
                                 <textarea
-                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-3 focus:outline-none focus:border-blue-500 transition-colors min-h-[80px]"
+                                    className="w-full bg-transparent border border-[var(--cms-border)] rounded-xl p-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors min-h-[80px]"
                                     placeholder="e.g. Tomato sauce, mozzarella, and fresh basil."
                                     value={editingItem.description || ""}
                                     onChange={e => {
@@ -617,11 +1208,11 @@ export default function MenuDetailPage() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Price ($)</label>
+                                    <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Price ($)</label>
                                     <input
                                         type="number"
                                         step="0.01"
-                                        className="w-full bg-white/5 border border-white/10 rounded-xl p-3 focus:outline-none focus:border-blue-500 transition-colors"
+                                        className="w-full bg-transparent border border-[var(--cms-border)] rounded-xl p-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors"
                                         placeholder="0.00"
                                         value={editingItem.price || ""}
                                         onChange={e => {
@@ -631,13 +1222,13 @@ export default function MenuDetailPage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Status</label>
+                                    <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Status</label>
                                     <button
                                         onClick={() => {
                                             setEditingItem({ ...editingItem, is_sold_out: !editingItem.is_sold_out });
                                             setPageDirty(true);
                                         }}
-                                        className={`w-full p-3 rounded-xl border font-bold text-sm transition-all ${editingItem.is_sold_out ? 'bg-red-500/20 border-red-500/50 text-red-500' : 'bg-green-500/20 border-green-500/50 text-green-500'}`}
+                                        className={`w-full p-3 rounded-xl border font-bold text-sm transition-all ${editingItem.is_sold_out ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-[var(--cms-pill)] border-[var(--cms-border)] text-[var(--cms-text)]'}`}
                                     >
                                         {editingItem.is_sold_out ? 'SOLD OUT' : 'AVAILABLE'}
                                     </button>
@@ -646,13 +1237,13 @@ export default function MenuDetailPage() {
 
                             {/* Dietary Tags */}
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Dietary Tags</label>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Dietary Tags</label>
                                 <div className="flex flex-wrap gap-2">
                                     {dietaryTags.map(tag => (
                                         <button
                                             key={tag.id}
                                             onClick={() => toggleMetadata('tags', tag.id)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? 'bg-blue-500 border-blue-500 text-white' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'}`}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? 'bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)]' : 'bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]'}`}
                                         >
                                             {tag.name}
                                         </button>
@@ -662,13 +1253,13 @@ export default function MenuDetailPage() {
 
                             {/* Allergens */}
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Contains Allergens</label>
+                                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Contains Allergens</label>
                                 <div className="flex flex-wrap gap-2">
                                     {allergens.map(alg => (
                                         <button
                                             key={alg.id}
                                             onClick={() => toggleMetadata('allergens', alg.id)}
-                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${(editingItem as any).allergen_ids?.includes(alg.id) ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-white/5 border-white/10 text-white/60 hover:bg-white/10'}`}
+                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${(editingItem as any).allergen_ids?.includes(alg.id) ? 'bg-red-500/10 border-red-500/40 text-red-500' : 'bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]'}`}
                                         >
                                             {alg.name}
                                         </button>
@@ -678,8 +1269,8 @@ export default function MenuDetailPage() {
 
                             {/* Photo Upload */}
                             <div>
-                                <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Photo</label>
-                                <label className="p-8 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center text-white/40 hover:text-white hover:border-white/20 transition-all cursor-pointer relative overflow-hidden bg-white/5">
+                                <label className="block text-xs font-bold uppercase tracking-widest text-[var(--cms-muted)] mb-2">Photo</label>
+                                <label className="p-8 border-2 border-dashed border-[var(--cms-border)] rounded-xl flex flex-col items-center justify-center text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all cursor-pointer relative overflow-hidden bg-[var(--cms-panel-strong)]">
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -692,7 +1283,7 @@ export default function MenuDetailPage() {
                                     />
                                     {fileToUpload ? (
                                         <div className="text-center">
-                                            <p className="text-blue-400 font-bold mb-1">{fileToUpload.name}</p>
+                                            <p className="font-bold mb-1">{fileToUpload.name}</p>
                                             <p className="text-xs">Click to change</p>
                                         </div>
                                     ) : (editingItem.photo_url || (editingItem as any).photos?.[0]?.url) ? (
@@ -712,7 +1303,7 @@ export default function MenuDetailPage() {
                             </div>
 
                         </div>
-                        <div className="p-6 pt-4 border-t border-white/10 flex justify-between gap-3 flex-shrink-0 bg-[#111] rounded-b-3xl">
+                        <div className="p-6 pt-4 border-t border-[var(--cms-border)] flex justify-between gap-3 flex-shrink-0 bg-[var(--cms-panel)] rounded-b-3xl">
                             <div>
                                 {editingItem.id && (
                                     <button
@@ -745,14 +1336,14 @@ export default function MenuDetailPage() {
                                         setEditingItem(null);
                                         setFileToUpload(null);
                                     }}
-                                    className="px-6 py-3 rounded-xl font-bold hover:bg-white/10 transition-colors"
+                                    className="px-6 py-3 rounded-xl font-bold hover:bg-[var(--cms-pill)] transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleSaveItem}
                                     disabled={isSavingItem || !editingItem.name || (!editingItem.price && editingItem.price !== 0)}
-                                    className="px-6 py-3 bg-blue-600 rounded-xl font-bold hover:bg-blue-500 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    className="px-6 py-3 bg-[var(--cms-text)] text-[var(--cms-bg)] rounded-xl font-bold hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-2"
                                 >
                                     {isSavingItem && <Loader2 className="w-4 h-4 animate-spin" />}
                                     {isSavingItem ? 'Saving...' : 'Save Item'}

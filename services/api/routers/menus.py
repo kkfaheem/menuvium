@@ -2,6 +2,7 @@ import uuid
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select, delete
+from sqlalchemy.orm import selectinload
 from database import get_session
 from models import (
     Menu,
@@ -141,5 +142,15 @@ def get_public_menu(menu_id: uuid.UUID, session: Session = SessionDep):
     # Check Active
     if not menu.is_active:
         raise HTTPException(status_code=404, detail="Menu is not active")
+
+    categories = session.exec(
+        select(Category)
+        .where(Category.menu_id == menu_id)
+        .order_by(Category.rank)
+        .options(selectinload(Category.items))
+    ).all()
+    for cat in categories:
+        cat.items = sorted(cat.items or [], key=lambda item: item.position)
+    menu.categories = categories
 
     return menu

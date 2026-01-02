@@ -22,6 +22,8 @@ export default function DashboardLayout({
         if (typeof window !== 'undefined') {
             const mock = localStorage.getItem('menuvium_mock_user') === 'true';
             setIsMock(mock);
+            const savedTheme = (localStorage.getItem('menuvium_cms_theme') as "dark" | "light") || "dark";
+            document.documentElement.dataset.cmsTheme = savedTheme;
             if (!user && !mock) {
                 router.push('/login');
             }
@@ -32,28 +34,28 @@ export default function DashboardLayout({
     if (!user && !isMock) return null;
 
     return (
-        <div className="flex min-h-screen bg-[#0a0a0a] text-white">
+        <div className="flex min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] transition-colors">
             {/* Sidebar */}
-            <aside className="w-64 border-r border-white/10 p-6 flex flex-col fixed h-full bg-[#0a0a0a]">
+            <aside className="w-64 border-r border-[var(--cms-border)] p-6 flex flex-col fixed h-full bg-[var(--cms-panel)] transition-colors">
                 <h2 className="text-xl font-bold mb-12 tracking-tight pl-2">Menuvium</h2>
                 <nav className="flex-1 space-y-2">
                     <Link
                         href="/dashboard"
-                        className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium ${pathname === '/dashboard' ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium ${pathname === '/dashboard' ? 'bg-[var(--cms-pill)] text-[var(--cms-text)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]'}`}
                     >
                         <LayoutDashboard className="w-5 h-5" />
                         Overview
                     </Link>
                     <Link
                         href="/dashboard/menus"
-                        className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium ${pathname.startsWith('/dashboard/menus') ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium ${pathname.startsWith('/dashboard/menus') ? 'bg-[var(--cms-pill)] text-[var(--cms-text)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]'}`}
                     >
                         <UtensilsCrossed className="w-5 h-5" />
                         Menus
                     </Link>
                     <Link
-                        href="/onboarding"
-                        className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium ${pathname === '/onboarding' ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                        href="/dashboard/settings"
+                        className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium ${pathname === '/dashboard/settings' ? 'bg-[var(--cms-pill)] text-[var(--cms-text)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]'}`}
                     >
                         <Settings className="w-5 h-5" />
                         Settings
@@ -68,7 +70,7 @@ export default function DashboardLayout({
                             signOut();
                         }
                     }}
-                    className="flex items-center gap-3 p-3 text-white/40 hover:text-white transition-all mt-auto"
+                    className="flex items-center gap-3 p-3 text-[var(--cms-muted-strong)] hover:text-[var(--cms-text)] transition-all mt-auto"
                 >
                     <LogOut className="w-5 h-5" />
                     Sign Out

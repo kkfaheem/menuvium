@@ -20,7 +20,6 @@ export default function MenusPage() {
     const [menus, setMenus] = useState<Menu[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreating, setIsCreating] = useState(false);
-    const [newMenuName, setNewMenuName] = useState("");
     const router = useRouter();
 
     const [locations, setLocations] = useState<any[]>([]);
@@ -142,8 +141,8 @@ export default function MenusPage() {
         }
     };
 
-    const handleCreateMenu = async () => {
-        if (!newMenuName || !selectedLocation) return;
+    const handleCreateMenu = async (name: string) => {
+        if (!name || !selectedLocation) return;
         setIsCreating(true);
         try {
             const token = await getAuthToken();
@@ -154,14 +153,13 @@ export default function MenusPage() {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    name: newMenuName,
+                    name,
                     // Slug is optional now, backend handles it or we can omit
                     location_id: selectedLocation
                 })
             });
 
             if (res.ok) {
-                setNewMenuName("");
                 fetchMenus();
             } else {
                 const err = await res.json();
@@ -181,61 +179,57 @@ export default function MenusPage() {
             <header className="mb-8 flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight mb-2">Menus</h1>
-                    <p className="text-white/40">Manage your restaurant's menus.</p>
+                    <p className="text-[var(--cms-muted)]">Manage your restaurant's menus.</p>
                 </div>
-                {/* Location Selector */}
-                {locations.length > 0 && (
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm text-white/40">Location:</span>
-                        <select
-                            value={selectedLocation}
-                            onChange={(e) => setSelectedLocation(e.target.value)}
-                            className="bg-[#222] border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none"
-                        >
-                            {locations.map(loc => (
-                                <option key={loc.id} value={loc.id}>{loc.name}</option>
-                            ))}
-                        </select>
-                    </div>
-                )}
+                <div className="flex items-center gap-3">
+                    {locations.length > 0 && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm text-[var(--cms-muted)]">Location:</span>
+                            <select
+                                value={selectedLocation}
+                                onChange={(e) => setSelectedLocation(e.target.value)}
+                                className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-lg px-3 py-2 text-sm text-[var(--cms-text)] focus:outline-none"
+                            >
+                                {locations.map(loc => (
+                                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    <button
+                        onClick={async () => {
+                            if (!selectedLocation) return;
+                            const name = window.prompt("Menu name");
+                            if (!name || !name.trim()) return;
+                            handleCreateMenu(name.trim());
+                        }}
+                        disabled={isCreating || !selectedLocation}
+                        className="bg-[var(--cms-text)] text-[var(--cms-bg)] px-4 py-2 rounded-lg font-bold hover:opacity-90 disabled:opacity-50 inline-flex items-center gap-2"
+                    >
+                        {isCreating && <Loader2 className="w-4 h-4 animate-spin" />}
+                        Create
+                    </button>
+                </div>
             </header>
-
-            {/* Create Menu Input */}
-            <div className="bg-white/5 border border-white/10 p-4 rounded-xl mb-8 flex gap-4">
-                <input
-                    value={newMenuName}
-                    onChange={(e) => setNewMenuName(e.target.value)}
-                    placeholder="New Menu Name (e.g. Lunch Special)"
-                    className="flex-1 bg-transparent border-none focus:outline-none text-white placeholder:text-white/20"
-                />
-                <button
-                    onClick={handleCreateMenu}
-                    disabled={isCreating || !newMenuName || !selectedLocation}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-500 disabled:opacity-50 flex items-center gap-2"
-                >
-                    {isCreating && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Create
-                </button>
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {menus.map(menu => (
                     <Link
                         key={menu.id}
                         href={`/dashboard/menus/${menu.id}`}
-                        className={`group block bg-white/5 border border-white/10 rounded-2xl p-6 transition-all hover:scale-[1.02] ${menu.is_active ? 'hover:bg-white/10' : 'opacity-60 hover:opacity-80'}`}
+                        className={`group block bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6 transition-all hover:scale-[1.02] ${menu.is_active ? 'hover:bg-[var(--cms-panel-strong)]' : 'opacity-70 hover:opacity-90'}`}
                     >
                         <div className="flex justify-between items-start mb-4">
-                            <div className="w-12 h-12 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500 font-bold text-xl">
+                            <div className="w-12 h-12 rounded-full bg-[var(--cms-pill)] flex items-center justify-center text-[var(--cms-text)] font-bold text-xl">
                                 {menu.name[0]}
                             </div>
                             <div className="flex items-center gap-2">
-                                <div className={`px-2 py-1 rounded text-xs font-bold ${menu.is_active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-300'}`}>
+                                <div className={`px-2 py-1 rounded text-xs font-bold ${menu.is_active ? 'bg-[var(--cms-pill)] text-[var(--cms-text)]' : 'bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]'}`}>
                                     {menu.is_active ? 'ACTIVE' : 'INACTIVE'}
                                 </div>
                             </div>
                         </div>
-                        <h3 className="text-xl font-bold mb-1 group-hover:text-blue-400 transition-colors">{menu.name}</h3>
+                        <h3 className="text-xl font-bold mb-1 group-hover:text-[var(--cms-text)] transition-colors">{menu.name}</h3>
 
                     </Link>
                 ))}

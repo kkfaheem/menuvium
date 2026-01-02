@@ -7,6 +7,7 @@ import * as rds from 'aws-cdk-lib/aws-rds';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
 export class MenuviumStack extends cdk.Stack {
     constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -47,6 +48,9 @@ export class MenuviumStack extends cdk.Stack {
         const apiRepo = new ecr.Repository(this, 'MenuviumApiRepo');
 
         const corsOrigins = this.node.tryGetContext('corsOrigins') || process.env.CORS_ORIGINS;
+        const openAiModel = this.node.tryGetContext('openAiModel') || process.env.OPENAI_MODEL;
+        const openAiSecretName = this.node.tryGetContext('openAiSecretName') || 'MenuviumOpenAIKey';
+        const openAiSecret = secretsmanager.Secret.fromSecretNameV2(this, 'MenuviumOpenAiSecret', openAiSecretName);
         const apiEnvironment: Record<string, string> = {
             DB_HOST: db.dbInstanceEndpointAddress,
             DB_PORT: db.dbInstanceEndpointPort,
@@ -55,9 +59,13 @@ export class MenuviumStack extends cdk.Stack {
             COGNITO_USER_POOL_ID: userPool.userPoolId,
             COGNITO_CLIENT_ID: userPoolClient.userPoolClientId,
             S3_BUCKET_NAME: bucket.bucketName,
+            OCR_MODE: 'textract',
         };
         if (corsOrigins) {
             apiEnvironment.CORS_ORIGINS = corsOrigins;
+        }
+        if (openAiModel) {
+            apiEnvironment.OPENAI_MODEL = openAiModel;
         }
 
         // 5. API (Fargate)
@@ -71,6 +79,7 @@ export class MenuviumStack extends cdk.Stack {
                 environment: apiEnvironment,
                 secrets: {
                     DB_PASSWORD: ecs.Secret.fromSecretsManager(db.secret!, 'password'),
+                    OPENAI_API_KEY: ecs.Secret.fromSecretsManager(openAiSecret),
                 }
             },
             publicLoadBalancer: true,

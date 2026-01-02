@@ -179,8 +179,8 @@ export default function PublicMenuPage() {
 
                                             {/* Tags Mini */}
                                             <div className="flex gap-1">
-                                                {item.dietary_tags.slice(0, 3).map(tag => (
-                                                    <span key={tag.id} className="w-1.5 h-1.5 rounded-full bg-blue-500/50"></span>
+                                                {item.dietary_tags.slice(0, 3).map((tag, index) => (
+                                                    <span key={`${item.id}-diet-${tag.id ?? tag.name ?? index}`} className="w-1.5 h-1.5 rounded-full bg-blue-500/50"></span>
                                                 ))}
                                                 {item.allergens.length > 0 && (
                                                     <span className="w-1.5 h-1.5 rounded-full bg-red-500/50"></span>
@@ -279,8 +279,8 @@ export default function PublicMenuPage() {
                                             <div>
                                                 <h4 className="text-xs font-bold uppercase tracking-widest text-white/40 mb-3">Dietary</h4>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {selectedItem.dietary_tags.map(tag => (
-                                                        <span key={tag.id} className="px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-xs font-bold border border-blue-500/20">
+                                                    {selectedItem.dietary_tags.map((tag, index) => (
+                                                        <span key={`${selectedItem.id}-diet-${tag.id ?? tag.name ?? index}`} className="px-3 py-1 bg-blue-500/10 text-blue-400 rounded-lg text-xs font-bold border border-blue-500/20">
                                                             {tag.name}
                                                         </span>
                                                     ))}
@@ -291,8 +291,8 @@ export default function PublicMenuPage() {
                                             <div>
                                                 <h4 className="text-xs font-bold uppercase tracking-widest text-white/40 mb-3">Allergens</h4>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {selectedItem.allergens.map(tag => (
-                                                        <span key={tag.id} className="px-3 py-1 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20">
+                                                    {selectedItem.allergens.map((tag, index) => (
+                                                        <span key={`${selectedItem.id}-allergen-${tag.id ?? tag.name ?? index}`} className="px-3 py-1 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold border border-red-500/20">
                                                             {tag.name}
                                                         </span>
                                                     ))}
@@ -316,4 +316,3 @@ export default function PublicMenuPage() {
         </div>
     );
 }
-
