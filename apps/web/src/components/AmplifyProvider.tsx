@@ -9,9 +9,9 @@ const oauthConfig = process.env.NEXT_PUBLIC_COGNITO_DOMAIN
     ? {
         domain: process.env.NEXT_PUBLIC_COGNITO_DOMAIN,
         scopes: ["email", "openid", "profile"],
-        redirectSignIn: process.env.NEXT_PUBLIC_AUTH_REDIRECT_SIGNIN || "http://localhost:3000/login",
-        redirectSignOut: process.env.NEXT_PUBLIC_AUTH_REDIRECT_SIGNOUT || "http://localhost:3000/login",
-        responseType: "code"
+        redirectSignIn: [process.env.NEXT_PUBLIC_AUTH_REDIRECT_SIGNIN || "http://localhost:3000/login"],
+        redirectSignOut: [process.env.NEXT_PUBLIC_AUTH_REDIRECT_SIGNOUT || "http://localhost:3000/login"],
+        responseType: "code" as const
     }
     : undefined;
 

@@ -11,6 +11,7 @@ import {
     PointerSensor,
     DragOverlay,
     closestCenter,
+    type DragEndEvent,
     useSensor,
     useSensors
 } from "@dnd-kit/core";
@@ -101,11 +102,15 @@ function SortableItemRow({
         animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true })
     });
     const style = {
-        transform: CSS.Transform.toString({
-            ...transform,
-            scaleX: 1,
-            scaleY: 1
-        }),
+        transform: transform
+            ? CSS.Transform.toString({
+                ...transform,
+                x: transform.x ?? 0,
+                y: transform.y ?? 0,
+                scaleX: 1,
+                scaleY: 1
+            })
+            : undefined,
         transition,
         opacity: isDragging ? 0.7 : undefined,
         boxShadow: isDragging ? "0 8px 20px rgba(0,0,0,0.18)" : undefined
@@ -473,7 +478,7 @@ export default function MenuDetailPage() {
         setCollapsedCategoryIds(new Set());
     };
 
-    const handleDragEnd = async (event: { active: { id: string | number }; over?: { id: string | number } }) => {
+    const handleDragEnd = async (event: DragEndEvent) => {
         setIsDragging(false);
         setActiveDragId(null);
         if (!menu || !event.over) return;
@@ -505,35 +510,6 @@ export default function MenuDetailPage() {
             setMenu({ ...menu, categories: nextCategories });
             await persistItemOrder(activeCategory.id, nextItems);
         }
-    };
-
-    const handleCategoryDrop = async (targetId: string) => {
-        if (!menu || !draggingCategoryId || draggingCategoryId === targetId) return;
-        const fromIndex = menu.categories.findIndex((c) => c.id === draggingCategoryId);
-        const toIndex = menu.categories.findIndex((c) => c.id === targetId);
-        if (fromIndex < 0 || toIndex < 0) return;
-        const nextCategories = reorderArray(menu.categories, fromIndex, toIndex);
-        setMenu({ ...menu, categories: nextCategories });
-        setDraggingCategoryId(null);
-        setIsDragging(false);
-        await persistCategoryOrder(nextCategories);
-    };
-
-    const handleItemDrop = async (category: Category, targetId: string) => {
-        if (!menu || !draggingItem || draggingItem.categoryId !== category.id) return;
-        if (draggingItem.itemId === targetId) return;
-        const items = [...(category.items || [])];
-        const fromIndex = items.findIndex((i) => i.id === draggingItem.itemId);
-        const toIndex = items.findIndex((i) => i.id === targetId);
-        if (fromIndex < 0 || toIndex < 0) return;
-        const nextItems = reorderArray(items, fromIndex, toIndex);
-        const nextCategories = menu.categories.map((cat) =>
-            cat.id === category.id ? { ...cat, items: nextItems } : cat
-        );
-        setMenu({ ...menu, categories: nextCategories });
-        setDraggingItem(null);
-        setIsDragging(false);
-        await persistItemOrder(category.id, nextItems);
     };
 
     const handleFileUpload = async (file: File) => {

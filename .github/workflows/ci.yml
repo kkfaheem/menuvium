@@ -55,7 +55,7 @@ jobs:
         node-version: '20'
     - name: Install CDK dependencies
       working-directory: ./infra/cdk
-      run: npm ci
+      run: npm install
     - name: Synth
       working-directory: ./infra/cdk
       run: npx cdk synth
