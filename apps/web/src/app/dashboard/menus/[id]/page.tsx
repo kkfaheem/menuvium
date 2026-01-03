@@ -66,11 +66,15 @@ function SortableCategoryCard({
         animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true })
     });
     const style = {
-        transform: CSS.Transform.toString({
-            ...transform,
-            scaleX: 1,
-            scaleY: 1
-        }),
+        transform: transform
+            ? CSS.Transform.toString({
+                ...transform,
+                x: transform.x ?? 0,
+                y: transform.y ?? 0,
+                scaleX: 1,
+                scaleY: 1
+            })
+            : undefined,
         transition,
         opacity: isDragging ? 0.7 : undefined,
         boxShadow: isDragging ? "0 10px 30px rgba(0,0,0,0.2)" : undefined
