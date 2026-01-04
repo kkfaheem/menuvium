@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { Search, X, AlertCircle } from "lucide-react";
 import { Bebas_Neue, Manrope, Playfair_Display, Space_Grotesk } from "next/font/google";
 import { MENU_THEME_BY_ID, MenuThemeId } from "@/lib/menuThemes";
+import { getApiBase } from "@/lib/apiBase";
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["500", "600", "700"] });
@@ -51,6 +52,7 @@ interface Menu {
     slug: string;
     currency?: string;
     theme?: string;
+    banner_url?: string | null;
     categories: Category[];
 }
 
@@ -83,7 +85,8 @@ export default function PublicMenuPage() {
 
     const fetchMenu = async () => {
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/public/${menuId}`);
+            const apiBase = getApiBase();
+            const res = await fetch(`${apiBase}/menus/public/${menuId}`);
             if (!res.ok) throw new Error("Menu not found");
             const data = await res.json();
             setMenu(data);
@@ -109,6 +112,18 @@ export default function PublicMenuPage() {
     const previewTheme = searchParams.get("theme");
     const resolvedTheme = (previewTheme || menu?.theme || "noir") as MenuThemeId;
     const themeId: MenuThemeId = MENU_THEME_BY_ID[resolvedTheme] ? resolvedTheme : "noir";
+    const activeTheme = MENU_THEME_BY_ID[themeId];
+    const palette = activeTheme.palette;
+    const themeLayout = activeTheme.layout;
+    const themeVars = {
+        "--menu-bg": palette.bg,
+        "--menu-surface": palette.surface,
+        "--menu-surface-alt": palette.surfaceAlt,
+        "--menu-text": palette.text,
+        "--menu-muted": palette.muted,
+        "--menu-border": palette.border,
+        "--menu-accent": palette.accent
+    } as React.CSSProperties;
 
     if (loading) {
         return (
@@ -133,9 +148,24 @@ export default function PublicMenuPage() {
         );
     }
 
+    const renderBanner = () => {
+        if (!menu.banner_url) return null;
+        return (
+            <div className="rounded-3xl overflow-hidden border shadow-sm" style={{ borderColor: palette.border }}>
+                <img src={menu.banner_url} alt={`${menu.name} banner`} className="w-full h-44 object-cover" />
+            </div>
+        );
+    };
+
     const renderNoir = () => (
-        <div className={`min-h-screen bg-[#050505] text-white pb-20 selection:bg-orange-500/30 ${spaceGrotesk.className}`}>
-            <div className="sticky top-0 z-40 bg-[#050505]/80 backdrop-blur-xl border-b border-white/5 transition-all">
+        <div
+            className={`min-h-screen pb-20 selection:bg-orange-500/30 ${spaceGrotesk.className} bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
+            style={themeVars}
+        >
+            <div
+                className="sticky top-0 z-40 backdrop-blur-xl border-b transition-all"
+                style={{ backgroundColor: palette.bg, borderColor: palette.border }}
+            >
                 <div className="max-w-md mx-auto p-4">
                     <div className="flex items-center justify-between mb-4">
                         <h1 className="text-xl font-bold tracking-tight truncate pr-4">{menu.name}</h1>
@@ -148,7 +178,8 @@ export default function PublicMenuPage() {
                         <input
                             type="text"
                             placeholder="Find food or drinks..."
-                            className="block w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-sm placeholder:text-white/30 focus:outline-none focus:bg-white/10 focus:border-white/20 transition-all font-medium"
+                            className="block w-full pl-10 pr-4 py-3 rounded-2xl text-sm placeholder:text-[color:var(--menu-muted)] focus:outline-none transition-all font-medium border"
+                            style={{ backgroundColor: palette.surfaceAlt, borderColor: palette.border, color: palette.text }}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -160,7 +191,8 @@ export default function PublicMenuPage() {
                         <a
                             key={cat.id}
                             href={`#cat-${cat.id}`}
-                            className="whitespace-nowrap pb-4 text-sm font-bold text-white/50 hover:text-white transition-colors border-b-2 border-transparent hover:border-white"
+                            className="whitespace-nowrap pb-4 text-sm font-bold transition-colors border-b-2 border-transparent"
+                            style={{ color: palette.muted }}
                         >
                             {cat.name}
                         </a>
@@ -169,11 +201,17 @@ export default function PublicMenuPage() {
             </div>
 
             <main className="max-w-md mx-auto p-4 space-y-12 pt-8">
+                {renderBanner()}
                 {filteredCategories.map(category => (
                     <section key={category.id} id={`cat-${category.id}`} className="scroll-mt-48">
                         <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
                             {category.name}
-                            <span className="text-xs font-mono font-normal text-white/20 bg-white/5 px-2 py-1 rounded-full">{visibleItems(category.items).length}</span>
+                            <span
+                                className="text-xs font-mono font-normal px-2 py-1 rounded-full"
+                                style={{ color: palette.muted, backgroundColor: palette.surfaceAlt }}
+                            >
+                                {visibleItems(category.items).length}
+                            </span>
                         </h2>
 
                         <div className="grid gap-6">
@@ -181,20 +219,21 @@ export default function PublicMenuPage() {
                                 <div
                                     key={item.id}
                                     onClick={() => setSelectedItem(item)}
-                                    className={`group relative bg-white/[0.03] active:scale-[0.98] transition-all duration-200 rounded-3xl p-4 flex gap-4 cursor-pointer overflow-hidden border border-white/5 hover:border-white/10 ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-50 grayscale" : ""}`}
+                                    className={`group relative active:scale-[0.98] transition-all duration-200 rounded-3xl p-4 flex gap-4 cursor-pointer overflow-hidden border ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-50 grayscale" : ""}`}
+                                    style={{ backgroundColor: palette.surface, borderColor: palette.border }}
                                 >
                                     <div className="flex-1 min-w-0 flex flex-col justify-between py-1">
                                         <div>
                                             <div className="flex justify-between items-start gap-2 mb-1">
                                                 <h3 className="font-bold text-lg leading-tight truncate">{item.name}</h3>
                                             </div>
-                                            <p className="text-sm text-white/50 line-clamp-2 mb-3 leading-relaxed">
+                                            <p className="text-sm line-clamp-2 mb-3 leading-relaxed" style={{ color: palette.muted }}>
                                                 {item.description || "No description available."}
                                             </p>
                                         </div>
 
                                         <div className="flex items-center justify-between mt-auto">
-                                            <div className="font-mono font-bold text-lg text-white/90">
+                                            <div className="font-mono font-bold text-lg" style={{ color: palette.accent }}>
                                                 ${item.price.toFixed(2)}
                                             </div>
 
@@ -210,7 +249,7 @@ export default function PublicMenuPage() {
                                     </div>
 
                                     {(item.photo_url || item.photos[0]?.url) ? (
-                                        <div className="w-28 h-28 shrink-0 rounded-2xl overflow-hidden bg-white/10 relative shadow-lg">
+                                        <div className="w-28 h-28 shrink-0 rounded-2xl overflow-hidden relative shadow-lg" style={{ backgroundColor: palette.surfaceAlt }}>
                                             <img
                                                 src={item.photo_url || item.photos[0]?.url}
                                                 alt={item.name}
@@ -249,8 +288,14 @@ export default function PublicMenuPage() {
     );
 
     const renderPaper = () => (
-        <div className={`min-h-screen bg-[#F6F1EA] text-[#2B2420] pb-20 ${manrope.className}`}>
-            <div className="sticky top-0 z-40 bg-[#F6F1EA]/90 backdrop-blur border-b border-[#E6DED4]">
+        <div
+            className={`min-h-screen pb-20 ${manrope.className} bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
+            style={themeVars}
+        >
+            <div
+                className="sticky top-0 z-40 backdrop-blur border-b"
+                style={{ backgroundColor: palette.bg, borderColor: palette.border }}
+            >
                 <div className="max-w-md mx-auto p-4">
                     <div className="flex items-center justify-between mb-4">
                         <h1 className={`text-2xl font-semibold tracking-tight ${playfair.className}`}>{menu.name}</h1>
@@ -262,7 +307,8 @@ export default function PublicMenuPage() {
                         <input
                             type="text"
                             placeholder="Search the menu..."
-                            className="block w-full pl-10 pr-4 py-3 bg-white border border-[#E6DED4] rounded-2xl text-sm placeholder:text-[#B7AAA0] focus:outline-none focus:border-[#C27D4E] transition-all"
+                            className="block w-full pl-10 pr-4 py-3 rounded-2xl text-sm focus:outline-none transition-all border"
+                            style={{ backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -282,25 +328,35 @@ export default function PublicMenuPage() {
             </div>
 
             <main className="max-w-md mx-auto p-4 space-y-10">
+                {renderBanner()}
                 {filteredCategories.map(category => (
                     <section key={category.id} id={`cat-${category.id}`} className="scroll-mt-44">
                         <div className="flex items-center justify-between mb-5">
                             <h2 className={`text-2xl ${playfair.className}`}>{category.name}</h2>
-                            <span className="text-xs text-[#9C8F86]">{visibleItems(category.items).length} items</span>
+                            <span className="text-xs" style={{ color: palette.muted }}>
+                                {visibleItems(category.items).length} items
+                            </span>
                         </div>
-                        <div className="bg-white rounded-3xl border border-[#E6DED4] divide-y divide-[#F0E8DE] overflow-hidden">
+                        <div
+                            className="rounded-3xl border divide-y overflow-hidden"
+                            style={{ backgroundColor: palette.surface, borderColor: palette.border }}
+                        >
                             {visibleItems(category.items).map(item => (
                                 <button
                                     key={item.id}
                                     onClick={() => setSelectedItem(item)}
-                                    className={`w-full text-left px-4 py-4 flex items-start gap-3 hover:bg-[#FCFAF7] transition-colors ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
+                                    className={`w-full text-left px-4 py-4 flex items-start gap-3 transition-colors ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
                                 >
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-start justify-between gap-3">
                                             <h3 className="font-semibold text-base">{item.name}</h3>
-                                            <span className="text-sm font-semibold text-[#C27D4E]">${item.price.toFixed(2)}</span>
+                                            <span className="text-sm font-semibold" style={{ color: palette.accent }}>
+                                                ${item.price.toFixed(2)}
+                                            </span>
                                         </div>
-                                        <p className="text-sm text-[#7A6B62] line-clamp-2 mt-1">{item.description || "No description available."}</p>
+                                        <p className="text-sm line-clamp-2 mt-1" style={{ color: palette.muted }}>
+                                            {item.description || "No description available."}
+                                        </p>
                                     </div>
                                 </button>
                             ))}
@@ -318,8 +374,14 @@ export default function PublicMenuPage() {
     );
 
     const renderCitrus = () => (
-        <div className={`min-h-screen bg-[#FFF6E8] text-[#1F1A14] pb-20 ${spaceGrotesk.className}`}>
-            <div className="sticky top-0 z-40 bg-[#FFF6E8]/90 backdrop-blur border-b border-[#F4D8B8]">
+        <div
+            className={`min-h-screen pb-20 ${spaceGrotesk.className} bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
+            style={themeVars}
+        >
+            <div
+                className="sticky top-0 z-40 backdrop-blur border-b"
+                style={{ backgroundColor: palette.bg, borderColor: palette.border }}
+            >
                 <div className="max-w-md mx-auto p-4">
                     <div className="flex items-center justify-between mb-4">
                         <h1 className={`text-3xl tracking-wide ${bebas.className}`}>{menu.name}</h1>
@@ -332,7 +394,8 @@ export default function PublicMenuPage() {
                         <input
                             type="text"
                             placeholder="Search items"
-                            className="block w-full pl-10 pr-4 py-3 bg-white border-2 border-[#FFB703] rounded-2xl text-sm placeholder:text-[#CDA774] focus:outline-none focus:border-[#FF8F00] transition-all"
+                            className="block w-full pl-10 pr-4 py-3 rounded-2xl text-sm placeholder:text-[color:var(--menu-muted)] focus:outline-none transition-all border-2"
+                            style={{ backgroundColor: palette.surface, borderColor: palette.accent, color: palette.text }}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -352,25 +415,33 @@ export default function PublicMenuPage() {
             </div>
 
             <main className="max-w-md mx-auto p-4 space-y-10">
+                {renderBanner()}
                 {filteredCategories.map(category => (
                     <section key={category.id} id={`cat-${category.id}`} className="scroll-mt-44">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className={`text-2xl tracking-wide ${bebas.className}`}>{category.name}</h2>
-                            <span className="text-xs text-[#A67E44]">{visibleItems(category.items).length} items</span>
+                            <span className="text-xs" style={{ color: palette.muted }}>
+                                {visibleItems(category.items).length} items
+                            </span>
                         </div>
                         <div className="grid gap-4">
                             {visibleItems(category.items).map(item => (
                                 <div
                                     key={item.id}
                                     onClick={() => setSelectedItem(item)}
-                                    className={`group cursor-pointer bg-white rounded-2xl border-2 border-[#F4D8B8] p-4 shadow-sm hover:-translate-y-0.5 transition-all ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
+                                    className={`group cursor-pointer rounded-2xl border-2 p-4 shadow-sm hover:-translate-y-0.5 transition-all ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
+                                    style={{ backgroundColor: palette.surface, borderColor: palette.border }}
                                 >
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
                                             <h3 className="font-bold text-base truncate">{item.name}</h3>
-                                            <p className="text-sm text-[#6F5640] line-clamp-2 mt-1">{item.description || "No description available."}</p>
+                                            <p className="text-sm line-clamp-2 mt-1" style={{ color: palette.muted }}>
+                                                {item.description || "No description available."}
+                                            </p>
                                         </div>
-                                        <span className="text-sm font-semibold text-[#FF8F00]">${item.price.toFixed(2)}</span>
+                                        <span className="text-sm font-semibold" style={{ color: palette.accent }}>
+                                            ${item.price.toFixed(2)}
+                                        </span>
                                     </div>
                                 </div>
                             ))}
@@ -382,8 +453,14 @@ export default function PublicMenuPage() {
     );
 
     const renderHarbor = () => (
-        <div className={`min-h-screen bg-gradient-to-b from-[#F1F6F8] via-[#F7FBFC] to-white text-[#1D2B2F] pb-20 ${manrope.className}`}>
-            <div className="sticky top-0 z-40 bg-[#F7FBFC]/90 backdrop-blur border-b border-[#D6E3E8]">
+        <div
+            className={`min-h-screen pb-20 ${manrope.className} bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
+            style={themeVars}
+        >
+            <div
+                className="sticky top-0 z-40 backdrop-blur border-b"
+                style={{ backgroundColor: palette.surfaceAlt, borderColor: palette.border }}
+            >
                 <div className="max-w-md mx-auto p-4">
                     <div className="flex items-center justify-between mb-3">
                         <h1 className="text-2xl font-semibold tracking-tight">{menu.name}</h1>
@@ -395,7 +472,8 @@ export default function PublicMenuPage() {
                         <input
                             type="text"
                             placeholder="Search menu..."
-                            className="block w-full pl-10 pr-4 py-3 bg-white border border-[#D6E3E8] rounded-2xl text-sm placeholder:text-[#94A3A9] focus:outline-none focus:border-[#2A9D8F] transition-all"
+                            className="block w-full pl-10 pr-4 py-3 rounded-2xl text-sm placeholder:text-[color:var(--menu-muted)] focus:outline-none transition-all border"
+                            style={{ backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -415,24 +493,34 @@ export default function PublicMenuPage() {
             </div>
 
             <main className="max-w-md mx-auto p-4 space-y-10">
+                {renderBanner()}
                 {filteredCategories.map(category => (
                     <section key={category.id} id={`cat-${category.id}`} className="scroll-mt-44">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-semibold">{category.name}</h2>
-                            <span className="text-xs text-[#7C9198]">{visibleItems(category.items).length} items</span>
+                            <span className="text-xs" style={{ color: palette.muted }}>
+                                {visibleItems(category.items).length} items
+                            </span>
                         </div>
-                        <div className="bg-white rounded-2xl border border-[#D6E3E8] divide-y divide-[#EEF4F6]">
+                        <div
+                            className="rounded-2xl border divide-y"
+                            style={{ backgroundColor: palette.surface, borderColor: palette.border }}
+                        >
                             {visibleItems(category.items).map(item => (
                                 <button
                                     key={item.id}
                                     onClick={() => setSelectedItem(item)}
-                                    className={`w-full text-left px-4 py-4 flex items-center justify-between gap-4 hover:bg-[#F7FBFC] transition-colors ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
+                                    className={`w-full text-left px-4 py-4 flex items-center justify-between gap-4 transition-colors ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
                                 >
                                     <div className="min-w-0">
                                         <h3 className="font-semibold text-base truncate">{item.name}</h3>
-                                        <p className="text-sm text-[#6B7B82] line-clamp-2 mt-1">{item.description || "No description available."}</p>
+                                        <p className="text-sm line-clamp-2 mt-1" style={{ color: palette.muted }}>
+                                            {item.description || "No description available."}
+                                        </p>
                                     </div>
-                                    <span className="text-sm font-semibold text-[#2A9D8F]">${item.price.toFixed(2)}</span>
+                                    <span className="text-sm font-semibold" style={{ color: palette.accent }}>
+                                        ${item.price.toFixed(2)}
+                                    </span>
                                 </button>
                             ))}
                         </div>
@@ -443,7 +531,7 @@ export default function PublicMenuPage() {
     );
 
     const renderTheme = () => {
-        switch (themeId) {
+        switch (themeLayout) {
             case "paper":
                 return renderPaper();
             case "citrus":
@@ -456,52 +544,26 @@ export default function PublicMenuPage() {
         }
     };
 
-    const modalStyles = themeId === "paper"
-        ? { backdrop: "bg-black/40", panel: "bg-white text-[#2B2420] border-[#E6DED4]" }
-        : themeId === "harbor"
-            ? { backdrop: "bg-black/50", panel: "bg-white text-[#1D2B2F] border-[#D6E3E8]" }
-            : themeId === "citrus"
-                ? { backdrop: "bg-black/50", panel: "bg-white text-[#1F1A14] border-[#F4D8B8]" }
-                : { backdrop: "bg-black/90", panel: "bg-[#111] text-white border-white/10" };
-    const modalContent = themeId === "paper"
-        ? {
-            price: "text-[#C27D4E]",
-            body: "text-[#6E6258]",
-            label: "text-[#B6A89E]",
-            dietTag: "bg-[#C27D4E]/10 text-[#C27D4E] border-[#C27D4E]/20",
-            allergenTag: "bg-red-500/10 text-red-600 border-red-500/20",
-            close: "bg-[#2B2420] text-[#F6F1EA] hover:opacity-90",
-            divider: "border-[#E6DED4]"
-        }
-        : themeId === "harbor"
-            ? {
-                price: "text-[#2A9D8F]",
-                body: "text-[#5A6C72]",
-                label: "text-[#90A2A9]",
-                dietTag: "bg-[#2A9D8F]/10 text-[#2A9D8F] border-[#2A9D8F]/20",
-                allergenTag: "bg-red-500/10 text-red-600 border-red-500/20",
-                close: "bg-[#1D2B2F] text-white hover:opacity-90",
-                divider: "border-[#D6E3E8]"
-            }
-            : themeId === "citrus"
-                ? {
-                    price: "text-[#FF8F00]",
-                    body: "text-[#6F5640]",
-                    label: "text-[#B5936D]",
-                    dietTag: "bg-[#FFB703]/20 text-[#FF8F00] border-[#FFB703]/40",
-                    allergenTag: "bg-red-500/10 text-red-600 border-red-500/20",
-                    close: "bg-[#1F1A14] text-white hover:opacity-90",
-                    divider: "border-[#F4D8B8]"
-                }
-                : {
-                    price: "text-blue-400",
-                    body: "text-white/70",
-                    label: "text-white/40",
-                    dietTag: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-                    allergenTag: "bg-red-500/10 text-red-400 border-red-500/20",
-                    close: "bg-white text-black hover:bg-gray-200",
-                    divider: "border-white/5"
-                };
+    const modalBackdrop = themeLayout === "noir" ? "rgba(0, 0, 0, 0.85)" : "rgba(15, 23, 42, 0.35)";
+    const modalPanelStyle = {
+        backgroundColor: palette.surface,
+        color: palette.text,
+        borderColor: palette.border
+    };
+    const modalTagStyle = {
+        backgroundColor: palette.surfaceAlt,
+        borderColor: palette.border,
+        color: palette.text
+    };
+    const modalAllergenStyle = {
+        backgroundColor: palette.surfaceAlt,
+        borderColor: palette.accent,
+        color: palette.accent
+    };
+    const modalCloseStyle = {
+        backgroundColor: palette.accent,
+        color: palette.bg
+    };
 
     return (
         <div className="min-h-screen">
@@ -510,14 +572,23 @@ export default function PublicMenuPage() {
             {selectedItem && (
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4">
                     <div
-                        className={`absolute inset-0 ${modalStyles.backdrop} backdrop-blur-md transition-opacity`}
+                        className="absolute inset-0 backdrop-blur-md transition-opacity"
+                        style={{ backgroundColor: modalBackdrop }}
                         onClick={() => setSelectedItem(null)}
                     ></div>
 
-                    <div className={`relative w-full max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-full duration-300 max-h-[90vh] overflow-y-auto border ${modalStyles.panel}`}>
+                    <div
+                        className="relative w-full max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-full duration-300 max-h-[90vh] overflow-y-auto border"
+                        style={modalPanelStyle}
+                    >
                         <button
                             onClick={() => setSelectedItem(null)}
-                            className="absolute top-4 right-4 z-10 p-2 bg-black/10 backdrop-blur-md rounded-full text-current hover:bg-black/20 transition-all"
+                            className="absolute top-4 right-4 z-10 p-2 rounded-full border shadow-sm transition-all"
+                            style={{
+                                backgroundColor: palette.surfaceAlt,
+                                borderColor: palette.border,
+                                color: palette.text
+                            }}
                         >
                             <X className="w-5 h-5" />
                         </button>
@@ -539,24 +610,30 @@ export default function PublicMenuPage() {
                                 <h2 className="text-3xl font-black leading-tight">{selectedItem.name}</h2>
                             </div>
 
-                            <p className={`text-2xl font-mono font-bold mb-6 ${modalContent.price}`}>
+                            <p className="text-2xl font-mono font-bold mb-6" style={{ color: palette.accent }}>
                                 ${selectedItem.price.toFixed(2)}
                             </p>
 
                             <div className="space-y-6">
-                                <p className={`text-lg leading-relaxed font-light ${modalContent.body}`}>
+                                <p className="text-lg leading-relaxed font-light" style={{ color: palette.muted }}>
                                     {selectedItem.description || "No description available for this item."}
                                 </p>
 
                                 {/* Metadata Grid */}
                                 {(selectedItem.dietary_tags.length > 0 || selectedItem.allergens.length > 0) && (
-                                    <div className={`grid grid-cols-2 gap-4 py-6 border-y ${modalContent.divider}`}>
+                                    <div className="grid grid-cols-2 gap-4 py-6 border-y" style={{ borderColor: palette.border }}>
                                         {selectedItem.dietary_tags.length > 0 && (
                                             <div>
-                                                <h4 className={`text-xs font-bold uppercase tracking-widest mb-3 ${modalContent.label}`}>Dietary</h4>
+                                                <h4 className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: palette.muted }}>
+                                                    Dietary
+                                                </h4>
                                                 <div className="flex flex-wrap gap-2">
                                                     {selectedItem.dietary_tags.map((tag, index) => (
-                                                        <span key={`${selectedItem.id}-diet-${tag.id ?? tag.name ?? index}`} className={`px-3 py-1 rounded-lg text-xs font-bold border ${modalContent.dietTag}`}>
+                                                        <span
+                                                            key={`${selectedItem.id}-diet-${tag.id ?? tag.name ?? index}`}
+                                                            className="px-3 py-1 rounded-lg text-xs font-bold border"
+                                                            style={modalTagStyle}
+                                                        >
                                                             {tag.name}
                                                         </span>
                                                     ))}
@@ -565,10 +642,16 @@ export default function PublicMenuPage() {
                                         )}
                                         {selectedItem.allergens.length > 0 && (
                                             <div>
-                                                <h4 className={`text-xs font-bold uppercase tracking-widest mb-3 ${modalContent.label}`}>Allergens</h4>
+                                                <h4 className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: palette.muted }}>
+                                                    Allergens
+                                                </h4>
                                                 <div className="flex flex-wrap gap-2">
                                                     {selectedItem.allergens.map((tag, index) => (
-                                                        <span key={`${selectedItem.id}-allergen-${tag.id ?? tag.name ?? index}`} className={`px-3 py-1 rounded-lg text-xs font-bold border ${modalContent.allergenTag}`}>
+                                                        <span
+                                                            key={`${selectedItem.id}-allergen-${tag.id ?? tag.name ?? index}`}
+                                                            className="px-3 py-1 rounded-lg text-xs font-bold border"
+                                                            style={modalAllergenStyle}
+                                                        >
                                                             {tag.name}
                                                         </span>
                                                     ))}
@@ -580,7 +663,8 @@ export default function PublicMenuPage() {
                             </div>
 
                             <button
-                                className={`w-full mt-8 py-4 rounded-2xl font-black text-lg transition-colors active:scale-[0.98] ${modalContent.close}`}
+                                className="w-full mt-8 py-4 rounded-2xl font-black text-lg transition-colors active:scale-[0.98]"
+                                style={modalCloseStyle}
                                 onClick={() => setSelectedItem(null)}
                             >
                                 Close

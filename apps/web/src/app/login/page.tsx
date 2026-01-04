@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Fraunces, Space_Grotesk } from "next/font/google";
 import { fetchAuthSession } from "aws-amplify/auth";
+import { getApiBase } from "@/lib/apiBase";
+import { getJwtSub } from "@/lib/jwt";
 
 const fraunces = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600"] });
@@ -17,36 +19,60 @@ export default function LoginPage() {
         if (authStatus !== 'authenticated') return;
         const resolveLanding = async () => {
             try {
+                const storedMode = typeof window !== "undefined" ? localStorage.getItem("menuvium_user_mode") : null;
+                if (!storedMode) {
+                    router.push("/dashboard/mode");
+                    return;
+                }
+                const apiBase = getApiBase();
                 const session = await fetchAuthSession();
                 const token = session.tokens?.idToken?.toString();
                 if (!token) {
-                    router.push("/onboarding");
+                    router.push("/dashboard/mode");
                     return;
                 }
-                const orgRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/organizations/`, {
+                const orgRes = await fetch(`${apiBase}/organizations/`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 if (!orgRes.ok) {
-                    router.push("/onboarding");
+                    router.push("/dashboard/mode");
                     return;
                 }
                 const orgs = await orgRes.json();
+                const userSub = getJwtSub(token);
+                const ownedOrgs = userSub ? orgs.filter((org: { owner_id?: string }) => org.owner_id === userSub) : [];
+
+                if (storedMode === "admin" && !ownedOrgs.length) {
+                    router.push("/onboarding");
+                    return;
+                }
+
+                if (storedMode === "manager" && !orgs.length) {
+                    router.push("/dashboard/menus");
+                    return;
+                }
+
                 if (!orgs.length) {
-                    router.push("/onboarding");
+                    router.push(storedMode === "admin" ? "/onboarding" : "/dashboard/mode");
                     return;
                 }
-                const menusRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/?org_id=${orgs[0].id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                if (!menusRes.ok) {
-                    router.push("/onboarding");
+                const orgsForMenuCheck = storedMode === "admin" ? ownedOrgs : orgs;
+                const menuLists = await Promise.all(
+                    orgsForMenuCheck.map((org: { id: string }) =>
+                        fetch(`${apiBase}/menus/?org_id=${org.id}`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        }).then((res) => (res.ok ? res.json() : []))
+                    )
+                );
+                const hasMenus = menuLists.flat().length > 0;
+                if (storedMode === "manager") {
+                    router.push("/dashboard/menus");
                     return;
                 }
-                const menus = await menusRes.json();
-                router.push(menus.length ? "/dashboard/menus" : "/onboarding");
+                router.push(hasMenus ? "/dashboard/menus" : "/onboarding");
             } catch (e) {
                 console.error(e);
-                router.push("/onboarding");
+                router.push("/dashboard/mode");
             }
         };
         resolveLanding();

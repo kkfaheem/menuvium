@@ -14,6 +14,7 @@ from sqlmodel import Session
 from database import get_session
 from dependencies import get_current_user
 from models import Category, Item, Menu, Organization
+from permissions import get_org_permissions
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 SessionDep = Depends(get_session)
@@ -39,8 +40,8 @@ def _get_menu_or_404(menu_id: uuid.UUID, session: Session, user: dict) -> Menu:
     menu = session.get(Menu, menu_id)
     if not menu:
         raise HTTPException(status_code=404, detail="Menu not found")
-    org = session.get(Organization, menu.org_id)
-    if org.owner_id != user["sub"]:
+    perms = get_org_permissions(session, menu.org_id, user)
+    if not perms.can_manage_menus:
         raise HTTPException(status_code=403, detail="Not authorized")
     return menu
 

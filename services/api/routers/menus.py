@@ -16,6 +16,7 @@ from models import (
     ItemAllergenLink,
 )
 from dependencies import get_current_user
+from permissions import get_org_permissions
 
 router = APIRouter(prefix="/menus", tags=["menus"])
 SessionDep = Depends(get_session)
@@ -23,12 +24,11 @@ UserDep = Depends(get_current_user)
 
 @router.post("/", response_model=Menu)
 def create_menu(menu: Menu, session: Session = SessionDep, user: dict = UserDep):
-    user_id = user["sub"]
-    
     org = session.get(Organization, menu.org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
-    if org.owner_id != user_id:
+    perms = get_org_permissions(session, menu.org_id, user)
+    if not perms.can_manage_menus:
         raise HTTPException(status_code=403, detail="Not authorized for this organization")
 
     # If slug is provided, check uniqueness globally for now.
@@ -51,7 +51,8 @@ def list_menus(org_id: uuid.UUID, session: Session = SessionDep, user: dict = Us
     org = session.get(Organization, org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
-    if org.owner_id != user["sub"]:
+    perms = get_org_permissions(session, org_id, user)
+    if not perms.can_view:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     menus = session.exec(select(Menu).where(Menu.org_id == org_id)).all()
@@ -72,7 +73,8 @@ def update_menu(menu_id: uuid.UUID, menu_update: MenuUpdate, session: Session = 
         
     # Owner check
     org = session.get(Organization, db_menu.org_id)
-    if org.owner_id != user["sub"]:
+    perms = get_org_permissions(session, db_menu.org_id, user)
+    if not perms.can_manage_menus:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     menu_data = menu_update.model_dump(exclude_unset=True)
@@ -92,7 +94,8 @@ def delete_menu(menu_id: uuid.UUID, session: Session = SessionDep, user: dict = 
 
     # Owner check
     org = session.get(Organization, db_menu.org_id)
-    if org.owner_id != user["sub"]:
+    perms = get_org_permissions(session, db_menu.org_id, user)
+    if not perms.can_manage_menus:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     categories = session.exec(select(Category.id).where(Category.menu_id == menu_id)).all()

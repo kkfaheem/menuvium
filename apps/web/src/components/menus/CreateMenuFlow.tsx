@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { Loader2, PencilLine, Sparkles } from "lucide-react";
+import { getApiBase } from "@/lib/apiBase";
+import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
 
 interface ParsedItem {
     name: string;
@@ -25,7 +27,7 @@ type CreateMenuFlowProps = {
     initialOrgId?: string;
     allowOrgSelect?: boolean;
     organizations?: { id: string; name: string }[];
-    variant?: "light" | "dark";
+    variant?: "light" | "dark" | "auto";
     onCreated?: (menuId: string) => void;
     initialMenuName?: string;
     lockMenuName?: boolean;
@@ -60,9 +62,25 @@ export default function CreateMenuFlow({
     const [isParsing, setIsParsing] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
     const [draftMenuId, setDraftMenuId] = useState<string | null>(null);
+    const [orgPermissions, setOrgPermissions] = useState<OrgPermissions | null>(null);
+    const [permissionsLoading, setPermissionsLoading] = useState(false);
+    const [permissionsError, setPermissionsError] = useState<string | null>(null);
+
+    const [resolvedVariant, setResolvedVariant] = useState<"light" | "dark">(
+        variant === "dark" ? "dark" : "light"
+    );
+
+    useEffect(() => {
+        if (variant === "auto") {
+            const theme = typeof document !== "undefined" ? document.documentElement.dataset.cmsTheme : "dark";
+            setResolvedVariant(theme === "light" ? "light" : "dark");
+            return;
+        }
+        setResolvedVariant(variant === "dark" ? "dark" : "light");
+    }, [variant]);
 
     const palette = useMemo(() => {
-        const isDark = variant === "dark";
+        const isDark = resolvedVariant === "dark";
         return {
             panel: isDark ? "bg-white/5 border-white/10" : "bg-[var(--cms-panel)] border-[var(--cms-border)]",
             panelMuted: isDark ? "bg-white/3 border-white/10" : "bg-[var(--cms-panel)]/70 border-[var(--cms-border)]",
@@ -79,7 +97,7 @@ export default function CreateMenuFlow({
             dotActive: isDark ? "bg-white" : "bg-[var(--cms-text)]",
             dotMuted: isDark ? "bg-white/30" : "bg-[var(--cms-border)]"
         };
-    }, [variant]);
+    }, [resolvedVariant]);
 
     useEffect(() => {
         if (!allowOrgSelect || providedOrganizations) return;
@@ -110,10 +128,32 @@ export default function CreateMenuFlow({
         return token;
     };
 
+    useEffect(() => {
+        const load = async () => {
+            if (!user || !selectedOrg) return;
+            setPermissionsLoading(true);
+            setPermissionsError(null);
+            try {
+                const token = await getAuthToken();
+                const apiBase = getApiBase();
+                const perms = await fetchOrgPermissions({ apiBase, token, orgId: selectedOrg });
+                setOrgPermissions(perms);
+            } catch (e) {
+                console.error(e);
+                setOrgPermissions(null);
+                setPermissionsError(e instanceof Error ? e.message : "Failed to load permissions");
+            } finally {
+                setPermissionsLoading(false);
+            }
+        };
+        load();
+    }, [user, selectedOrg]);
+
     const fetchOrganizations = async () => {
         try {
             const token = await getAuthToken();
-            const orgRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/organizations/`, {
+            const apiBase = getApiBase();
+            const orgRes = await fetch(`${apiBase}/organizations/`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (!orgRes.ok) return;
@@ -130,12 +170,17 @@ export default function CreateMenuFlow({
 
     const ensureDraftMenu = async () => {
         if (!selectedOrg) return;
+        if (orgPermissions && !orgPermissions.can_manage_menus) {
+            alert("Not authorized to create menus for this company.");
+            return;
+        }
         if (draftMenuId) return draftMenuId;
         const resolvedName = !menuName.trim() ? "Imported Menu" : menuName.trim();
         setCreating(true);
         try {
             const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/`, {
+            const apiBase = getApiBase();
+            const res = await fetch(`${apiBase}/menus/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -163,10 +208,15 @@ export default function CreateMenuFlow({
 
     const createManualMenu = async () => {
         if (!menuName.trim() || !selectedOrg) return;
+        if (orgPermissions && !orgPermissions.can_manage_menus) {
+            alert("Not authorized to create menus for this company.");
+            return;
+        }
         setCreating(true);
         try {
             const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/`, {
+            const apiBase = getApiBase();
+            const res = await fetch(`${apiBase}/menus/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -197,6 +247,10 @@ export default function CreateMenuFlow({
 
     const handleParseImport = async () => {
         if (!importFile) return;
+        if (orgPermissions && !orgPermissions.can_manage_menus) {
+            alert("Not authorized to create menus for this company.");
+            return;
+        }
         const menuId = await ensureDraftMenu();
         if (!menuId) return;
         setIsParsing(true);
@@ -204,7 +258,8 @@ export default function CreateMenuFlow({
             const token = await getAuthToken();
             const formData = new FormData();
             formData.append("file", importFile);
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/imports/menu/parse?menu_id=${menuId}`, {
+            const apiBase = getApiBase();
+            const res = await fetch(`${apiBase}/imports/menu/parse?menu_id=${menuId}`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: formData
@@ -225,12 +280,17 @@ export default function CreateMenuFlow({
 
     const handleApplyImport = async () => {
         if (!parsedMenu) return;
+        if (orgPermissions && !orgPermissions.can_manage_menus) {
+            alert("Not authorized to create menus for this company.");
+            return;
+        }
         const menuId = draftMenuId ?? (await ensureDraftMenu());
         if (!menuId) return;
         setIsImporting(true);
         try {
             const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/imports/menu/apply?menu_id=${menuId}`, {
+            const apiBase = getApiBase();
+            const res = await fetch(`${apiBase}/imports/menu/apply?menu_id=${menuId}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -257,6 +317,7 @@ export default function CreateMenuFlow({
     };
 
     const selectedOrgName = organizations.find((org) => org.id === selectedOrg)?.name || "Company locked";
+    const canManageMenus = orgPermissions ? orgPermissions.can_manage_menus : true;
 
     return (
         <div className="space-y-8">
@@ -311,6 +372,14 @@ export default function CreateMenuFlow({
                                 </div>
                             )}
                             <p className={`text-xs ${palette.muted}`}>{selectedOrg ? "Company locked for this menu." : "Select a company to continue."}</p>
+                            {permissionsError && (
+                                <p className={`text-xs ${palette.muted}`}>{permissionsError}</p>
+                            )}
+                            {!permissionsLoading && orgPermissions && !orgPermissions.can_manage_menus && (
+                                <p className={`text-xs ${palette.muted}`}>
+                                    You don’t have permission to create menus for this company.
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
@@ -351,7 +420,7 @@ export default function CreateMenuFlow({
                         </div>
                         <button
                             onClick={createManualMenu}
-                            disabled={creating || !menuName.trim() || !selectedOrg}
+                            disabled={creating || !menuName.trim() || !selectedOrg || permissionsLoading || !canManageMenus}
                             className={`h-12 rounded-2xl font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50 ${palette.primary}`}
                         >
                             {creating && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -380,7 +449,7 @@ export default function CreateMenuFlow({
                             />
                             <button
                                 onClick={handleParseImport}
-                                disabled={!importFile || isParsing || !selectedOrg}
+                                disabled={!importFile || isParsing || !selectedOrg || permissionsLoading || !canManageMenus}
                                 className={`h-10 px-4 rounded-lg font-semibold text-sm disabled:opacity-50 ${palette.primary}`}
                             >
                                 {isParsing ? "Parsing..." : "Parse menu"}
@@ -388,7 +457,7 @@ export default function CreateMenuFlow({
                             {parsedMenu && (
                                 <button
                                     onClick={handleApplyImport}
-                                    disabled={isImporting}
+                                    disabled={isImporting || permissionsLoading || !canManageMenus}
                                     className={`h-10 px-4 rounded-lg font-semibold text-sm border ${palette.border} ${palette.panelMuted} disabled:opacity-50`}
                                 >
                                     {isImporting ? "Importing..." : "Import & open"}

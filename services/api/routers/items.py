@@ -10,6 +10,7 @@ from database import get_session
 from models import Item, Category, Menu, ItemPhoto, Organization, ItemCreate, ItemUpdate, ItemRead, DietaryTag, Allergen
 from dependencies import get_current_user
 from pathlib import Path
+from permissions import get_org_permissions
 
 router = APIRouter(prefix="/items", tags=["items"])
 SessionDep = Depends(get_session)
@@ -96,7 +97,8 @@ def create_item(item_in: ItemCreate, session: Session = SessionDep, user: dict =
     menu = session.get(Menu, category.menu_id)
     org = session.get(Organization, menu.org_id)
     
-    if org.owner_id != user["sub"]:
+    perms = get_org_permissions(session, menu.org_id, user)
+    if not perms.can_edit_items:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Create Item
@@ -131,7 +133,8 @@ def add_item_photo(item_id: uuid.UUID, photo: ItemPhoto, session: Session = Sess
     category = session.get(Category, item.category_id)
     menu = session.get(Menu, category.menu_id)
     org = session.get(Organization, menu.org_id)
-    if org.owner_id != user["sub"]:
+    perms = get_org_permissions(session, menu.org_id, user)
+    if not perms.can_edit_items:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     photo.item_id = item_id
@@ -149,11 +152,15 @@ def update_item(item_id: uuid.UUID, item_update: ItemUpdate, session: Session = 
     category = session.get(Category, db_item.category_id)
     menu = session.get(Menu, category.menu_id)
     org = session.get(Organization, menu.org_id)
-    if org.owner_id != user["sub"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    perms = get_org_permissions(session, menu.org_id, user)
 
     item_data = item_update.model_dump(exclude_unset=True)
-    
+    non_availability_keys = set(item_data.keys()) - {"is_sold_out"}
+    if non_availability_keys and not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if "is_sold_out" in item_data and not perms.can_manage_availability and not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
     # Update scalar fields
     for key, value in item_data.items():
         if key not in ["dietary_tag_ids", "allergen_ids"]:
@@ -188,7 +195,8 @@ def delete_item(item_id: uuid.UUID, session: Session = SessionDep, user: dict = 
     category = session.get(Category, db_item.category_id)
     menu = session.get(Menu, category.menu_id)
     org = session.get(Organization, menu.org_id)
-    if org.owner_id != user["sub"]:
+    perms = get_org_permissions(session, menu.org_id, user)
+    if not perms.can_edit_items:
         raise HTTPException(status_code=403, detail="Not authorized")
         
     session.delete(db_item)

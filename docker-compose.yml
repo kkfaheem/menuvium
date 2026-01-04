@@ -22,7 +22,7 @@ services:
       - ./services/api/.env
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/menuvium
-      CORS_ORIGINS: http://localhost:3000
+      CORS_ORIGINS: http://localhost:3000,http://${HOST_IP:-localhost}:3000
       LOCAL_UPLOADS: "1"
     depends_on:
       - db
@@ -33,12 +33,13 @@ services:
     build:
       context: ./apps/web
       dockerfile: Dockerfile.dev
+    command: sh -c "rm -rf .next/* .next/.[!.]* .next/..?* 2>/dev/null || true; npm run dev"
     ports:
       - "3000:3000"
     env_file:
       - ./apps/web/.env.local
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: http://${HOST_IP:-localhost}:8000
     volumes:
       - ./apps/web:/app
       - /app/node_modules

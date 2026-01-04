@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Sun, Moon, Plus, X } from "lucide-react";
 import { ALLERGEN_TAGS, DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
+import { getApiBase } from "@/lib/apiBase";
 
 type Theme = "dark" | "light";
 
@@ -27,6 +28,7 @@ type TagLabels = {
 type SoldOutDisplay = "dim" | "hide";
 
 export default function SettingsPage() {
+    const apiBase = getApiBase();
     const [theme, setTheme] = useState<Theme>("dark");
     const [soldOutDisplay, setSoldOutDisplay] = useState<SoldOutDisplay>("dim");
     const [tags, setTags] = useState<DietaryTag[]>([]);
@@ -75,7 +77,7 @@ export default function SettingsPage() {
     }, []);
 
     const createDietaryTag = async (name: string) => {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/metadata/dietary-tags`, {
+        const res = await fetch(`${apiBase}/metadata/dietary-tags`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name })
@@ -88,7 +90,7 @@ export default function SettingsPage() {
     };
 
     const createAllergen = async (name: string) => {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/metadata/allergens`, {
+        const res = await fetch(`${apiBase}/metadata/allergens`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name })
@@ -102,7 +104,7 @@ export default function SettingsPage() {
 
     const fetchDietaryTags = async () => {
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/metadata/dietary-tags`);
+            const res = await fetch(`${apiBase}/metadata/dietary-tags`);
             if (res.ok) {
                 const data = await res.json();
                 setTags(data);
@@ -116,7 +118,7 @@ export default function SettingsPage() {
 
     const fetchAllergens = async () => {
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/metadata/allergens`);
+            const res = await fetch(`${apiBase}/metadata/allergens`);
             if (res.ok) {
                 const data = await res.json();
                 setAllergens(data);
@@ -211,7 +213,7 @@ export default function SettingsPage() {
 
     const handleDeleteTag = async (id: string) => {
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/metadata/dietary-tags/${id}`, {
+            const res = await fetch(`${apiBase}/metadata/dietary-tags/${id}`, {
                 method: "DELETE"
             });
             if (res.ok) {
@@ -231,7 +233,7 @@ export default function SettingsPage() {
 
     const handleDeleteAllergen = async (id: string) => {
         try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/metadata/allergens/${id}`, {
+            const res = await fetch(`${apiBase}/metadata/allergens/${id}`, {
                 method: "DELETE"
             });
             if (res.ok) {

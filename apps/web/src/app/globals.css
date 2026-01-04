@@ -85,3 +85,26 @@ body {
   background-size: 200% 200%;
   animation: gradientShift 16s ease infinite;
 }
+
+.cms-modal-overlay {
+  background: rgba(4, 6, 10, 0.7);
+}
+
+:root[data-cms-theme="light"] .cms-modal-overlay {
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.cms-modal-shell {
+  background: var(--cms-panel);
+  border: 1px solid var(--cms-border);
+  box-shadow: 0 40px 120px -60px rgba(0, 0, 0, 0.7);
+}
+
+.cms-modal-header,
+.cms-modal-footer {
+  background: color-mix(in srgb, var(--cms-panel-strong) 88%, transparent);
+}
+
+:root[data-cms-theme="light"] .cms-modal-shell {
+  box-shadow: 0 30px 90px -60px rgba(15, 23, 42, 0.35);
+}

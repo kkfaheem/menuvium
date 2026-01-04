@@ -24,6 +24,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ALLERGEN_TAGS, DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
+import { getApiBase } from "@/lib/apiBase";
+import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
 
 // Types
 interface Item {
@@ -56,14 +58,17 @@ interface Menu {
 function SortableCategoryCard({
     id,
     className,
+    disabled,
     children
 }: {
     id: string;
     className: string;
+    disabled?: boolean;
     children: (props: { attributes: any; listeners: any; isDragging: boolean }) => ReactNode;
 }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id,
+        disabled,
         animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true })
     });
     const style = {
@@ -91,14 +96,17 @@ function SortableCategoryCard({
 function SortableItemRow({
     id,
     className,
+    disabled,
     children
 }: {
     id: string;
     className: string;
+    disabled?: boolean;
     children: (props: { attributes: any; listeners: any; isDragging: boolean }) => ReactNode;
 }) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id,
+        disabled,
         animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true })
     });
     const style = {
@@ -127,6 +135,7 @@ export default function MenuDetailPage() {
     const params = useParams();
     const router = useRouter();
     const { user } = useAuthenticator((context) => [context.user]);
+    const apiBase = getApiBase();
     const [menu, setMenu] = useState<Menu | null>(null);
     const [menuName, setMenuName] = useState("");
     const [menuActive, setMenuActive] = useState(true);
@@ -153,6 +162,8 @@ export default function MenuDetailPage() {
     const [tagLabels, setTagLabels] = useState(TAG_LABELS_DEFAULTS);
     const [tagGroups, setTagGroups] = useState<Record<string, "diet" | "spice" | "highlights">>({});
     const [soldOutDisplay, setSoldOutDisplay] = useState<"dim" | "hide">("dim");
+    const [mode, setMode] = useState<"admin" | "manager" | null>(null);
+    const [orgPermissions, setOrgPermissions] = useState<OrgPermissions | null>(null);
 
     const normalize = (value: string) => value.trim().toLowerCase();
     const orderTags = <T extends { id: string; name: string }>(source: T[], names: string[]) =>
@@ -235,13 +246,14 @@ export default function MenuDetailPage() {
         }
         const storedSoldOut = (localStorage.getItem("menuvium_sold_out_display") as "dim" | "hide") || "dim";
         setSoldOutDisplay(storedSoldOut);
+        setMode((localStorage.getItem("menuvium_user_mode") as "admin" | "manager" | null) || null);
     }, []);
 
     const fetchMetadata = async () => {
         try {
             const [tagsRes, algRes] = await Promise.all([
-                fetch(`${process.env.NEXT_PUBLIC_API_URL}/metadata/dietary-tags`),
-                fetch(`${process.env.NEXT_PUBLIC_API_URL}/metadata/allergens`)
+                fetch(`${apiBase}/metadata/dietary-tags`),
+                fetch(`${apiBase}/metadata/allergens`)
             ]);
             if (tagsRes.ok) setDietaryTags(await tagsRes.json());
             if (algRes.ok) setAllergens(await algRes.json());
@@ -260,17 +272,26 @@ export default function MenuDetailPage() {
     };
 
     const fetchMenu = async (id: string) => {
+        setLoading(true);
         try {
             const token = await getAuthToken();
 
             // First get the menu details
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/${id}`, {
+            const res = await fetch(`${apiBase}/menus/${id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error("Failed to fetch menu");
             const menuData = await res.json();
 
-            const catRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories/${id}`, {
+            try {
+                const perms = await fetchOrgPermissions({ apiBase, token, orgId: menuData.org_id });
+                setOrgPermissions(perms);
+            } catch (e) {
+                console.error(e);
+                setOrgPermissions(null);
+            }
+
+            const catRes = await fetch(`${apiBase}/categories/${id}`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const categories = await catRes.json();
@@ -313,9 +334,13 @@ export default function MenuDetailPage() {
 
     const handleAddCategory = async () => {
         if (!newCategoryName || !menu) return;
+        if (!orgPermissions?.can_manage_menus) {
+            alert("Not authorized to manage menus.");
+            return;
+        }
         try {
             const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories/`, {
+            const res = await fetch(`${apiBase}/categories/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -340,9 +365,13 @@ export default function MenuDetailPage() {
 
     const handleDeleteCategory = async (categoryId: string) => {
         if (!confirm("Delete this category?")) return;
+        if (!orgPermissions?.can_manage_menus) {
+            alert("Not authorized to manage menus.");
+            return;
+        }
         try {
             const token = await getAuthToken();
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories/${categoryId}`, {
+            await fetch(`${apiBase}/categories/${categoryId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -355,11 +384,15 @@ export default function MenuDetailPage() {
 
     const handleUpdateCategoryName = async (category: Category) => {
         if (!menu) return;
+        if (!orgPermissions?.can_manage_menus) {
+            alert("Not authorized to manage menus.");
+            return;
+        }
         const name = editingCategoryName.trim();
         if (!name) return;
         try {
             const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories/${category.id}`, {
+            const res = await fetch(`${apiBase}/categories/${category.id}`, {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
@@ -400,7 +433,7 @@ export default function MenuDetailPage() {
             const token = await getAuthToken();
             await Promise.all(
                 categories.map((cat, index) =>
-                    fetch(`${process.env.NEXT_PUBLIC_API_URL}/categories/${cat.id}`, {
+                    fetch(`${apiBase}/categories/${cat.id}`, {
                         method: "PATCH",
                         headers: {
                             "Content-Type": "application/json",
@@ -427,7 +460,7 @@ export default function MenuDetailPage() {
             const token = await getAuthToken();
             await Promise.all(
                 items.map((item, index) =>
-                    fetch(`${process.env.NEXT_PUBLIC_API_URL}/items/${item.id}`, {
+                    fetch(`${apiBase}/items/${item.id}`, {
                         method: "PATCH",
                         headers: {
                             "Content-Type": "application/json",
@@ -481,6 +514,7 @@ export default function MenuDetailPage() {
     const handleDragEnd = async (event: DragEndEvent) => {
         setIsDragging(false);
         setActiveDragId(null);
+        if (!orgPermissions?.can_manage_menus) return;
         if (!menu || !event.over) return;
         const activeId = String(event.active.id);
         const overId = String(event.over.id);
@@ -516,7 +550,7 @@ export default function MenuDetailPage() {
         const token = await getAuthToken();
 
         // 1. Get Presigned URL
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/items/upload-url`, {
+        const res = await fetch(`${apiBase}/items/upload-url`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -546,19 +580,51 @@ export default function MenuDetailPage() {
     };
 
     const handleSaveItem = async () => {
-        console.log("handleSaveItem called", editingItem);
-        if (!editingItem) {
-            console.log("No editingItem");
+        if (!editingItem) return;
+
+        const canEditItems = Boolean(orgPermissions?.can_edit_items);
+        const canManageAvailability = Boolean(orgPermissions?.can_manage_availability);
+
+        if (editingItem.id && !canEditItems) {
+            if (!canManageAvailability) {
+                alert("Not authorized to update availability.");
+                return;
+            }
+            setIsSavingItem(true);
+            try {
+                const token = await getAuthToken();
+                const res = await fetch(`${apiBase}/items/${editingItem.id}`, {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ is_sold_out: editingItem.is_sold_out || false })
+                });
+                if (res.ok) {
+                    setEditingItem(null);
+                    setFileToUpload(null);
+                    if (menu) fetchMenu(menu.id);
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    alert(`Failed to update item: ${err.detail || "Unknown error"}`);
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Error updating item");
+            } finally {
+                setIsSavingItem(false);
+            }
             return;
         }
-        if (!editingItem.name) {
-            console.log("No name");
+
+        if (!canEditItems) {
+            alert("Not authorized to edit items.");
             return;
         }
-        if (editingItem.price === undefined || editingItem.price === null) {
-            console.log("No price");
-            return;
-        }
+
+        if (!editingItem.name) return;
+        if (editingItem.price === undefined || editingItem.price === null) return;
 
         setIsSavingItem(true);
         try {
@@ -588,7 +654,7 @@ export default function MenuDetailPage() {
 
             if (editingItem.id) {
                 // Update
-                res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/items/${editingItem.id}`, {
+                res = await fetch(`${apiBase}/items/${editingItem.id}`, {
                     method: 'PATCH',
                     headers: {
                         'Content-Type': 'application/json',
@@ -599,7 +665,7 @@ export default function MenuDetailPage() {
                 itemId = editingItem.id;
             } else {
                 // Create
-                res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/items/`, {
+                res = await fetch(`${apiBase}/items/`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -615,7 +681,7 @@ export default function MenuDetailPage() {
 
             if (res.ok && itemId && photoKey && photoUrl) {
                 // Link photo
-                await fetch(`${process.env.NEXT_PUBLIC_API_URL}/items/${itemId}/photos`, {
+                await fetch(`${apiBase}/items/${itemId}/photos`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -658,6 +724,10 @@ export default function MenuDetailPage() {
 
     const handleSaveMenu = async () => {
         if (!menu) return;
+        if (!orgPermissions?.can_manage_menus) {
+            alert("Not authorized to manage menus.");
+            return;
+        }
         if (!menuName.trim()) {
             alert("Menu name is required");
             return;
@@ -665,7 +735,7 @@ export default function MenuDetailPage() {
         setIsSavingMenu(true);
         try {
             const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/${menu.id}`, {
+            const res = await fetch(`${apiBase}/menus/${menu.id}`, {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
@@ -697,6 +767,10 @@ export default function MenuDetailPage() {
 
     const handleDeleteMenu = async () => {
         if (!menu) return;
+        if (!orgPermissions?.can_manage_menus) {
+            alert("Not authorized to manage menus.");
+            return;
+        }
         if (!confirm("This will permanently delete the menu and its items. Continue?")) return;
         const confirmation = prompt(`Type "${menu.name}" to confirm deletion.`);
         if (confirmation !== menu.name) {
@@ -706,7 +780,7 @@ export default function MenuDetailPage() {
         setIsDeletingMenu(true);
         try {
             const token = await getAuthToken();
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/menus/${menu.id}`, {
+            const res = await fetch(`${apiBase}/menus/${menu.id}`, {
                 method: "DELETE",
                 headers: { "Authorization": `Bearer ${token}` }
             });
@@ -726,9 +800,14 @@ export default function MenuDetailPage() {
     if (loading) return <div className="text-[var(--cms-muted)] flex items-center gap-2"><Loader2 className="animate-spin" /> Loading menu...</div>;
     if (!menu) return <div className="text-[var(--cms-muted)]">Menu not found</div>;
 
+    const canManageMenus = Boolean(orgPermissions?.can_manage_menus);
+    const canEditItems = Boolean(orgPermissions?.can_edit_items);
+    const canManageAvailability = Boolean(orgPermissions?.can_manage_availability);
+    const canOpenItemModal = canEditItems || canManageAvailability;
+
     return (
-        <div className="max-w-4xl mx-auto">
-            <header className="mb-8">
+        <div className="w-full max-w-5xl mr-auto">
+            <header className="mb-6 sm:mb-8">
                 <Link href="/dashboard/menus" className="text-sm text-[var(--cms-muted)] hover:text-[var(--cms-text)] inline-flex items-center gap-1 transition-colors">
                     <ArrowLeft className="w-4 h-4" /> Back to Menus
                 </Link>
@@ -778,49 +857,66 @@ export default function MenuDetailPage() {
                                 </button>
                             </div>
                         ) : (
-                            <button
-                                onClick={() => {
-                                    setMenuNameDraft(menuName);
-                                    setIsEditingMenuName(true);
-                                }}
-                                className="text-3xl font-bold tracking-tight text-left hover:opacity-80"
-                            >
-                                {menuName}
-                            </button>
+                            <>
+                                {canManageMenus ? (
+                                    <button
+                                        onClick={() => {
+                                            setMenuNameDraft(menuName);
+                                            setIsEditingMenuName(true);
+                                        }}
+                                        className="text-3xl font-bold tracking-tight text-left hover:opacity-80"
+                                    >
+                                        {menuName}
+                                    </button>
+                                ) : (
+                                    <h1 className="text-3xl font-bold tracking-tight">{menuName}</h1>
+                                )}
+                            </>
                         )}
                     </div>
-                    <div className="flex flex-col items-start gap-3 md:items-end">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                onClick={() => {
-                                    setMenuActive(!menuActive);
-                                    setPageDirty(true);
-                                }}
-                                className="h-8 w-[124px] inline-flex items-center justify-between px-3 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]"
-                            >
-                                <span className="text-xs font-semibold text-[var(--cms-text)] w-[64px] text-left">
-                                    {menuActive ? "Active" : "Inactive"}
-                                </span>
-                                <span className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${menuActive ? "bg-[var(--cms-text)]" : "bg-[var(--cms-panel-strong)]"}`}>
-                                    <span className={`inline-block h-3 w-3 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${menuActive ? "translate-x-4" : "translate-x-1"}`} />
-                                </span>
-                            </button>
-                            <button
-                                onClick={handleSaveMenu}
-                                disabled={isSavingMenu || !pageDirty}
-                                className={`h-8 px-4 rounded-full font-semibold text-sm inline-flex items-center gap-2 justify-center min-w-[92px] ${isSavingMenu || !pageDirty ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed" : "bg-[var(--cms-text)] text-[var(--cms-bg)] hover:opacity-90"}`}
-                            >
-                                {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
-                                {isSavingMenu ? "Saving..." : "Save"}
-                            </button>
-                            <Link href={`/dashboard/menus/${menu.id}/themes`} className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]">
-                                Themes
-                            </Link>
-                            <Link href={`/r/${menu.id}`} target="_blank" className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]">
+                    <div className="flex flex-col items-start gap-3 md:items-end w-full md:w-auto">
+                        <div className="flex flex-col w-full gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-start md:justify-end">
+                            {canManageMenus && (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            setMenuActive(!menuActive);
+                                            setPageDirty(true);
+                                        }}
+                                        className="h-8 w-full sm:w-[124px] inline-flex items-center justify-between px-3 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]"
+                                    >
+                                        <span className="text-xs font-semibold text-[var(--cms-text)] w-[64px] text-left">
+                                            {menuActive ? "Active" : "Inactive"}
+                                        </span>
+                                        <span
+                                            className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${menuActive ? "bg-[var(--cms-text)]" : "bg-[var(--cms-panel-strong)]"}`}
+                                        >
+                                            <span
+                                                className={`inline-block h-3 w-3 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${menuActive ? "translate-x-4" : "translate-x-1"}`}
+                                            />
+                                        </span>
+                                    </button>
+                                    <button
+                                        onClick={handleSaveMenu}
+                                        disabled={isSavingMenu || !pageDirty}
+                                        className={`h-8 px-4 rounded-full font-semibold text-sm inline-flex items-center gap-2 justify-center w-full sm:w-auto min-w-[92px] ${isSavingMenu || !pageDirty ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed" : "bg-[var(--cms-text)] text-[var(--cms-bg)] hover:opacity-90"}`}
+                                    >
+                                        {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        {isSavingMenu ? "Saving..." : "Save"}
+                                    </button>
+                                    <Link
+                                        href={`/dashboard/menus/${menu.id}/themes`}
+                                        className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
+                                    >
+                                        Themes
+                                    </Link>
+                                </>
+                            )}
+                            <Link href={`/r/${menu.id}`} target="_blank" className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]">
                                 View Public Page
                             </Link>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-[var(--cms-muted)]">
+                        <div className="flex items-center gap-2 text-xs text-[var(--cms-muted)] flex-wrap">
                             <button
                                 onClick={collapseAllCategories}
                                 className="hover:text-[var(--cms-text)]"
@@ -861,20 +957,25 @@ export default function MenuDetailPage() {
                             <SortableCategoryCard
                                 key={category.id}
                                 id={`cat-${category.id}`}
+                                disabled={!canManageMenus}
                                 className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl overflow-hidden"
                             >
                                 {({ attributes, listeners }) => (
                                     <>
                                         <div className="p-4 bg-[var(--cms-panel-strong)] border-b border-[var(--cms-border)] flex justify-between items-center group">
                                             <div className="flex items-center gap-3">
-                                                <button
-                                                    className="text-[var(--cms-muted)] cursor-grab active:cursor-grabbing"
-                                                    {...attributes}
-                                                    {...listeners}
-                                                    aria-label="Reorder category"
-                                                >
-                                                    <GripVertical className="w-4 h-4" />
-                                                </button>
+                                                {canManageMenus ? (
+                                                    <button
+                                                        className="text-[var(--cms-muted)] cursor-grab active:cursor-grabbing"
+                                                        {...attributes}
+                                                        {...listeners}
+                                                        aria-label="Reorder category"
+                                                    >
+                                                        <GripVertical className="w-4 h-4" />
+                                                    </button>
+                                                ) : (
+                                                    <div className="w-8 h-8" aria-hidden="true" />
+                                                )}
                                                 <button
                                                     onClick={() => toggleCategoryCollapse(category.id)}
                                                     className="text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
@@ -886,58 +987,64 @@ export default function MenuDetailPage() {
                                                         <ChevronDown className="w-4 h-4" />
                                                     )}
                                                 </button>
-                                                {editingCategoryId === category.id ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <input
-                                                            value={editingCategoryName}
-                                                            onChange={(e) => setEditingCategoryName(e.target.value)}
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === "Enter") {
-                                                                    e.preventDefault();
-                                                                    handleUpdateCategoryName(category);
-                                                                }
-                                                            }}
-                                                            className="bg-transparent border border-[var(--cms-border)] rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                                                            autoFocus
-                                                        />
-                                                        <button
-                                                            onClick={() => handleUpdateCategoryName(category)}
-                                                            className="p-1.5 rounded-lg hover:bg-[var(--cms-pill)]"
-                                                            title="Save"
-                                                        >
-                                                            <Check className="w-4 h-4" />
-                                                        </button>
+                                                {canManageMenus ? (
+                                                    editingCategoryId === category.id ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <input
+                                                                value={editingCategoryName}
+                                                                onChange={(e) => setEditingCategoryName(e.target.value)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === "Enter") {
+                                                                        e.preventDefault();
+                                                                        handleUpdateCategoryName(category);
+                                                                    }
+                                                                }}
+                                                                className="bg-transparent border border-[var(--cms-border)] rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[var(--cms-text)]"
+                                                                autoFocus
+                                                            />
+                                                            <button
+                                                                onClick={() => handleUpdateCategoryName(category)}
+                                                                className="p-1.5 rounded-lg hover:bg-[var(--cms-pill)]"
+                                                                title="Save"
+                                                            >
+                                                                <Check className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    setEditingCategoryId(null);
+                                                                    setEditingCategoryName("");
+                                                                }}
+                                                                className="p-1.5 rounded-lg hover:bg-[var(--cms-pill)]"
+                                                                title="Cancel"
+                                                            >
+                                                                <X className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
                                                         <button
                                                             onClick={() => {
-                                                                setEditingCategoryId(null);
-                                                                setEditingCategoryName("");
+                                                                setEditingCategoryId(category.id);
+                                                                setEditingCategoryName(category.name);
                                                             }}
-                                                            className="p-1.5 rounded-lg hover:bg-[var(--cms-pill)]"
-                                                            title="Cancel"
+                                                            className="font-bold text-lg text-left hover:opacity-80"
                                                         >
-                                                            <X className="w-4 h-4" />
+                                                            {category.name}
                                                         </button>
-                                                    </div>
+                                                    )
                                                 ) : (
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditingCategoryId(category.id);
-                                                            setEditingCategoryName(category.name);
-                                                        }}
-                                                        className="font-bold text-lg text-left hover:opacity-80"
-                                                    >
-                                                        {category.name}
-                                                    </button>
+                                                    <div className="font-bold text-lg">{category.name}</div>
                                                 )}
                                             </div>
-                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
-                                                    onClick={() => handleDeleteCategory(category.id)}
-                                                    className="p-2 hover:bg-red-500/10 rounded-lg text-red-500 hover:text-red-600"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
+                                            {canManageMenus && (
+                                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button
+                                                        onClick={() => handleDeleteCategory(category.id)}
+                                                        className="p-2 hover:bg-red-500/10 rounded-lg text-red-500 hover:text-red-600"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {!collapsedCategoryIds.has(category.id) && (
@@ -959,26 +1066,32 @@ export default function MenuDetailPage() {
                                                         <SortableItemRow
                                                             key={item.id}
                                                             id={`item-${item.id}`}
-                                                            className={`p-3 bg-[var(--cms-panel-strong)] rounded-xl flex justify-between items-center group hover:bg-[var(--cms-pill)] transition-colors cursor-pointer ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
+                                                            disabled={!canManageMenus}
+                                                            className={`p-3 bg-[var(--cms-panel-strong)] rounded-xl flex justify-between items-center group hover:bg-[var(--cms-pill)] transition-colors ${canOpenItemModal ? "cursor-pointer" : ""} ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
                                                         >
                                                             {({ attributes: itemAttributes, listeners: itemListeners }) => (
                                                                 <div
                                                                     className="flex w-full items-center justify-between"
                                                                     onClick={() => {
                                                                         if (isDragging) return;
+                                                                        if (!canOpenItemModal) return;
                                                                         setEditingItem({ ...item, categoryId: category.id });
                                                                         setFileToUpload(null);
                                                                     }}
                                                                 >
                                                                     <div className="flex items-center gap-4">
-                                                                        <button
-                                                                            className="text-[var(--cms-muted)] cursor-grab active:cursor-grabbing"
-                                                                            {...itemAttributes}
-                                                                            {...itemListeners}
-                                                                            aria-label="Reorder item"
-                                                                        >
-                                                                            <GripVertical className="w-4 h-4" />
-                                                                        </button>
+                                                                        {canManageMenus ? (
+                                                                            <button
+                                                                                className="text-[var(--cms-muted)] cursor-grab active:cursor-grabbing"
+                                                                                {...itemAttributes}
+                                                                                {...itemListeners}
+                                                                                aria-label="Reorder item"
+                                                                            >
+                                                                                <GripVertical className="w-4 h-4" />
+                                                                            </button>
+                                                                        ) : (
+                                                                            <div className="w-8 h-8" aria-hidden="true" />
+                                                                        )}
                                                                         {(item.photo_url || (item as any).photos?.[0]?.url) && (
                                                                             <img src={item.photo_url || (item as any).photos?.[0]?.url} alt={item.name} className="w-10 h-10 rounded-lg object-cover bg-[var(--cms-panel-strong)]" />
                                                                         )}
@@ -997,16 +1110,18 @@ export default function MenuDetailPage() {
                                                     ))}
                                                 </SortableContext>
 
-                                                <button
-                                                    onClick={() => {
-                                                        setEditingItem({ categoryId: category.id });
-                                                        setFileToUpload(null);
-                                                        setPageDirty(true);
-                                                    }}
-                                                    className="w-full py-3 border-2 border-dashed border-[var(--cms-border)] rounded-xl text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all text-sm font-medium flex items-center justify-center gap-2"
-                                                >
-                                                    <Plus className="w-4 h-4" /> Add Item
-                                                </button>
+                                                {canEditItems && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingItem({ categoryId: category.id });
+                                                            setFileToUpload(null);
+                                                            setPageDirty(true);
+                                                        }}
+                                                        className="w-full py-3 border-2 border-dashed border-[var(--cms-border)] rounded-xl text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all text-sm font-medium flex items-center justify-center gap-2"
+                                                    >
+                                                        <Plus className="w-4 h-4" /> Add Item
+                                                    </button>
+                                                )}
                                             </div>
                                         )}
                                     </>
@@ -1038,77 +1153,83 @@ export default function MenuDetailPage() {
                     </DragOverlay>
                 </DndContext>
 
-                {/* Add Category Section */}
-                {isAddingCategory ? (
-                    <div className="bg-[var(--cms-panel)] border border-[var(--cms-border)] p-6 rounded-2xl animate-in fade-in slide-in-from-bottom-2">
-                        <h3 className="font-bold mb-4">New Category</h3>
-                        <div className="flex gap-4">
-                            <input
-                                value={newCategoryName}
-                                onChange={(e) => {
-                                    setNewCategoryName(e.target.value);
-                                    if (e.target.value.trim()) setPageDirty(true);
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                        e.preventDefault();
-                                        handleAddCategory();
-                                    }
-                                }}
-                                placeholder="Category Name (e.g. Appetizers)"
-                                className="flex-1 bg-transparent border border-[var(--cms-border)] rounded-xl px-4 py-2 focus:outline-none focus:border-[var(--cms-text)] transition-colors"
-                                autoFocus
-                            />
-                            <button
-                                onClick={handleAddCategory}
-                                className="bg-[var(--cms-text)] text-[var(--cms-bg)] px-6 rounded-xl font-bold hover:opacity-90"
-                            >
-                                Save
-                            </button>
+                {canManageMenus && (
+                    <>
+                        {/* Add Category Section */}
+                        {isAddingCategory ? (
+                            <div className="bg-[var(--cms-panel)] border border-[var(--cms-border)] p-6 rounded-2xl animate-in fade-in slide-in-from-bottom-2">
+                                <h3 className="font-bold mb-4">New Category</h3>
+                                <div className="flex gap-4">
+                                    <input
+                                        value={newCategoryName}
+                                        onChange={(e) => {
+                                            setNewCategoryName(e.target.value);
+                                            if (e.target.value.trim()) setPageDirty(true);
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter") {
+                                                e.preventDefault();
+                                                handleAddCategory();
+                                            }
+                                        }}
+                                        placeholder="Category Name (e.g. Appetizers)"
+                                        className="flex-1 bg-transparent border border-[var(--cms-border)] rounded-xl px-4 py-2 focus:outline-none focus:border-[var(--cms-text)] transition-colors"
+                                        autoFocus
+                                    />
+                                    <button
+                                        onClick={handleAddCategory}
+                                        className="bg-[var(--cms-text)] text-[var(--cms-bg)] px-6 rounded-xl font-bold hover:opacity-90"
+                                    >
+                                        Save
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setIsAddingCategory(false);
+                                            setNewCategoryName("");
+                                        }}
+                                        className="bg-[var(--cms-panel-strong)] text-[var(--cms-text)] px-4 rounded-xl font-bold hover:opacity-90"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
                             <button
                                 onClick={() => {
-                                    setIsAddingCategory(false);
-                                    setNewCategoryName("");
+                                    setIsAddingCategory(true);
+                                    setPageDirty(true);
                                 }}
-                                className="bg-[var(--cms-panel-strong)] text-[var(--cms-text)] px-4 rounded-xl font-bold hover:opacity-90"
+                                className="w-full py-6 border-2 border-dashed border-[var(--cms-border)] rounded-3xl text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all font-bold text-lg flex items-center justify-center gap-3"
                             >
-                                Cancel
+                                <Plus className="w-6 h-6" /> Add Category
                             </button>
-                        </div>
-                    </div>
-                ) : (
-                    <button
-                        onClick={() => {
-                            setIsAddingCategory(true);
-                            setPageDirty(true);
-                        }}
-                        className="w-full py-6 border-2 border-dashed border-[var(--cms-border)] rounded-3xl text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all font-bold text-lg flex items-center justify-center gap-3"
-                    >
-                        <Plus className="w-6 h-6" /> Add Category
-                    </button>
+                        )}
+                    </>
                 )}
             </div>
 
 
-            <div className="mt-10 border border-red-500/20 bg-red-500/5 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                    <h3 className="font-bold text-red-400">Delete Menu</h3>
-                    <p className="text-sm text-[var(--cms-muted)]">This removes the menu and its items permanently.</p>
+            {canManageMenus && (
+                <div className="mt-10 border border-red-500/20 bg-red-500/5 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h3 className="font-bold text-red-400">Delete Menu</h3>
+                        <p className="text-sm text-[var(--cms-muted)]">This removes the menu and its items permanently.</p>
+                    </div>
+                    <button
+                        onClick={handleDeleteMenu}
+                        disabled={isDeletingMenu}
+                        className="px-4 py-2 rounded-lg font-bold text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {isDeletingMenu ? "Deleting..." : "Delete Menu"}
+                    </button>
                 </div>
-                <button
-                    onClick={handleDeleteMenu}
-                    disabled={isDeletingMenu}
-                    className="px-4 py-2 rounded-lg font-bold text-red-400 border border-red-500/30 hover:bg-red-500/10 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                    {isDeletingMenu ? "Deleting..." : "Delete Menu"}
-                </button>
-            </div>
+            )}
 
             {/* Item Editor Modal */}
             {editingItem && (
-                <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="fixed inset-0 cms-modal-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
                     <div
-                        className="bg-[var(--cms-panel)] border border-[var(--cms-border)] w-full max-w-lg rounded-[28px] shadow-[0_30px_80px_-40px_rgba(0,0,0,0.6)] scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col"
+                        className="cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-lg rounded-[28px] scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col backdrop-blur-xl"
                         onKeyDown={(e) => {
                             const target = e.target as HTMLElement;
                             const isTextarea = target.tagName === "TEXTAREA";
@@ -1118,7 +1239,7 @@ export default function MenuDetailPage() {
                             }
                         }}
                     >
-                        <div className="p-6 pb-4 flex-shrink-0 flex justify-between items-center border-b border-[var(--cms-border)]">
+                        <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex justify-between items-center border-b border-[var(--cms-border)] rounded-t-[28px]">
                             <div>
                                 <h2 className="text-xl font-bold">{editingItem.id ? "Edit Item" : "Add Item"}</h2>
                                 <p className="text-xs text-[var(--cms-muted)] mt-1">Keep it concise and scannable on mobile.</p>
@@ -1138,16 +1259,24 @@ export default function MenuDetailPage() {
                             {/* Photo Upload */}
                             <div>
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Photo</label>
-                                <label className="group p-6 border border-dashed border-[var(--cms-border)] rounded-2xl flex flex-col items-center justify-center text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all cursor-pointer relative overflow-hidden bg-[var(--cms-panel-strong)]/60">
+                                <label
+                                    className={`group p-6 border border-dashed border-[var(--cms-border)] rounded-2xl flex flex-col items-center justify-center text-[var(--cms-muted)] transition-all relative overflow-hidden bg-[var(--cms-panel-strong)] ring-1 ring-transparent ${
+                                        canEditItems
+                                            ? "hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] cursor-pointer hover:ring-[var(--cms-border)]"
+                                            : "opacity-70 cursor-not-allowed"
+                                    }`}
+                                >
                                     <input
                                         type="file"
                                         accept="image/*"
                                         className="hidden"
                                         onChange={(e) => {
+                                            if (!canEditItems) return;
                                             if (!e.target.files?.[0]) return;
                                             setFileToUpload(e.target.files[0]);
                                             setPageDirty(true);
                                         }}
+                                        disabled={!canEditItems}
                                     />
                                     {fileToUpload ? (
                                         <div className="text-center">
@@ -1156,8 +1285,8 @@ export default function MenuDetailPage() {
                                         </div>
                                     ) : (editingItem.photo_url || (editingItem as any).photos?.[0]?.url) ? (
                                         <div className="absolute inset-0">
-                                            <img src={editingItem.photo_url || (editingItem as any).photos?.[0]?.url} className="w-full h-full object-cover opacity-60 hover:opacity-100 transition-opacity" />
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 hover:opacity-100 transition-opacity text-xs font-bold">
+                                            <img src={editingItem.photo_url || (editingItem as any).photos?.[0]?.url} className="w-full h-full object-cover opacity-70 hover:opacity-100 transition-opacity" />
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 hover:opacity-100 transition-opacity text-xs font-bold">
                                                 Click to change
                                             </div>
                                         </div>
@@ -1173,25 +1302,29 @@ export default function MenuDetailPage() {
                             <div>
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Name</label>
                                 <input
-                                    className="w-full bg-[var(--cms-panel-strong)]/60 border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors text-sm"
+                                    className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all text-sm"
                                     placeholder="e.g. Margherita Pizza"
                                     value={editingItem.name || ""}
                                     onChange={e => {
+                                        if (!canEditItems) return;
                                         setEditingItem({ ...editingItem, name: e.target.value });
                                         setPageDirty(true);
                                     }}
+                                    disabled={!canEditItems}
                                 />
                             </div>
                             <div>
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Description</label>
                                 <textarea
-                                    className="w-full bg-[var(--cms-panel-strong)]/60 border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors min-h-[96px] text-sm"
+                                    className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all min-h-[96px] text-sm"
                                     placeholder="e.g. Tomato sauce, mozzarella, and fresh basil."
                                     value={editingItem.description || ""}
                                     onChange={e => {
+                                        if (!canEditItems) return;
                                         setEditingItem({ ...editingItem, description: e.target.value });
                                         setPageDirty(true);
                                     }}
+                                    disabled={!canEditItems}
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -1200,13 +1333,15 @@ export default function MenuDetailPage() {
                                     <input
                                         type="number"
                                         step="0.01"
-                                        className="w-full bg-[var(--cms-panel-strong)]/60 border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] transition-colors text-sm"
+                                        className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all text-sm"
                                         placeholder="0.00"
                                         value={editingItem.price || ""}
                                         onChange={e => {
+                                            if (!canEditItems) return;
                                             setEditingItem({ ...editingItem, price: parseFloat(e.target.value) });
                                             setPageDirty(true);
                                         }}
+                                        disabled={!canEditItems}
                                     />
                                 </div>
                                 <div>
@@ -1216,7 +1351,8 @@ export default function MenuDetailPage() {
                                             setEditingItem({ ...editingItem, is_sold_out: !editingItem.is_sold_out });
                                             setPageDirty(true);
                                         }}
-                                        className={`w-full px-4 py-3 rounded-2xl border font-semibold text-sm transition-all inline-flex items-center justify-between ${editingItem.is_sold_out ? "bg-red-500/10 border-red-500/30 text-red-500" : "bg-[var(--cms-panel-strong)]/60 border-[var(--cms-border)] text-[var(--cms-text)]"}`}
+                                        disabled={!canManageAvailability && !canEditItems}
+                                        className={`w-full px-4 py-3 rounded-2xl border font-semibold text-sm transition-all inline-flex items-center justify-between ${editingItem.is_sold_out ? "bg-red-500/10 border-red-500/30 text-red-500" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-text)]"} hover:shadow-[0_0_0_1px_rgba(255,255,255,0.06)]`}
                                     >
                                         <span>{editingItem.is_sold_out ? "Sold Out" : "Available"}</span>
                                         <span className={`h-2 w-2 rounded-full ${editingItem.is_sold_out ? "bg-red-500" : "bg-emerald-400"}`} />
@@ -1224,7 +1360,8 @@ export default function MenuDetailPage() {
                                 </div>
                             </div>
                             {/* Tags */}
-                            <div>
+                            {canEditItems && (
+                                <div>
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-3">Tags</label>
                                 <div className="space-y-4">
                                     <div>
@@ -1234,7 +1371,7 @@ export default function MenuDetailPage() {
                                                 <button
                                                     key={tag.id}
                                                     onClick={() => toggleMetadata('tags', tag.id)}
-                                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)]" : "bg-[var(--cms-panel-strong)]/60 border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)] shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
                                                 >
                                                     {tag.name}
                                                 </button>
@@ -1248,7 +1385,7 @@ export default function MenuDetailPage() {
                                                 <button
                                                     key={tag.id}
                                                     onClick={() => toggleMetadata('tags', tag.id)}
-                                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)]" : "bg-[var(--cms-panel-strong)]/60 border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)] shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
                                                 >
                                                     {tag.name}
                                                 </button>
@@ -1262,7 +1399,7 @@ export default function MenuDetailPage() {
                                                 <button
                                                     key={tag.id}
                                                     onClick={() => toggleMetadata('tags', tag.id)}
-                                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)]" : "bg-[var(--cms-panel-strong)]/60 border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)] shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
                                                 >
                                                     {tag.name}
                                                 </button>
@@ -1270,34 +1407,37 @@ export default function MenuDetailPage() {
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                                </div>
+                            )}
 
                             {/* Allergens */}
-                            <div>
+                            {canEditItems && (
+                                <div>
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">{tagLabels.allergens}</label>
                                 <div className="flex flex-wrap gap-2">
                                     {allergenTagList.map(alg => (
                                         <button
                                             key={alg.id}
                                             onClick={() => toggleMetadata('allergens', alg.id)}
-                                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).allergen_ids?.includes(alg.id) ? "bg-red-500/10 border-red-500/40 text-red-500" : "bg-[var(--cms-panel-strong)]/60 border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).allergen_ids?.includes(alg.id) ? "bg-red-500/10 border-red-500/40 text-red-500 shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
                                         >
                                             {alg.name}
                                         </button>
                                     ))}
                                 </div>
-                            </div>
+                                </div>
+                            )}
 
                         </div>
-                        <div className="p-6 pt-4 border-t border-[var(--cms-border)] flex justify-between gap-3 flex-shrink-0 bg-[var(--cms-panel)] rounded-b-[28px]">
+                        <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex justify-between gap-3 flex-shrink-0 rounded-b-[28px]">
                             <div>
-                                {editingItem.id && (
+                                {canEditItems && editingItem.id && (
                                     <button
                                         onClick={async () => {
                                             if (!confirm("Delete this item?")) return;
                                             try {
                                                 const token = await getAuthToken();
-                                                const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/items/${editingItem.id}`, {
+                                                const res = await fetch(`${apiBase}/items/${editingItem.id}`, {
                                                     method: 'DELETE',
                                                     headers: { 'Authorization': `Bearer ${token}` }
                                                 });
@@ -1322,14 +1462,19 @@ export default function MenuDetailPage() {
                                         setEditingItem(null);
                                         setFileToUpload(null);
                                     }}
-                                    className="px-6 py-3 rounded-xl font-semibold hover:bg-[var(--cms-pill)] transition-colors"
+                                    className="px-6 py-3 rounded-xl font-semibold bg-[var(--cms-panel-strong)] hover:bg-[var(--cms-pill)] transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={handleSaveItem}
-                                    disabled={isSavingItem || !editingItem.name || (!editingItem.price && editingItem.price !== 0)}
-                                    className="px-6 py-3 bg-[var(--cms-text)] text-[var(--cms-bg)] rounded-xl font-semibold hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    disabled={
+                                        isSavingItem ||
+                                        (canEditItems
+                                            ? !editingItem.name || (!editingItem.price && editingItem.price !== 0)
+                                            : !editingItem.id || !canManageAvailability)
+                                    }
+                                    className="px-6 py-3 bg-[var(--cms-text)] text-[var(--cms-bg)] rounded-xl font-semibold hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2 shadow-[0_8px_24px_-16px_rgba(0,0,0,0.8)]"
                                 >
                                     {isSavingItem && <Loader2 className="w-4 h-4 animate-spin" />}
                                     {isSavingItem ? 'Saving...' : 'Save Item'}

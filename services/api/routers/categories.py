@@ -5,6 +5,7 @@ from sqlmodel import Session, select
 from database import get_session
 from models import Category, Menu, CategoryRead
 from dependencies import get_current_user
+from permissions import get_org_permissions
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 SessionDep = Depends(get_session)
@@ -21,9 +22,8 @@ def create_category(category: Category, session: Session = SessionDep, user: dic
     # In a real app we'd fetch Org, but here we can optimize or assume if we trust creating menu logic
     # But let's be safe and check org owner
     # But let's be safe and check org owner
-    from models import Organization
-    org = session.get(Organization, menu.org_id)
-    if org.owner_id != user["sub"]:
+    perms = get_org_permissions(session, menu.org_id, user)
+    if not perms.can_manage_menus:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     session.add(category)
@@ -52,9 +52,8 @@ def update_category(category_id: uuid.UUID, cat_update: Category, session: Sessi
     
     # Ownership check
     menu = session.get(Menu, db_cat.menu_id)
-    from models import Organization
-    org = session.get(Organization, menu.org_id)
-    if org.owner_id != user["sub"]:
+    perms = get_org_permissions(session, menu.org_id, user)
+    if not perms.can_manage_menus:
         raise HTTPException(status_code=403, detail="Not authorized")
         
     cat_data = cat_update.model_dump(exclude_unset=True)
@@ -73,9 +72,8 @@ def delete_category(category_id: uuid.UUID, session: Session = SessionDep, user:
         raise HTTPException(status_code=404, detail="Category not found")
 
     menu = session.get(Menu, db_cat.menu_id)
-    from models import Organization
-    org = session.get(Organization, menu.org_id)
-    if org.owner_id != user["sub"]:
+    perms = get_org_permissions(session, menu.org_id, user)
+    if not perms.can_manage_menus:
          raise HTTPException(status_code=403, detail="Not authorized")
 
     session.delete(db_cat)

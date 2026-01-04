@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List
+from sqlalchemy import UniqueConstraint
 from sqlmodel import SQLModel, Field, Relationship
 
 class Organization(SQLModel, table=True):
@@ -11,6 +12,25 @@ class Organization(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     menus: List["Menu"] = Relationship(back_populates="organization")
+    members: List["OrganizationMember"] = Relationship(back_populates="organization")
+
+
+class OrganizationMemberBase(SQLModel):
+    org_id: uuid.UUID = Field(foreign_key="organization.id", index=True)
+    email: str = Field(index=True)
+    can_manage_availability: bool = Field(default=False)
+    can_edit_items: bool = Field(default=False)
+    can_manage_menus: bool = Field(default=False)
+    can_manage_users: bool = Field(default=False)
+
+
+class OrganizationMember(OrganizationMemberBase, table=True):
+    __table_args__ = (UniqueConstraint("org_id", "email"),)
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    organization: Optional["Organization"] = Relationship(back_populates="members")
 
 
 # Base Models
@@ -19,6 +39,7 @@ class MenuBase(SQLModel):
     slug: Optional[str] = Field(default=None, index=True) # Optional now, mostly for internal display
     is_active: bool = Field(default=True)
     theme: str = Field(default="noir")
+    banner_url: Optional[str] = None
     org_id: uuid.UUID = Field(foreign_key="organization.id", index=True)
 
 class CategoryBase(SQLModel):
@@ -125,3 +146,38 @@ class MenuUpdate(SQLModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None
     theme: Optional[str] = None
+    banner_url: Optional[str] = None
+
+class OrganizationUpdate(SQLModel):
+    name: Optional[str] = None
+    slug: Optional[str] = None
+
+
+class OrganizationMemberCreate(SQLModel):
+    email: str
+    can_manage_availability: bool = False
+    can_edit_items: bool = False
+    can_manage_menus: bool = False
+    can_manage_users: bool = False
+
+
+class OrganizationMemberUpdate(SQLModel):
+    email: Optional[str] = None
+    can_manage_availability: Optional[bool] = None
+    can_edit_items: Optional[bool] = None
+    can_manage_menus: Optional[bool] = None
+    can_manage_users: Optional[bool] = None
+
+
+class OrganizationMemberRead(OrganizationMemberBase):
+    id: uuid.UUID
+    created_at: datetime
+
+
+class OrgPermissionsRead(SQLModel):
+    is_owner: bool
+    can_view: bool
+    can_manage_availability: bool
+    can_edit_items: bool
+    can_manage_menus: bool
+    can_manage_users: bool
