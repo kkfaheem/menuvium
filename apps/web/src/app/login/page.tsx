@@ -4,9 +4,9 @@ import { Authenticator, ThemeProvider, useAuthenticator } from "@aws-amplify/ui-
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Fraunces, Space_Grotesk } from "next/font/google";
-import { fetchAuthSession } from "aws-amplify/auth";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
+import { getAuthToken } from "@/lib/authToken";
 
 const fraunces = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600"] });
@@ -25,12 +25,7 @@ export default function LoginPage() {
                     return;
                 }
                 const apiBase = getApiBase();
-                const session = await fetchAuthSession();
-                const token = session.tokens?.idToken?.toString();
-                if (!token) {
-                    router.push("/dashboard/mode");
-                    return;
-                }
+                const token = await getAuthToken();
                 const orgRes = await fetch(`${apiBase}/organizations/`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });

@@ -3,6 +3,7 @@ from sqlmodel import create_engine, SQLModel, Session
 from pydantic_settings import BaseSettings
 from typing import Optional
 from urllib.parse import quote_plus
+import os
 
 class Settings(BaseSettings):
     DATABASE_URL: Optional[str] = None
@@ -30,8 +31,8 @@ def build_database_url(settings: Settings) -> str:
         f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
     )
 
-# Use echo=True for dev debugging
-engine = create_engine(build_database_url(settings), echo=True)
+echo = os.getenv("SQL_ECHO") == "1"
+engine = create_engine(build_database_url(settings), echo=echo)
 
 def get_session():
     with Session(engine) as session:

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Search, X, AlertCircle } from "lucide-react";
+import { Search, X, AlertCircle, SlidersHorizontal } from "lucide-react";
 import { Bebas_Neue, Manrope, Playfair_Display, Space_Grotesk } from "next/font/google";
 import { MENU_THEME_BY_ID, MenuThemeId } from "@/lib/menuThemes";
 import { getApiBase } from "@/lib/apiBase";
+import { DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["500", "600", "700"] });
@@ -66,6 +67,10 @@ export default function PublicMenuPage() {
     const [error, setError] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [soldOutDisplay, setSoldOutDisplay] = useState<"dim" | "hide">("dim");
+    const [filtersOpen, setFiltersOpen] = useState(false);
+    const [selectedTagKeys, setSelectedTagKeys] = useState<string[]>([]);
+    const [tagLabels, setTagLabels] = useState(TAG_LABELS_DEFAULTS);
+    const [tagGroups, setTagGroups] = useState<Record<string, "diet" | "spice" | "highlights">>({});
 
     // Modal State
     const [selectedItem, setSelectedItem] = useState<Item | null>(null);
@@ -80,8 +85,109 @@ export default function PublicMenuPage() {
         setSoldOutDisplay(stored);
     }, []);
 
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const storedLabels = localStorage.getItem("menuvium_tag_labels");
+        if (storedLabels) {
+            try {
+                const parsed = JSON.parse(storedLabels) as Partial<typeof TAG_LABELS_DEFAULTS>;
+                setTagLabels({ ...TAG_LABELS_DEFAULTS, ...parsed });
+            } catch {
+                setTagLabels(TAG_LABELS_DEFAULTS);
+            }
+        }
+        const storedGroups = localStorage.getItem("menuvium_tag_groups");
+        if (storedGroups) {
+            try {
+                const parsed = JSON.parse(storedGroups) as Record<string, "diet" | "spice" | "highlights">;
+                setTagGroups(parsed);
+            } catch {
+                setTagGroups({});
+            }
+        }
+    }, []);
+
     const visibleItems = (items: Item[]) =>
         items.filter((item) => !(soldOutDisplay === "hide" && item.is_sold_out));
+
+    const isLightHex = (hex: string) => {
+        const clean = hex.replace("#", "").trim();
+        if (clean.length !== 6) return false;
+        const r = parseInt(clean.slice(0, 2), 16);
+        const g = parseInt(clean.slice(2, 4), 16);
+        const b = parseInt(clean.slice(4, 6), 16);
+        const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+        return luminance > 0.72;
+    };
+
+    const normalize = (value: string) => value.trim().toLowerCase();
+
+    const filterOptions = useMemo(() => {
+        if (!menu) {
+            return {
+                diet: [] as DietaryTag[],
+                spice: [] as DietaryTag[],
+                highlights: [] as DietaryTag[],
+                allergens: [] as Allergen[],
+            };
+        }
+
+        const dietDefaults = new Set(DIET_TAGS.map(normalize));
+        const spiceDefaults = new Set(SPICE_TAGS.map(normalize));
+        const highlightDefaults = new Set(HIGHLIGHT_TAGS.map(normalize));
+
+        const dietaryById = new Map<string, DietaryTag>();
+        const allergenById = new Map<string, Allergen>();
+
+        for (const category of menu.categories) {
+            for (const item of category.items) {
+                if (soldOutDisplay === "hide" && item.is_sold_out) continue;
+                for (const tag of item.dietary_tags || []) {
+                    const key = tag.id || tag.name;
+                    if (!key) continue;
+                    if (!dietaryById.has(key)) dietaryById.set(key, tag);
+                }
+                for (const tag of item.allergens || []) {
+                    const key = tag.id || tag.name;
+                    if (!key) continue;
+                    if (!allergenById.has(key)) allergenById.set(key, tag);
+                }
+            }
+        }
+
+        const groups: Record<"diet" | "spice" | "highlights", DietaryTag[]> = {
+            diet: [],
+            spice: [],
+            highlights: [],
+        };
+
+        Array.from(dietaryById.values()).forEach((tag) => {
+            const storedGroup = tag.id ? tagGroups[tag.id] : undefined;
+            const nameKey = normalize(tag.name);
+            const inferred =
+                dietDefaults.has(nameKey) ? "diet" : spiceDefaults.has(nameKey) ? "spice" : highlightDefaults.has(nameKey) ? "highlights" : "highlights";
+            const group = storedGroup ?? inferred;
+            groups[group].push(tag);
+        });
+
+        (Object.keys(groups) as Array<keyof typeof groups>).forEach((k) => {
+            groups[k] = groups[k].sort((a, b) => a.name.localeCompare(b.name));
+        });
+
+        const allergens = Array.from(allergenById.values()).sort((a, b) => a.name.localeCompare(b.name));
+        return { ...groups, allergens };
+    }, [menu, soldOutDisplay, tagGroups]);
+
+    const itemMatchesSelectedTags = (item: Item) => {
+        if (selectedTagKeys.length === 0) return true;
+        const dietaryIds = new Set(
+            (item.dietary_tags || []).map((t) => `d:${t.id || t.name}`)
+        );
+        const allergenIds = new Set(
+            (item.allergens || []).map((t) => `a:${t.id || t.name}`)
+        );
+        return selectedTagKeys.some((key) => dietaryIds.has(key) || allergenIds.has(key));
+    };
 
     const fetchMenu = async () => {
         try {
@@ -99,10 +205,12 @@ export default function PublicMenuPage() {
 
     // Filter Logic
     const filteredCategories = menu?.categories.map(cat => {
-        const searchFiltered = cat.items.filter(item =>
-            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.description?.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+        const searchFiltered = cat.items
+            .filter(item =>
+                item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                item.description?.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            .filter(itemMatchesSelectedTags);
         return {
             ...cat,
             items: visibleItems(searchFiltered)
@@ -157,6 +265,210 @@ export default function PublicMenuPage() {
         );
     };
 
+    const hasAnyTagFilters =
+        filterOptions.diet.length > 0 ||
+        filterOptions.spice.length > 0 ||
+        filterOptions.highlights.length > 0 ||
+        filterOptions.allergens.length > 0;
+    const filterAccentText = isLightHex(palette.accent) ? "#111827" : "#FFFFFF";
+
+    const renderTagFiltersToggle = () => (
+        <button
+            type="button"
+            onClick={() => setFiltersOpen((v) => !v)}
+            disabled={!hasAnyTagFilters}
+            aria-label="Filter by tags"
+            title={hasAnyTagFilters ? "Filter by tags" : "No tags on this menu yet"}
+            className="absolute inset-y-0 right-3 my-auto h-9 w-9 rounded-xl border flex items-center justify-center transition-colors"
+            style={{
+                borderColor: palette.border,
+                backgroundColor: filtersOpen ? palette.surface : palette.surfaceAlt,
+                opacity: hasAnyTagFilters ? 1 : 0.55,
+                cursor: hasAnyTagFilters ? "pointer" : "not-allowed"
+            }}
+        >
+            <SlidersHorizontal className="h-4 w-4" style={{ color: palette.muted }} />
+            {selectedTagKeys.length > 0 && (
+                <span
+                    className="absolute -top-1 -right-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+                    style={{ backgroundColor: palette.accent, color: filterAccentText }}
+                >
+                    {selectedTagKeys.length}
+                </span>
+            )}
+        </button>
+    );
+
+    const renderTagFiltersPanel = () => {
+        if (!filtersOpen) return null;
+
+        return (
+            <div
+                className="mt-3 rounded-3xl border p-3"
+                style={{ borderColor: palette.border, backgroundColor: palette.surface }}
+            >
+                <div className="mb-3 flex items-center justify-between px-1">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: palette.muted }}>
+                        Filters
+                    </div>
+                    {selectedTagKeys.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setSelectedTagKeys([])}
+                            className="text-xs font-semibold underline underline-offset-4 transition-colors"
+                            style={{ color: palette.muted }}
+                        >
+                            Clear
+                        </button>
+                    )}
+                </div>
+
+                {!hasAnyTagFilters ? (
+                    <div className="p-2 text-sm" style={{ color: palette.muted }}>
+                        Add dietary/allergen tags to items to enable filtering.
+                    </div>
+                ) : (
+                    <>
+                        {filterOptions.diet.length > 0 && (
+                            <div>
+                                <div
+                                    className="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.22em]"
+                                    style={{ color: palette.muted }}
+                                >
+                                    {tagLabels.diet}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {filterOptions.diet.map((tag) => {
+                                        const key = `d:${tag.id || tag.name}`;
+                                        const selected = selectedTagKeys.includes(key);
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() =>
+                                                    setSelectedTagKeys((prev) =>
+                                                        selected ? prev.filter((v) => v !== key) : [...prev, key]
+                                                    )
+                                                }
+                                                className="rounded-full border px-3 py-2 text-xs font-semibold transition-colors"
+                                                style={{
+                                                    borderColor: palette.border,
+                                                    backgroundColor: selected ? palette.accent : palette.surfaceAlt,
+                                                    color: selected ? filterAccentText : palette.text
+                                                }}
+                                            >
+                                                {tag.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {filterOptions.spice.length > 0 && (
+                            <div className={filterOptions.diet.length > 0 ? "mt-4" : ""}>
+                                <div className="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: palette.muted }}>
+                                    {tagLabels.spice}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {filterOptions.spice.map((tag) => {
+                                        const key = `d:${tag.id || tag.name}`;
+                                        const selected = selectedTagKeys.includes(key);
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() =>
+                                                    setSelectedTagKeys((prev) =>
+                                                        selected ? prev.filter((v) => v !== key) : [...prev, key]
+                                                    )
+                                                }
+                                                className="rounded-full border px-3 py-2 text-xs font-semibold transition-colors"
+                                                style={{
+                                                    borderColor: palette.border,
+                                                    backgroundColor: selected ? palette.accent : palette.surfaceAlt,
+                                                    color: selected ? filterAccentText : palette.text
+                                                }}
+                                            >
+                                                {tag.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {filterOptions.highlights.length > 0 && (
+                            <div className={(filterOptions.diet.length > 0 || filterOptions.spice.length > 0) ? "mt-4" : ""}>
+                                <div className="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: palette.muted }}>
+                                    {tagLabels.highlights}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {filterOptions.highlights.map((tag) => {
+                                        const key = `d:${tag.id || tag.name}`;
+                                        const selected = selectedTagKeys.includes(key);
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() =>
+                                                    setSelectedTagKeys((prev) =>
+                                                        selected ? prev.filter((v) => v !== key) : [...prev, key]
+                                                    )
+                                                }
+                                                className="rounded-full border px-3 py-2 text-xs font-semibold transition-colors"
+                                                style={{
+                                                    borderColor: palette.border,
+                                                    backgroundColor: selected ? palette.accent : palette.surfaceAlt,
+                                                    color: selected ? filterAccentText : palette.text
+                                                }}
+                                            >
+                                                {tag.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {filterOptions.allergens.length > 0 && (
+                            <div className={(filterOptions.diet.length > 0 || filterOptions.spice.length > 0 || filterOptions.highlights.length > 0) ? "mt-4" : ""}>
+                                <div className="px-1 pb-2 text-[10px] font-bold uppercase tracking-[0.22em]" style={{ color: palette.muted }}>
+                                    {tagLabels.allergens}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {filterOptions.allergens.map((tag) => {
+                                        const key = `a:${tag.id || tag.name}`;
+                                        const selected = selectedTagKeys.includes(key);
+                                        return (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() =>
+                                                    setSelectedTagKeys((prev) =>
+                                                        selected ? prev.filter((v) => v !== key) : [...prev, key]
+                                                    )
+                                                }
+                                                className="rounded-full border px-3 py-2 text-xs font-semibold transition-colors"
+                                                style={{
+                                                    borderColor: palette.border,
+                                                    backgroundColor: selected ? palette.accent : palette.surfaceAlt,
+                                                    color: selected ? filterAccentText : palette.text
+                                                }}
+                                            >
+                                                {tag.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        );
+    };
+
     const renderNoir = () => (
         <div
             className={`min-h-screen pb-20 selection:bg-orange-500/30 ${spaceGrotesk.className} bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
@@ -171,20 +483,22 @@ export default function PublicMenuPage() {
                         <h1 className="text-xl font-bold tracking-tight truncate pr-4">{menu.name}</h1>
                     </div>
 
-                    <div className="relative group">
-                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                            <Search className="h-4 w-4 text-white/30 group-focus-within:text-white transition-colors" />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Find food or drinks..."
-                            className="block w-full pl-10 pr-4 py-3 rounded-2xl text-sm placeholder:text-[color:var(--menu-muted)] focus:outline-none transition-all font-medium border"
-                            style={{ backgroundColor: palette.surfaceAlt, borderColor: palette.border, color: palette.text }}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </div>
+	                    <div className="relative group">
+	                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+	                            <Search className="h-4 w-4 text-white/30 group-focus-within:text-white transition-colors" />
+	                        </div>
+	                        <input
+	                            type="text"
+	                            placeholder="Find food or drinks..."
+	                            className="block w-full pl-10 pr-12 py-3 rounded-2xl text-sm placeholder:text-[color:var(--menu-muted)] focus:outline-none transition-all font-medium border"
+	                            style={{ backgroundColor: palette.surfaceAlt, borderColor: palette.border, color: palette.text }}
+	                            value={searchQuery}
+	                            onChange={(e) => setSearchQuery(e.target.value)}
+	                        />
+	                        {renderTagFiltersToggle()}
+	                    </div>
+	                    {renderTagFiltersPanel()}
+	                </div>
 
                 <div className="max-w-md mx-auto px-4 pb-0 overflow-x-auto no-scrollbar flex gap-4 mask-fade-right">
                     {filteredCategories.map(cat => (
@@ -300,20 +614,22 @@ export default function PublicMenuPage() {
                     <div className="flex items-center justify-between mb-4">
                         <h1 className={`text-2xl font-semibold tracking-tight ${playfair.className}`}>{menu.name}</h1>
                     </div>
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                            <Search className="h-4 w-4 text-[#C4B8AD]" />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Search the menu..."
-                            className="block w-full pl-10 pr-4 py-3 rounded-2xl text-sm focus:outline-none transition-all border"
-                            style={{ backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </div>
+	                    <div className="relative">
+	                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+	                            <Search className="h-4 w-4 text-[#C4B8AD]" />
+	                        </div>
+	                        <input
+	                            type="text"
+	                            placeholder="Search the menu..."
+	                            className="block w-full pl-10 pr-12 py-3 rounded-2xl text-sm focus:outline-none transition-all border"
+	                            style={{ backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }}
+	                            value={searchQuery}
+	                            onChange={(e) => setSearchQuery(e.target.value)}
+	                        />
+	                        {renderTagFiltersToggle()}
+	                    </div>
+	                    {renderTagFiltersPanel()}
+	                </div>
                 <div className="max-w-md mx-auto px-4 pb-3 overflow-x-auto no-scrollbar flex gap-2">
                     {filteredCategories.map(cat => (
                         <a
@@ -387,20 +703,22 @@ export default function PublicMenuPage() {
                         <h1 className={`text-3xl tracking-wide ${bebas.className}`}>{menu.name}</h1>
                         <span className="text-[10px] uppercase tracking-[0.2em] text-[#C58B2B]">Menu</span>
                     </div>
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                            <Search className="h-4 w-4 text-[#D8A352]" />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Search items"
-                            className="block w-full pl-10 pr-4 py-3 rounded-2xl text-sm placeholder:text-[color:var(--menu-muted)] focus:outline-none transition-all border-2"
-                            style={{ backgroundColor: palette.surface, borderColor: palette.accent, color: palette.text }}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </div>
+	                    <div className="relative">
+	                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+	                            <Search className="h-4 w-4 text-[#D8A352]" />
+	                        </div>
+	                        <input
+	                            type="text"
+	                            placeholder="Search items"
+	                            className="block w-full pl-10 pr-12 py-3 rounded-2xl text-sm placeholder:text-[color:var(--menu-muted)] focus:outline-none transition-all border-2"
+	                            style={{ backgroundColor: palette.surface, borderColor: palette.accent, color: palette.text }}
+	                            value={searchQuery}
+	                            onChange={(e) => setSearchQuery(e.target.value)}
+	                        />
+	                        {renderTagFiltersToggle()}
+	                    </div>
+	                    {renderTagFiltersPanel()}
+	                </div>
                 <div className="max-w-md mx-auto px-4 pb-3 overflow-x-auto no-scrollbar flex gap-3">
                     {filteredCategories.map(cat => (
                         <a
@@ -465,20 +783,22 @@ export default function PublicMenuPage() {
                     <div className="flex items-center justify-between mb-3">
                         <h1 className="text-2xl font-semibold tracking-tight">{menu.name}</h1>
                     </div>
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-                            <Search className="h-4 w-4 text-[#7C9198]" />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Search menu..."
-                            className="block w-full pl-10 pr-4 py-3 rounded-2xl text-sm placeholder:text-[color:var(--menu-muted)] focus:outline-none transition-all border"
-                            style={{ backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                </div>
+	                    <div className="relative">
+	                        <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+	                            <Search className="h-4 w-4 text-[#7C9198]" />
+	                        </div>
+	                        <input
+	                            type="text"
+	                            placeholder="Search menu..."
+	                            className="block w-full pl-10 pr-12 py-3 rounded-2xl text-sm placeholder:text-[color:var(--menu-muted)] focus:outline-none transition-all border"
+	                            style={{ backgroundColor: palette.surface, borderColor: palette.border, color: palette.text }}
+	                            value={searchQuery}
+	                            onChange={(e) => setSearchQuery(e.target.value)}
+	                        />
+	                        {renderTagFiltersToggle()}
+	                    </div>
+	                    {renderTagFiltersPanel()}
+	                </div>
                 <div className="max-w-md mx-auto px-4 pb-3 overflow-x-auto no-scrollbar flex gap-3">
                     {filteredCategories.map(cat => (
                         <a

@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Check, Loader2, Mail, Shield, Trash2, UserPlus, X } from "lucide-react";
-import { fetchAuthSession } from "aws-amplify/auth";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
+import { getAuthToken } from "@/lib/authToken";
 
 type Company = { id: string; name: string };
 
@@ -71,13 +71,6 @@ export default function CompanyDetailPage() {
         can_edit_items: true,
         can_manage_menus: false
     });
-
-    const getAuthToken = async () => {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
-        if (!token) throw new Error("Not authenticated");
-        return token;
-    };
 
     const load = async () => {
         if (!user || !orgId) return;

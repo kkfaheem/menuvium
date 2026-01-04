@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchAuthSession } from "aws-amplify/auth";
 import { Loader2, PencilLine, Sparkles } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
+import { getAuthToken } from "@/lib/authToken";
 
 interface ParsedItem {
     name: string;
@@ -118,15 +118,6 @@ export default function CreateMenuFlow({
         if (!selectedOrg || typeof window === "undefined") return;
         localStorage.setItem("menuvium_last_org_id", selectedOrg);
     }, [selectedOrg]);
-
-    const getAuthToken = async () => {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
-        if (!token) {
-            throw new Error("Not authenticated");
-        }
-        return token;
-    };
 
     useEffect(() => {
         const load = async () => {

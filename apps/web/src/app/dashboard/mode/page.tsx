@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
+import { fetchUserAttributes } from "aws-amplify/auth";
 import { Briefcase, ShieldCheck } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
+import { getAuthToken } from "@/lib/authToken";
 
 type Mode = "admin" | "manager";
 
@@ -40,9 +41,7 @@ export default function ModeSelectPage() {
             }
 
             try {
-                const session = await fetchAuthSession();
-                const token = session.tokens?.idToken?.toString();
-                if (!token) return;
+                const token = await getAuthToken();
                 const orgRes = await fetch(`${apiBase}/organizations/`, {
                     headers: { Authorization: `Bearer ${token}` }
                 });

@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Building2, ChevronRight, MoreHorizontal, Plus, Trash2, Users } from "lucide-react";
-import { fetchAuthSession } from "aws-amplify/auth";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
+import { getAuthToken } from "@/lib/authToken";
 
 type Company = {
     id: string;
@@ -29,15 +29,6 @@ export default function CompaniesPage() {
             .replace(/[^a-z0-9\s-]/g, "")
             .replace(/\s+/g, "-")
             .replace(/-+/g, "-");
-
-    const getAuthToken = async () => {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
-        if (!token) {
-            throw new Error("Not authenticated");
-        }
-        return token;
-    };
 
     const loadCompanies = async () => {
         if (!user) return;

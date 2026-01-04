@@ -3,11 +3,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
+import { fetchUserAttributes } from "aws-amplify/auth";
 import CreateMenuFlow from "@/components/menus/CreateMenuFlow";
 import { Fraunces, Space_Grotesk } from "next/font/google";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
+import { getAuthToken } from "@/lib/authToken";
 
 const fraunces = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600"] });
@@ -117,15 +118,6 @@ export default function OnboardingPage() {
         };
         loadOrganizations();
     }, [user]);
-
-    const getAuthToken = async () => {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
-        if (!token) {
-            throw new Error("Not authenticated");
-        }
-        return token;
-    };
 
     const handleCreateOrg = async () => {
         setLoading(true);

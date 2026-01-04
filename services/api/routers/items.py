@@ -5,7 +5,7 @@ from botocore.exceptions import ClientError
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 from database import get_session
 from models import Item, Category, Menu, ItemPhoto, Organization, ItemCreate, ItemUpdate, ItemRead, DietaryTag, Allergen
 from dependencies import get_current_user
@@ -43,13 +43,13 @@ def generate_upload_url(req: PresignedUrlRequest, request: Request, user: dict =
     bucket_name = os.getenv("S3_BUCKET_NAME")
     if not bucket_name:
         if _local_uploads_enabled():
-             key = f"items/{uuid.uuid4()}-{os.path.basename(req.filename)}"
-             base_url = str(request.base_url).rstrip("/")
-             return {
-                 "upload_url": f"{base_url}/items/local-upload/{key}",
-                 "s3_key": key,
-                 "public_url": f"{base_url}/uploads/{key}"
-             }
+            key = f"items/{uuid.uuid4()}-{os.path.basename(req.filename)}"
+            base_url = str(request.base_url).rstrip("/")
+            return {
+                "upload_url": f"{base_url}/items/local-upload/{key}",
+                "s3_key": key,
+                "public_url": f"{base_url}/uploads/{key}",
+            }
         raise HTTPException(status_code=500, detail="S3 configuration missing")
 
     s3_client = boto3.client('s3')
@@ -142,6 +142,42 @@ def add_item_photo(item_id: uuid.UUID, photo: ItemPhoto, session: Session = Sess
     session.commit()
     session.refresh(photo)
     return photo
+
+@router.delete("/{item_id}/photos", status_code=204)
+def delete_item_photos(item_id: uuid.UUID, session: Session = SessionDep, user: dict = UserDep):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    category = session.get(Category, item.category_id)
+    menu = session.get(Menu, category.menu_id)
+    perms = get_org_permissions(session, menu.org_id, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    photos = session.exec(select(ItemPhoto).where(ItemPhoto.item_id == item_id)).all()
+    if photos:
+        bucket_name = os.getenv("S3_BUCKET_NAME")
+        if bucket_name:
+            s3_client = boto3.client("s3")
+            for photo in photos:
+                try:
+                    if photo.s3_key:
+                        s3_client.delete_object(Bucket=bucket_name, Key=photo.s3_key)
+                except Exception:
+                    # Best-effort: removing DB link is enough to "remove" a photo in the app.
+                    pass
+        elif _local_uploads_enabled():
+            for photo in photos:
+                try:
+                    if photo.s3_key:
+                        _safe_local_path(photo.s3_key).unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+    session.exec(delete(ItemPhoto).where(ItemPhoto.item_id == item_id))
+    session.commit()
+    return
 
 @router.patch("/{item_id}", response_model=ItemRead)
 def update_item(item_id: uuid.UUID, item_update: ItemUpdate, session: Session = SessionDep, user: dict = UserDep):

@@ -4,7 +4,6 @@ import { useState, useEffect, type ReactNode } from "react";
 import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2, Check, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchAuthSession } from "aws-amplify/auth";
 import { useParams, useRouter } from "next/navigation";
 import {
     DndContext,
@@ -26,6 +25,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { ALLERGEN_TAGS, DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
+import { getAuthToken } from "@/lib/authToken";
 
 // Types
 interface Item {
@@ -35,6 +35,7 @@ interface Item {
     price: number;
     is_sold_out: boolean;
     photo_url?: string;
+    photos?: { url: string; s3_key: string }[];
     position?: number;
 }
 
@@ -152,6 +153,7 @@ export default function MenuDetailPage() {
     const [newCategoryName, setNewCategoryName] = useState("");
     const [editingItem, setEditingItem] = useState<Partial<Item> & { categoryId?: string } | null>(null);
     const [isSavingItem, setIsSavingItem] = useState(false);
+    const [isRemovingItemPhoto, setIsRemovingItemPhoto] = useState(false);
     const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
     const [editingCategoryName, setEditingCategoryName] = useState("");
     const [isDragging, setIsDragging] = useState(false);
@@ -161,7 +163,6 @@ export default function MenuDetailPage() {
     const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
     const [tagLabels, setTagLabels] = useState(TAG_LABELS_DEFAULTS);
     const [tagGroups, setTagGroups] = useState<Record<string, "diet" | "spice" | "highlights">>({});
-    const [soldOutDisplay, setSoldOutDisplay] = useState<"dim" | "hide">("dim");
     const [mode, setMode] = useState<"admin" | "manager" | null>(null);
     const [orgPermissions, setOrgPermissions] = useState<OrgPermissions | null>(null);
 
@@ -244,8 +245,6 @@ export default function MenuDetailPage() {
                 setTagGroups({});
             }
         }
-        const storedSoldOut = (localStorage.getItem("menuvium_sold_out_display") as "dim" | "hide") || "dim";
-        setSoldOutDisplay(storedSoldOut);
         setMode((localStorage.getItem("menuvium_user_mode") as "admin" | "manager" | null) || null);
     }, []);
 
@@ -260,15 +259,6 @@ export default function MenuDetailPage() {
         } catch (e) {
             console.error("Failed to fetch metadata", e);
         }
-    };
-
-    const getAuthToken = async () => {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
-        if (!token) {
-            throw new Error("Not authenticated");
-        }
-        return token;
     };
 
     const fetchMenu = async (id: string) => {
@@ -711,6 +701,50 @@ export default function MenuDetailPage() {
         }
     };
 
+    const handleRemoveItemPhoto = async () => {
+        if (!editingItem) return;
+        const canEditItems = Boolean(orgPermissions?.can_edit_items);
+        if (!canEditItems) return;
+
+        if (fileToUpload) {
+            setFileToUpload(null);
+            setPageDirty(true);
+            return;
+        }
+
+        const currentUrl = editingItem.photo_url || (editingItem as any).photos?.[0]?.url;
+        if (!currentUrl) return;
+
+        if (!editingItem.id) {
+            setEditingItem({ ...(editingItem as any), photo_url: undefined, photos: [] });
+            setPageDirty(true);
+            return;
+        }
+
+        setIsRemovingItemPhoto(true);
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${apiBase}/items/${editingItem.id}/photos`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert(err.detail || "Failed to remove photo");
+                return;
+            }
+            setEditingItem((prev) => (prev ? ({ ...(prev as any), photo_url: undefined, photos: [] }) : prev));
+            setFileToUpload(null);
+            setPageDirty(true);
+            if (menu) fetchMenu(menu.id);
+        } catch (e) {
+            console.error(e);
+            alert("Failed to remove photo");
+        } finally {
+            setIsRemovingItemPhoto(false);
+        }
+    };
+
     const toggleMetadata = (type: 'tags' | 'allergens', id: string) => {
         if (!editingItem) return;
         const key = type === 'tags' ? 'dietary_tag_ids' : 'allergen_ids';
@@ -1055,19 +1089,16 @@ export default function MenuDetailPage() {
                                                     </div>
                                                 )}
                                                 <SortableContext
-                                                    items={(category.items || [])
-                                                        .filter((item) => !(soldOutDisplay === "hide" && item.is_sold_out))
-                                                        .map((item) => `item-${item.id}`)}
+                                                    items={(category.items || []).map((item) => `item-${item.id}`)}
                                                     strategy={verticalListSortingStrategy}
                                                 >
                                                     {category.items
-                                                        ?.filter((item) => !(soldOutDisplay === "hide" && item.is_sold_out))
                                                         .map((item) => (
                                                         <SortableItemRow
                                                             key={item.id}
                                                             id={`item-${item.id}`}
                                                             disabled={!canManageMenus}
-                                                            className={`p-3 bg-[var(--cms-panel-strong)] rounded-xl flex justify-between items-center group hover:bg-[var(--cms-pill)] transition-colors ${canOpenItemModal ? "cursor-pointer" : ""} ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
+                                                            className={`p-3 bg-[var(--cms-panel-strong)] rounded-xl flex justify-between items-center group hover:bg-[var(--cms-pill)] transition-colors ${canOpenItemModal ? "cursor-pointer" : ""} ${item.is_sold_out ? "opacity-60" : ""}`}
                                                         >
                                                             {({ attributes: itemAttributes, listeners: itemListeners }) => (
                                                                 <div
@@ -1280,12 +1311,38 @@ export default function MenuDetailPage() {
                                     />
                                     {fileToUpload ? (
                                         <div className="text-center">
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    handleRemoveItemPhoto();
+                                                }}
+                                                className="absolute top-3 right-3 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]/80 px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] hover:bg-[var(--cms-panel)] transition-colors"
+                                                disabled={!canEditItems || isRemovingItemPhoto}
+                                            >
+                                                Clear
+                                            </button>
                                             <p className="font-bold mb-1">{fileToUpload.name}</p>
                                             <p className="text-xs">Click to change</p>
                                         </div>
                                     ) : (editingItem.photo_url || (editingItem as any).photos?.[0]?.url) ? (
                                         <div className="absolute inset-0">
                                             <img src={editingItem.photo_url || (editingItem as any).photos?.[0]?.url} className="w-full h-full object-cover opacity-70 hover:opacity-100 transition-opacity" />
+                                            {canEditItems && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        handleRemoveItemPhoto();
+                                                    }}
+                                                    className="absolute top-3 right-3 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]/80 px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] hover:bg-[var(--cms-panel)] transition-colors"
+                                                    disabled={isRemovingItemPhoto}
+                                                >
+                                                    {isRemovingItemPhoto ? "Removing…" : "Remove"}
+                                                </button>
+                                            )}
                                             <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 hover:opacity-100 transition-opacity text-xs font-bold">
                                                 Click to change
                                             </div>

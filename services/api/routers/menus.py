@@ -129,10 +129,18 @@ def get_public_menu(menu_id: uuid.UUID, session: Session = SessionDep):
         select(Category)
         .where(Category.menu_id == menu_id)
         .order_by(Category.rank)
-        .options(selectinload(Category.items))
+        .options(
+            selectinload(Category.items)
+            .selectinload(Item.dietary_tags),
+            selectinload(Category.items)
+            .selectinload(Item.allergens),
+            selectinload(Category.items)
+            .selectinload(Item.photos),
+        )
     ).all()
     for cat in categories:
         cat.items = sorted(cat.items or [], key=lambda item: item.position)
     menu.categories = categories
 
-    return menu
+    # Validate explicitly so nested tag/allergen IDs are included consistently.
+    return MenuRead.model_validate(menu)

@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 from database import get_session
-from models import Category, Menu, CategoryRead
+from models import Category, Menu, CategoryRead, Item
 from dependencies import get_current_user
 from permissions import get_org_permissions
 
@@ -40,7 +40,11 @@ def list_categories(menu_id: uuid.UUID, session: Session = SessionDep):
         select(Category)
         .where(Category.menu_id == menu_id)
         .order_by(Category.rank)
-        .options(selectinload(Category.items))
+        .options(
+            selectinload(Category.items).selectinload(Item.photos),
+            selectinload(Category.items).selectinload(Item.dietary_tags),
+            selectinload(Category.items).selectinload(Item.allergens),
+        )
     ).all()
     return categories
 

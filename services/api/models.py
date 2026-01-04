@@ -128,10 +128,16 @@ class ItemUpdate(SQLModel):
     dietary_tag_ids: Optional[List[uuid.UUID]] = None
     allergen_ids: Optional[List[uuid.UUID]] = None
 
+class DietaryTagRead(DietaryTagBase):
+    id: uuid.UUID
+
+class AllergenRead(AllergenBase):
+    id: uuid.UUID
+
 class ItemRead(ItemBase):
     id: uuid.UUID
-    dietary_tags: List[DietaryTagBase] = []
-    allergens: List[AllergenBase] = []
+    dietary_tags: List[DietaryTagRead] = []
+    allergens: List[AllergenRead] = []
     photos: List[ItemPhotoBase] = []
 
 class CategoryRead(CategoryBase):

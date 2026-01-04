@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchAuthSession } from "aws-amplify/auth";
 import { ArrowLeft, Check, ExternalLink, Loader2, Search, SlidersHorizontal, X } from "lucide-react";
 import { MENU_THEMES, MenuThemeId } from "@/lib/menuThemes";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
+import { getAuthToken } from "@/lib/authToken";
 
 interface Item {
     id: string;
@@ -52,15 +52,6 @@ export default function MenuThemesPage() {
         if (!menuId) return;
         fetchMenuData(menuId);
     }, [menuId, user]);
-
-    const getAuthToken = async () => {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
-        if (!token) {
-            throw new Error("Not authenticated");
-        }
-        return token;
-    };
 
     const fetchMenuData = async (id: string) => {
         try {

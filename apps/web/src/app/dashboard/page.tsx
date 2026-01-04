@@ -3,10 +3,11 @@
 import { LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
+import { fetchUserAttributes } from "aws-amplify/auth";
 import { useEffect, useMemo, useState } from "react";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
+import { getAuthToken } from "@/lib/authToken";
 
 export default function DashboardPage() {
     const { user } = useAuthenticator(context => [context.user]);
@@ -17,15 +18,6 @@ export default function DashboardPage() {
     const [activeMenuCount, setActiveMenuCount] = useState(0);
     const [itemCount, setItemCount] = useState(0);
     const [recentMenus, setRecentMenus] = useState<{ id: string; name: string; is_active: boolean }[]>([]);
-
-    const getAuthToken = async () => {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
-        if (!token) {
-            throw new Error("Not authenticated");
-        }
-        return token;
-    };
 
     useEffect(() => {
         const loadOverview = async () => {
