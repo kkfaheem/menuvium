@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useEffect, useLayoutEffect, useState } from "react";
+import { ThemeToggle } from "@/components/ThemeToggle"; // Added import
 
 export default function DashboardLayout({
     children,
@@ -22,8 +23,7 @@ export default function DashboardLayout({
     useEffect(() => {
         setMounted(true);
         if (typeof window !== "undefined") {
-            const savedTheme = (localStorage.getItem("menuvium_cms_theme") as "dark" | "light") || "dark";
-            document.documentElement.dataset.cmsTheme = savedTheme;
+            // REMOVED legacy theme logic
             if (!user) {
                 router.replace("/login");
             }
@@ -52,7 +52,7 @@ export default function DashboardLayout({
         }
     }, [mounted, user, mode, pathname, router, isModePage]);
 
-    if (!mounted) return <div className="min-h-screen bg-[#0a0a0a]" suppressHydrationWarning />;
+    if (!mounted) return <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a]" suppressHydrationWarning />;
     if (!user) return null;
 
     const isManager = mode === "manager";
@@ -60,6 +60,10 @@ export default function DashboardLayout({
     if (isModePage) {
         return (
             <div className="relative min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] transition-colors">
+                <div className="absolute top-4 right-4 z-50">
+                    <ThemeToggle />
+                </div>
+                {/* ... existing abstract background ... */}
                 <div className="pointer-events-none absolute inset-0 overflow-hidden">
                     <div className="absolute -top-32 left-[18%] h-72 w-72 rounded-full bg-emerald-400/10 blur-[140px] float-slow" />
                     <div className="absolute top-[20%] -right-24 h-72 w-72 rounded-full bg-cyan-400/10 blur-[160px] float-medium" />
@@ -94,7 +98,9 @@ export default function DashboardLayout({
                             <Menu className="w-5 h-5" />
                         </button>
                         <span className="text-base font-semibold tracking-tight">Menuvium</span>
-                        <div className="w-10" />
+                        <div className="flex items-center gap-2">
+                            <ThemeToggle />
+                        </div>
                     </div>
                 </div>
 
@@ -164,13 +170,20 @@ export default function DashboardLayout({
                             Mode
                         </Link>
                     </nav>
-                    <button
-                        onClick={() => signOut()}
-                        className="flex items-center gap-3 p-3 text-[var(--cms-muted-strong)] hover:text-[var(--cms-text)] transition-all mt-6 md:mt-auto"
-                    >
-                        <LogOut className="w-5 h-5" />
-                        Sign Out
-                    </button>
+
+                    <div className="mt-auto pt-6 border-t border-[var(--cms-border)]">
+                        <div className="flex items-center justify-between mb-4 px-2">
+                            <div className="text-sm font-medium text-[var(--cms-muted)]">Theme</div>
+                            <ThemeToggle />
+                        </div>
+                        <button
+                            onClick={() => signOut()}
+                            className="flex w-full items-center gap-3 p-3 text-[var(--cms-muted-strong)] hover:text-[var(--cms-text)] transition-all"
+                        >
+                            <LogOut className="w-5 h-5" />
+                            Sign Out
+                        </button>
+                    </div>
                 </aside>
 
                 {/* Main Content */}

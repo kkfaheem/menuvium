@@ -2,39 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  scroll-behavior: smooth;
+}
+
 :root {
+  /* Light Theme (Default) */
   --background: #ffffff;
   --foreground: #171717;
+
+  --cms-bg: #f8fafc;
+  /* Slate 50 */
+  --cms-panel: #ffffff;
+  --cms-panel-strong: #f1f5f9;
+  /* Slate 100 */
+  --cms-border: rgba(15, 23, 42, 0.08);
+  --cms-text: #0f172a;
+  /* Slate 900 */
+  --cms-muted: rgba(15, 23, 42, 0.5);
+  --cms-muted-strong: rgba(15, 23, 42, 0.4);
+  --cms-pill: rgba(15, 23, 42, 0.04);
+
+  --cms-accent: #FF5A1F;
+  --cms-accent-strong: #E04812;
+}
+
+.dark {
+  /* Dark Theme */
+  --background: #0a0a0a;
+  --foreground: #ededed;
+
   --cms-bg: #0b0c10;
   --cms-panel: #12131a;
   --cms-panel-strong: #181a22;
-  --cms-border: rgba(255, 255, 255, 0.07);
+  --cms-border: rgba(255, 255, 255, 0.08);
   --cms-text: #f6f3ee;
   --cms-muted: rgba(246, 243, 238, 0.62);
   --cms-muted-strong: rgba(246, 243, 238, 0.42);
   --cms-pill: rgba(255, 255, 255, 0.14);
-  --cms-accent: #6ee7b7;
-  --cms-accent-strong: #22d3ee;
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-:root[data-cms-theme="light"] {
-  --cms-bg: #f6f4ee;
-  --cms-panel: #ffffff;
-  --cms-panel-strong: #f1efe7;
-  --cms-border: rgba(17, 17, 17, 0.1);
-  --cms-text: #161616;
-  --cms-muted: rgba(17, 17, 17, 0.6);
-  --cms-muted-strong: rgba(17, 17, 17, 0.4);
-  --cms-pill: rgba(17, 17, 17, 0.08);
-  --cms-accent: #0f766e;
-  --cms-accent-strong: #0ea5e9;
+  --cms-accent: #FF5A1F;
+  --cms-accent-strong: #FF8A50;
 }
 
 body {
@@ -44,18 +52,24 @@ body {
 }
 
 @keyframes floatSlow {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate3d(0, 0, 0);
   }
+
   50% {
     transform: translate3d(0, -18px, 0);
   }
 }
 
 @keyframes floatMedium {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate3d(0, 0, 0);
   }
+
   50% {
     transform: translate3d(-12px, 12px, 0);
   }
@@ -65,9 +79,11 @@ body {
   0% {
     background-position: 0% 50%;
   }
+
   50% {
     background-position: 100% 50%;
   }
+
   100% {
     background-position: 0% 50%;
   }
@@ -87,24 +103,24 @@ body {
 }
 
 .cms-modal-overlay {
-  background: rgba(4, 6, 10, 0.7);
+  background: rgba(15, 23, 42, 0.18);
 }
 
-:root[data-cms-theme="light"] .cms-modal-overlay {
-  background: rgba(15, 23, 42, 0.18);
+.dark .cms-modal-overlay {
+  background: rgba(4, 6, 10, 0.7);
 }
 
 .cms-modal-shell {
   background: var(--cms-panel);
   border: 1px solid var(--cms-border);
+  box-shadow: 0 30px 90px -60px rgba(15, 23, 42, 0.35);
+}
+
+.dark .cms-modal-shell {
   box-shadow: 0 40px 120px -60px rgba(0, 0, 0, 0.7);
 }
 
 .cms-modal-header,
 .cms-modal-footer {
   background: color-mix(in srgb, var(--cms-panel-strong) 88%, transparent);
-}
-
-:root[data-cms-theme="light"] .cms-modal-shell {
-  box-shadow: 0 30px 90px -60px rgba(15, 23, 42, 0.35);
 }

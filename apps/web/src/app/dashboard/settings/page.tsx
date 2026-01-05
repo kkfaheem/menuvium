@@ -340,25 +340,6 @@ export default function SettingsPage() {
             {activeTab === "general" && (
                 <>
                     <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
-                        <h2 className="text-lg font-bold mb-1">Theme</h2>
-                        <p className="text-sm text-[var(--cms-muted)] mb-4">Switch the CMS appearance.</p>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setThemeAndPersist("dark")}
-                                className={`h-10 px-4 rounded-xl text-sm font-bold inline-flex items-center gap-2 transition-colors border ${theme === "dark" ? "bg-[var(--cms-pill)] border-[var(--cms-border)]" : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
-                            >
-                                <Moon className="w-4 h-4" /> Dark
-                            </button>
-                            <button
-                                onClick={() => setThemeAndPersist("light")}
-                                className={`h-10 px-4 rounded-xl text-sm font-bold inline-flex items-center gap-2 transition-colors border ${theme === "light" ? "bg-[var(--cms-pill)] border-[var(--cms-border)]" : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
-                            >
-                                <Sun className="w-4 h-4" /> Light
-                            </button>
-                        </div>
-                    </section>
-
-                    <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
                         <h2 className="text-lg font-bold mb-1">Sold-out items</h2>
                         <p className="text-sm text-[var(--cms-muted)] mb-4">Choose how sold-out items appear on menus.</p>
                         <div className="flex gap-2">

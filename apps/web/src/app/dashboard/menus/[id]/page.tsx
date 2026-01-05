@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2, Check, ChevronDown, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
@@ -165,6 +165,31 @@ export default function MenuDetailPage() {
     const [tagGroups, setTagGroups] = useState<Record<string, "diet" | "spice" | "highlights">>({});
     const [mode, setMode] = useState<"admin" | "manager" | null>(null);
     const [orgPermissions, setOrgPermissions] = useState<OrgPermissions | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+    const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
+    const existingEditingItemPhotoUrl =
+        editingItem?.photo_url || (editingItem ? (editingItem as any).photos?.[0]?.url : undefined);
+    const editingItemDisplayPhotoUrl = filePreviewUrl || existingEditingItemPhotoUrl;
+
+    useEffect(() => {
+        if (!fileToUpload) {
+            setFilePreviewUrl(null);
+            return;
+        }
+        const url = URL.createObjectURL(fileToUpload);
+        setFilePreviewUrl(url);
+        return () => URL.revokeObjectURL(url);
+    }, [fileToUpload]);
+
+    useEffect(() => {
+        if (!isPhotoPreviewOpen) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setIsPhotoPreviewOpen(false);
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [isPhotoPreviewOpen]);
 
     const normalize = (value: string) => value.trim().toLowerCase();
     const orderTags = <T extends { id: string; name: string }>(source: T[], names: string[]) =>
@@ -708,6 +733,8 @@ export default function MenuDetailPage() {
 
         if (fileToUpload) {
             setFileToUpload(null);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+            setIsPhotoPreviewOpen(false);
             setPageDirty(true);
             return;
         }
@@ -735,6 +762,8 @@ export default function MenuDetailPage() {
             }
             setEditingItem((prev) => (prev ? ({ ...(prev as any), photo_url: undefined, photos: [] }) : prev));
             setFileToUpload(null);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+            setIsPhotoPreviewOpen(false);
             setPageDirty(true);
             if (menu) fetchMenu(menu.id);
         } catch (e) {
@@ -1288,74 +1317,163 @@ export default function MenuDetailPage() {
 
                         <div className="p-6 pt-5 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
                             {/* Photo Upload */}
-                            <div>
-                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Photo</label>
-                                <label
-                                    className={`group p-6 border border-dashed border-[var(--cms-border)] rounded-2xl flex flex-col items-center justify-center text-[var(--cms-muted)] transition-all relative overflow-hidden bg-[var(--cms-panel-strong)] ring-1 ring-transparent ${
-                                        canEditItems
-                                            ? "hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] cursor-pointer hover:ring-[var(--cms-border)]"
-                                            : "opacity-70 cursor-not-allowed"
-                                    }`}
-                                >
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={(e) => {
-                                            if (!canEditItems) return;
-                                            if (!e.target.files?.[0]) return;
-                                            setFileToUpload(e.target.files[0]);
-                                            setPageDirty(true);
-                                        }}
-                                        disabled={!canEditItems}
-                                    />
-                                    {fileToUpload ? (
-                                        <div className="text-center">
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.preventDefault();
-                                                    e.stopPropagation();
-                                                    handleRemoveItemPhoto();
-                                                }}
-                                                className="absolute top-3 right-3 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]/80 px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] hover:bg-[var(--cms-panel)] transition-colors"
-                                                disabled={!canEditItems || isRemovingItemPhoto}
-                                            >
-                                                Clear
-                                            </button>
-                                            <p className="font-bold mb-1">{fileToUpload.name}</p>
-                                            <p className="text-xs">Click to change</p>
-                                        </div>
-                                    ) : (editingItem.photo_url || (editingItem as any).photos?.[0]?.url) ? (
-                                        <div className="absolute inset-0">
-                                            <img src={editingItem.photo_url || (editingItem as any).photos?.[0]?.url} className="w-full h-full object-cover opacity-70 hover:opacity-100 transition-opacity" />
-                                            {canEditItems && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        handleRemoveItemPhoto();
-                                                    }}
-                                                    className="absolute top-3 right-3 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]/80 px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] hover:bg-[var(--cms-panel)] transition-colors"
-                                                    disabled={isRemovingItemPhoto}
-                                                >
-                                                    {isRemovingItemPhoto ? "Removing…" : "Remove"}
-                                                </button>
-                                            )}
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 hover:opacity-100 transition-opacity text-xs font-bold">
-                                                Click to change
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <ImageIcon className="w-8 h-8 mb-2 text-[var(--cms-muted)] group-hover:text-[var(--cms-text)] transition-colors" />
-                                            <span className="text-sm font-medium">Upload a photo</span>
-                                            <span className="text-xs text-[var(--cms-muted)] mt-1">PNG or JPG, up to 10MB</span>
-                                        </>
-                                    )}
-                                </label>
-                            </div>
+	                            <div>
+	                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Photo</label>
+	                                <div
+	                                    role="button"
+	                                    tabIndex={editingItemDisplayPhotoUrl || canEditItems ? 0 : -1}
+	                                    aria-disabled={!editingItemDisplayPhotoUrl && !canEditItems}
+	                                    aria-label={editingItemDisplayPhotoUrl ? "View photo" : "Upload a photo"}
+	                                    onKeyDown={(e) => {
+	                                        const target = e.target as HTMLElement | null;
+	                                        if (target?.closest?.("button")) return;
+	                                        if (e.key !== "Enter" && e.key !== " ") return;
+	                                        e.preventDefault();
+	                                        if (editingItemDisplayPhotoUrl) {
+	                                            setIsPhotoPreviewOpen(true);
+	                                        } else {
+	                                            if (!canEditItems) return;
+	                                            fileInputRef.current?.click();
+	                                        }
+	                                    }}
+	                                    onClick={(e) => {
+	                                        const target = e.target as HTMLElement | null;
+	                                        if (target?.closest?.("button")) return;
+	                                        if (editingItemDisplayPhotoUrl) {
+	                                            setIsPhotoPreviewOpen(true);
+	                                        } else {
+	                                            if (!canEditItems) return;
+	                                            fileInputRef.current?.click();
+	                                        }
+	                                    }}
+	                                    onDragOver={(e) => {
+	                                        if (!canEditItems) return;
+	                                        e.preventDefault();
+	                                    }}
+	                                    onDrop={(e) => {
+	                                        if (!canEditItems) return;
+	                                        e.preventDefault();
+	                                        const file = e.dataTransfer.files?.[0];
+	                                        if (!file) return;
+	                                        if (!file.type.startsWith("image/")) return;
+	                                        setFileToUpload(file);
+	                                        setPageDirty(true);
+	                                    }}
+	                                    className={`group relative overflow-hidden rounded-2xl border ${editingItemDisplayPhotoUrl ? "border-solid" : "border-dashed"} bg-[var(--cms-panel-strong)] ring-1 ring-transparent transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent-strong)]/25 ${
+	                                        canEditItems
+	                                            ? "cursor-pointer border-[var(--cms-border)] hover:border-[var(--cms-text)] hover:ring-[var(--cms-border)]"
+	                                            : "cursor-not-allowed opacity-70 border-[var(--cms-border)]"
+	                                    }`}
+	                                >
+		                                    <input
+		                                        ref={fileInputRef}
+		                                        type="file"
+		                                        accept="image/*"
+		                                        className="hidden"
+		                                        onClick={(e) => {
+		                                            e.stopPropagation();
+		                                            (e.currentTarget as HTMLInputElement).value = "";
+		                                        }}
+		                                        onChange={(e) => {
+		                                            if (!canEditItems) return;
+		                                            if (!e.target.files?.[0]) return;
+	                                            setFileToUpload(e.target.files[0]);
+	                                            setPageDirty(true);
+	                                        }}
+	                                        disabled={!canEditItems}
+	                                    />
+
+	                                    {!editingItemDisplayPhotoUrl ? (
+	                                        <div className="min-h-[148px] px-6 py-10 flex flex-col items-center justify-center text-center">
+	                                            <div className="w-12 h-12 rounded-2xl bg-[var(--cms-pill)] flex items-center justify-center ring-1 ring-[var(--cms-border)] shadow-sm">
+	                                                <ImageIcon className="w-6 h-6 text-[var(--cms-muted)] group-hover:text-[var(--cms-text)] transition-colors" />
+	                                            </div>
+	                                            <div className="mt-4 text-sm font-semibold text-[var(--cms-text)]">Upload a photo</div>
+	                                            <div className="mt-1 text-xs text-[var(--cms-muted)]">Click to choose or drag and drop • PNG/JPG • up to 10MB</div>
+	                                        </div>
+	                                    ) : (
+	                                        <div className="relative min-h-[148px]">
+	                                            <img src={editingItemDisplayPhotoUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" />
+	                                            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/25 to-black/10 pointer-events-none" />
+
+	                                            <div
+	                                                className="absolute top-3 right-3 z-20 pointer-events-auto flex items-center gap-2"
+	                                                onClick={(e) => e.stopPropagation()}
+	                                            >
+	                                                <button
+	                                                    type="button"
+	                                                    onClick={(e) => {
+	                                                        e.preventDefault();
+	                                                        e.stopPropagation();
+	                                                        if (!canEditItems) return;
+	                                                        setIsPhotoPreviewOpen(false);
+	                                                        fileInputRef.current?.click();
+	                                                    }}
+	                                                    disabled={!canEditItems}
+	                                                    className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-panel-strong)] transition-colors disabled:opacity-60"
+	                                                >
+	                                                    Change
+	                                                </button>
+	                                                <button
+	                                                    type="button"
+	                                                    onClick={(e) => {
+	                                                        e.preventDefault();
+	                                                        e.stopPropagation();
+	                                                        handleRemoveItemPhoto();
+	                                                    }}
+	                                                    disabled={!canEditItems || isRemovingItemPhoto}
+	                                                    className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-panel-strong)] transition-colors disabled:opacity-60"
+	                                                >
+	                                                    {fileToUpload ? "Clear" : isRemovingItemPhoto ? "Removing…" : "Remove"}
+	                                                </button>
+	                                            </div>
+
+	                                                <div className="relative z-10 px-5 py-4 flex items-end justify-between">
+	                                                    <div className="min-w-0">
+	                                                    {fileToUpload ? (
+	                                                        <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white ring-1 ring-white/20">
+	                                                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-300" aria-hidden="true" />
+	                                                            New photo selected
+	                                                        </div>
+	                                                    ) : (
+	                                                        <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white ring-1 ring-white/20">
+	                                                            Current photo
+	                                                        </div>
+	                                                    )}
+	                                                    {fileToUpload && (
+	                                                        <div className="mt-2 text-xs text-white/85 truncate">{fileToUpload.name}</div>
+	                                                    )}
+	                                                </div>
+	                                                <div className="text-xs font-semibold text-white/90 hidden sm:block">Click to view</div>
+	                                            </div>
+	                                        </div>
+	                                    )}
+	                                </div>
+	                                {isPhotoPreviewOpen && editingItemDisplayPhotoUrl && (
+	                                    <div
+	                                        className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+	                                        role="dialog"
+	                                        aria-modal="true"
+	                                        onClick={() => setIsPhotoPreviewOpen(false)}
+	                                    >
+	                                        <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+	                                            <button
+	                                                type="button"
+	                                                className="absolute -top-3 -right-3 w-10 h-10 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] text-[var(--cms-text)] flex items-center justify-center shadow-lg hover:bg-[var(--cms-panel-strong)] transition-colors"
+	                                                onClick={() => setIsPhotoPreviewOpen(false)}
+	                                                aria-label="Close"
+	                                            >
+	                                                <X className="w-5 h-5" />
+	                                            </button>
+	                                            <img
+	                                                src={editingItemDisplayPhotoUrl}
+	                                                alt=""
+	                                                className="w-full max-h-[80vh] object-contain rounded-2xl bg-black/20 ring-1 ring-white/10"
+	                                            />
+	                                        </div>
+	                                    </div>
+	                                )}
+	                            </div>
                             <div>
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Name</label>
                                 <input

@@ -9,11 +9,10 @@ import { Fraunces, Space_Grotesk } from "next/font/google";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
+import { ThemeToggle } from "@/components/ThemeToggle"; // Import ThemeToggle
 
 const fraunces = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600"] });
-
-type CmsTheme = "dark" | "light";
 
 export default function OnboardingPage() {
     const { user, signOut } = useAuthenticator((context) => [context.user]);
@@ -22,7 +21,6 @@ export default function OnboardingPage() {
     const [mounted, setMounted] = useState(false);
     const [step, setStep] = useState(1);
     const [orgId, setOrgId] = useState<string | null>(null);
-    const [cmsTheme, setCmsTheme] = useState<CmsTheme>("dark");
     const [orgs, setOrgs] = useState<{ id: string; name: string }[]>([]);
     const [orgMode, setOrgMode] = useState<"create" | "select">("create");
     const [selectedOrgId, setSelectedOrgId] = useState("");
@@ -47,12 +45,7 @@ export default function OnboardingPage() {
         }
     }, [router]);
 
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const savedTheme = (localStorage.getItem("menuvium_cms_theme") as CmsTheme) || "dark";
-        setCmsTheme(savedTheme);
-        document.documentElement.dataset.cmsTheme = savedTheme;
-    }, []);
+    // Removed legacy theme effect
 
     useEffect(() => {
         if (!user) return;
@@ -105,8 +98,8 @@ export default function OnboardingPage() {
                         typeof window !== "undefined" ? localStorage.getItem("menuvium_last_org_id") : null;
                     const nextOrgId =
                         preferredOrgId && ownedOrgs.find((org: { id: string }) => org.id === preferredOrgId)
-                        ? preferredOrgId
-                        : ownedOrgs[0].id;
+                            ? preferredOrgId
+                            : ownedOrgs[0].id;
                     setSelectedOrgId(nextOrgId);
                     setOrgMode("select");
                 } else {
@@ -196,17 +189,19 @@ export default function OnboardingPage() {
         return [{ id: orgId, name: selectedName }];
     }, [orgId, formData.orgName, orgs]);
 
-    if (!mounted) return <div className="min-h-screen bg-[#0a0a0a]" />;
+    if (!mounted) return <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a]" />;
     if (!user) return null;
 
-    const isLight = cmsTheme === "light";
-
     return (
-        <div className={`min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] ${spaceGrotesk.className}`}>
+        <div className={`min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] ${spaceGrotesk.className} relative transition-colors`}>
+            <div className="absolute top-6 right-6 z-50">
+                <ThemeToggle />
+            </div>
+
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className={`absolute -top-32 -left-24 h-72 w-72 rounded-full blur-[120px] float-slow ${isLight ? "bg-emerald-500/15" : "bg-emerald-400/10"}`} />
-                <div className={`absolute top-1/3 -right-20 h-64 w-64 rounded-full blur-[120px] float-medium ${isLight ? "bg-sky-500/12" : "bg-blue-500/10"}`} />
-                <div className={`absolute bottom-[-160px] left-1/3 h-80 w-80 rounded-full blur-[150px] float-slow ${isLight ? "bg-violet-500/10" : "bg-purple-500/10"}`} />
+                <div className="absolute -top-32 -left-24 h-72 w-72 rounded-full blur-[120px] float-slow bg-emerald-500/15 dark:bg-emerald-400/10" />
+                <div className="absolute top-1/3 -right-20 h-64 w-64 rounded-full blur-[120px] float-medium bg-sky-500/12 dark:bg-blue-500/10" />
+                <div className="absolute bottom-[-160px] left-1/3 h-80 w-80 rounded-full blur-[150px] float-slow bg-violet-500/10 dark:bg-purple-500/10" />
                 <div className="absolute inset-0 opacity-10 gradient-shift bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.12),_transparent_55%),linear-gradient(120deg,_rgba(59,130,246,0.12),_rgba(16,185,129,0.1),_rgba(236,72,153,0.08))]" />
             </div>
 
@@ -215,7 +210,7 @@ export default function OnboardingPage() {
                     <div>
                         <p className="text-[var(--cms-muted)] text-sm uppercase tracking-[0.4em] mb-2">Onboarding</p>
                         <h1 className={`text-3xl md:text-4xl font-bold tracking-tight ${fraunces.className}`}>
-                            Welcome, <span className={isLight ? "text-sky-600" : "text-blue-400"}>{displayName}</span>
+                            Welcome, <span className="text-sky-600 dark:text-blue-400">{displayName}</span>
                         </h1>
                     </div>
                     <button
@@ -231,7 +226,7 @@ export default function OnboardingPage() {
                         <span className="inline-flex items-center gap-2">
                             <span className="relative flex h-2 w-2">
                                 <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-60 animate-ping" />
-                                <span className={`relative inline-flex h-2 w-2 rounded-full ${isLight ? "bg-sky-600" : "bg-blue-400"}`} />
+                                <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-600 dark:bg-blue-400" />
                             </span>
                             Step {step} of 3
                         </span>
