@@ -52,7 +52,7 @@ export default function DashboardLayout({
         }
     }, [mounted, user, mode, pathname, router, isModePage]);
 
-    if (!mounted) return <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a]" suppressHydrationWarning />;
+    if (!mounted) return <div className="min-h-screen bg-[var(--cms-bg)]" suppressHydrationWarning />;
     if (!user) return null;
 
     const isManager = mode === "manager";
@@ -171,14 +171,13 @@ export default function DashboardLayout({
                         </Link>
                     </nav>
 
-                    <div className="mt-auto pt-6 border-t border-[var(--cms-border)]">
-                        <div className="flex items-center justify-between mb-4 px-2">
-                            <div className="text-sm font-medium text-[var(--cms-muted)]">Theme</div>
+                    <div className="mt-auto pt-4 border-t border-[var(--cms-border)]">
+                        <div className="flex items-center gap-3 p-3">
                             <ThemeToggle />
                         </div>
                         <button
                             onClick={() => signOut()}
-                            className="flex w-full items-center gap-3 p-3 text-[var(--cms-muted-strong)] hover:text-[var(--cms-text)] transition-all"
+                            className="flex w-full items-center gap-3 p-3 rounded-xl text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)] transition-all"
                         >
                             <LogOut className="w-5 h-5" />
                             Sign Out

@@ -7,6 +7,7 @@ import { Loader2, PencilLine, Sparkles } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
+import { useTheme } from "@/components/ThemeProvider";
 
 interface ParsedItem {
     name: string;
@@ -52,6 +53,7 @@ export default function CreateMenuFlow({
 }: CreateMenuFlowProps) {
     const { user } = useAuthenticator((context) => [context.user]);
     const router = useRouter();
+    const { resolvedTheme } = useTheme();
     const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>(providedOrganizations || []);
     const [selectedOrg, setSelectedOrg] = useState<string>(initialOrgId || "");
     const [menuName, setMenuName] = useState(initialMenuName || "");
@@ -72,14 +74,28 @@ export default function CreateMenuFlow({
 
     useEffect(() => {
         if (variant === "auto") {
-            const theme = typeof document !== "undefined" ? document.documentElement.dataset.cmsTheme : "dark";
-            setResolvedVariant(theme === "light" ? "light" : "dark");
+            setResolvedVariant(resolvedTheme);
             return;
         }
         setResolvedVariant(variant === "dark" ? "dark" : "light");
-    }, [variant]);
+    }, [variant, resolvedTheme]);
 
     const palette = useMemo(() => {
+        if (variant === "auto") {
+            return {
+                panel: "bg-[var(--cms-panel)] border-[var(--cms-border)]",
+                panelMuted: "bg-[var(--cms-panel-strong)]/70 border-[var(--cms-border)]",
+                text: "text-[var(--cms-text)]",
+                muted: "text-[var(--cms-muted)]",
+                pill: "bg-[var(--cms-pill)]",
+                input: "bg-transparent border-[var(--cms-border)] text-[var(--cms-text)] placeholder:text-[var(--cms-muted)]",
+                primary: "bg-[var(--cms-text)] text-[var(--cms-bg)]",
+                border: "border-[var(--cms-border)]",
+                dotActive: "bg-[var(--cms-text)]",
+                dotMuted: "bg-[var(--cms-border)]"
+            };
+        }
+
         const isDark = resolvedVariant === "dark";
         return {
             panel: isDark ? "bg-white/5 border-white/10" : "bg-[var(--cms-panel)] border-[var(--cms-border)]",
@@ -97,7 +113,7 @@ export default function CreateMenuFlow({
             dotActive: isDark ? "bg-white" : "bg-[var(--cms-text)]",
             dotMuted: isDark ? "bg-white/30" : "bg-[var(--cms-border)]"
         };
-    }, [resolvedVariant]);
+    }, [resolvedVariant, variant]);
 
     useEffect(() => {
         if (!allowOrgSelect || providedOrganizations) return;

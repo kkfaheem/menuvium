@@ -364,94 +364,94 @@ export default function MenuThemesPage() {
             ) : (
                 <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
                     {orderedThemes.map((theme) => {
-                    const isActive = (menu?.theme || "noir") === theme.id;
-                    return (
-                        <div
-                            key={theme.id}
-                            className="group rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 flex flex-col gap-4 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-black/5"
-                        >
-                            <div className="flex items-start justify-between gap-3">
-                                <div>
-                                    <h2 className="text-lg font-bold">{theme.name}</h2>
-                                    <p className="text-sm text-[var(--cms-muted)]">{theme.description}</p>
-                                <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--cms-muted)]">
-                                    {[theme.category, theme.layout, ...theme.cuisines.slice(0, 2)].map((tag) => (
-                                        <span key={`${theme.id}-${tag}`} className="px-2 py-1 rounded-full border border-[var(--cms-border)]">
-                                            {tag}
-                                        </span>
-                                    ))}
-                                    {theme.cuisines.length > 2 && (
-                                        <span className="px-2 py-1 rounded-full border border-[var(--cms-border)]">
-                                            +{theme.cuisines.length - 2} more
-                                        </span>
-                                    )}
-                                </div>
-                                </div>
-                                {isActive && (
-                                    <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-[var(--cms-pill)] text-[var(--cms-text)]">
-                                        <Check className="w-3 h-3" /> Active
-                                    </span>
-                                )}
-                            </div>
-
+                        const isActive = (menu?.theme || "noir") === theme.id;
+                        return (
                             <div
-                                className="theme-preview rounded-2xl p-4 border relative"
-                                style={{
-                                    backgroundColor: theme.preview.bg,
-                                    borderColor: theme.preview.border,
-                                    color: theme.preview.text,
-                                    backgroundImage: `radial-gradient(120% 120% at 0% 0%, ${theme.preview.accent}22 0%, transparent 55%), radial-gradient(120% 120% at 100% 0%, ${theme.preview.accent}33 0%, transparent 45%)`
-                                }}
+                                key={theme.id}
+                                className="group rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 flex flex-col gap-4 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-black/5"
                             >
-                                <div className="text-sm uppercase tracking-widest opacity-70">Preview</div>
-                                <div className="mt-3 text-xl font-bold">{menu?.name || "Menu Title"}</div>
-                                <div className="mt-4 space-y-3">
-                                    {sampleItems.length > 0 ? (
-                                        sampleItems.map((item) => (
-                                            <div
-                                                key={item.id}
-                                                className="flex items-center justify-between rounded-xl px-3 py-2 transition-transform duration-300 group-hover:translate-x-1"
-                                                style={{ backgroundColor: theme.preview.card, border: `1px solid ${theme.preview.border}` }}
-                                            >
-                                                <div>
-                                                    <div className="text-sm font-semibold">{item.name}</div>
-                                                    <div className="text-xs opacity-60">{item.category}</div>
-                                                </div>
-                                                <div className="text-sm font-semibold" style={{ color: theme.preview.accent }}>
-                                                    ${item.price.toFixed(2)}
-                                                </div>
-                                            </div>
-                                        ))
-                                    ) : (
-                                        <div className="text-sm opacity-60">No items yet.</div>
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h2 className="text-lg font-bold">{theme.name}</h2>
+                                        <p className="text-sm text-[var(--cms-muted)]">{theme.description}</p>
+                                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--cms-muted)]">
+                                            {[theme.category, theme.layout, ...theme.cuisines.slice(0, 2)].map((tag, tagIndex) => (
+                                                <span key={`${theme.id}-${tagIndex}-${tag}`} className="px-2 py-1 rounded-full border border-[var(--cms-border)]">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                            {theme.cuisines.length > 2 && (
+                                                <span className="px-2 py-1 rounded-full border border-[var(--cms-border)]">
+                                                    +{theme.cuisines.length - 2} more
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {isActive && (
+                                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-[var(--cms-pill)] text-[var(--cms-text)]">
+                                            <Check className="w-3 h-3" /> Active
+                                        </span>
                                     )}
                                 </div>
-                                <div
-                                    className="absolute inset-x-6 bottom-6 h-1 rounded-full"
-                                    style={{ backgroundColor: theme.preview.accent, opacity: 0.4 }}
-                                ></div>
-                            </div>
 
-                            <div className="flex flex-wrap gap-3">
-                                <button
-                                    onClick={() => applyTheme(theme.id)}
-                                    disabled={savingThemeId === theme.id}
-                                    className={`h-9 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 ${savingThemeId === theme.id ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]" : "bg-[var(--cms-text)] text-[var(--cms-bg)] hover:opacity-90"}`}
+                                <div
+                                    className="theme-preview rounded-2xl p-4 border relative"
+                                    style={{
+                                        backgroundColor: theme.preview.bg,
+                                        borderColor: theme.preview.border,
+                                        color: theme.preview.text,
+                                        backgroundImage: `radial-gradient(120% 120% at 0% 0%, ${theme.preview.accent}22 0%, transparent 55%), radial-gradient(120% 120% at 100% 0%, ${theme.preview.accent}33 0%, transparent 45%)`
+                                    }}
                                 >
-                                    {savingThemeId === theme.id && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    {savingThemeId === theme.id ? "Applying..." : "Apply Theme"}
-                                </button>
-                                <Link
-                                    href={`/r/${menuId}?theme=${theme.id}`}
-                                    target="_blank"
-                                    className="h-9 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 border border-[var(--cms-border)] text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
-                                >
-                                    <ExternalLink className="w-4 h-4" />
-                                    Preview
-                                </Link>
+                                    <div className="text-sm uppercase tracking-widest opacity-70">Preview</div>
+                                    <div className="mt-3 text-xl font-bold">{menu?.name || "Menu Title"}</div>
+                                    <div className="mt-4 space-y-3">
+                                        {sampleItems.length > 0 ? (
+                                            sampleItems.map((item) => (
+                                                <div
+                                                    key={item.id}
+                                                    className="flex items-center justify-between rounded-xl px-3 py-2 transition-transform duration-300 group-hover:translate-x-1"
+                                                    style={{ backgroundColor: theme.preview.card, border: `1px solid ${theme.preview.border}` }}
+                                                >
+                                                    <div>
+                                                        <div className="text-sm font-semibold">{item.name}</div>
+                                                        <div className="text-xs opacity-60">{item.category}</div>
+                                                    </div>
+                                                    <div className="text-sm font-semibold" style={{ color: theme.preview.accent }}>
+                                                        ${item.price.toFixed(2)}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-sm opacity-60">No items yet.</div>
+                                        )}
+                                    </div>
+                                    <div
+                                        className="absolute inset-x-6 bottom-6 h-1 rounded-full"
+                                        style={{ backgroundColor: theme.preview.accent, opacity: 0.4 }}
+                                    ></div>
+                                </div>
+
+                                <div className="flex flex-wrap gap-3">
+                                    <button
+                                        onClick={() => applyTheme(theme.id)}
+                                        disabled={savingThemeId === theme.id}
+                                        className={`h-9 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 ${savingThemeId === theme.id ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]" : "bg-[var(--cms-text)] text-[var(--cms-bg)] hover:opacity-90"}`}
+                                    >
+                                        {savingThemeId === theme.id && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        {savingThemeId === theme.id ? "Applying..." : "Apply Theme"}
+                                    </button>
+                                    <Link
+                                        href={`/r/${menuId}?theme=${theme.id}`}
+                                        target="_blank"
+                                        className="h-9 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 border border-[var(--cms-border)] text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
+                                    >
+                                        <ExternalLink className="w-4 h-4" />
+                                        Preview
+                                    </Link>
+                                </div>
                             </div>
-                        </div>
-                    );
+                        );
                     })}
                 </div>
             )}

@@ -12,7 +12,27 @@ export type MenuThemeId =
     | "ramen"
     | "smokehouse"
     | "patisserie"
-    | "matcha";
+    | "matcha"
+    | "velvet"
+    | "marble"
+    | "terracotta"
+    | "aurora"
+    | "bamboo"
+    | "espresso"
+    | "lavender"
+    | "graphite"
+    | "sunkissed"
+    | "oceanic"
+    | "rosegold"
+    | "midnight"
+    | "sage"
+    | "copper"
+    | "arctic"
+    | "vineyard"
+    | "ember"
+    | "oasis"
+    | "slate"
+    | "honeycomb";
 
 export type MenuTheme = {
     id: MenuThemeId;
@@ -389,6 +409,506 @@ export const MENU_THEMES: MenuTheme[] = [
             text: "#1F2A20",
             accent: "#34D399",
             border: "#D6E3D6"
+        }
+    },
+    {
+        id: "velvet",
+        name: "Velvet Lounge",
+        description: "Deep burgundy undertones, plush sophistication, intimate ambiance.",
+        tone: "Wine bar, upscale, romantic",
+        category: "luxury",
+        cuisines: ["wine-bar", "tapas", "cocktails"],
+        layout: "noir",
+        palette: {
+            bg: "#0D0809",
+            surface: "#1A1314",
+            surfaceAlt: "#231A1C",
+            text: "#F5F0F1",
+            muted: "#A89396",
+            border: "#2D2224",
+            accent: "#9F1239"
+        },
+        preview: {
+            bg: "#0D0809",
+            card: "#1A1314",
+            text: "#F5F0F1",
+            accent: "#9F1239",
+            border: "#2D2224"
+        }
+    },
+    {
+        id: "marble",
+        name: "Marble Hall",
+        description: "Pristine whites, subtle veining, architectural elegance.",
+        tone: "Fine dining, sophisticated, clean",
+        category: "luxury",
+        cuisines: ["fine-dining", "modern", "tasting-menu"],
+        layout: "harbor",
+        palette: {
+            bg: "#FAFAFA",
+            surface: "#FFFFFF",
+            surfaceAlt: "#F5F5F5",
+            text: "#1A1A1A",
+            muted: "#6B6B6B",
+            border: "#E5E5E5",
+            accent: "#0F172A"
+        },
+        preview: {
+            bg: "#FAFAFA",
+            card: "#FFFFFF",
+            text: "#1A1A1A",
+            accent: "#0F172A",
+            border: "#E5E5E5"
+        }
+    },
+    {
+        id: "terracotta",
+        name: "Terracotta Sun",
+        description: "Warm clay tones, rustic charm, Mediterranean soul.",
+        tone: "Mediterranean, rustic, warm",
+        category: "heritage",
+        cuisines: ["mediterranean", "greek", "spanish"],
+        layout: "paper",
+        palette: {
+            bg: "#FBF5F0",
+            surface: "#FFFFFF",
+            surfaceAlt: "#F5E6DB",
+            text: "#3D2C23",
+            muted: "#8C6D5C",
+            border: "#EBDDD2",
+            accent: "#C2410C"
+        },
+        preview: {
+            bg: "#FBF5F0",
+            card: "#FFFFFF",
+            text: "#3D2C23",
+            accent: "#C2410C",
+            border: "#EBDDD2"
+        }
+    },
+    {
+        id: "aurora",
+        name: "Aurora Glow",
+        description: "Nordic lights, ethereal gradients, cosmic calm.",
+        tone: "Scandinavian, modern, ethereal",
+        category: "modern",
+        cuisines: ["scandinavian", "nordic", "modern"],
+        layout: "harbor",
+        palette: {
+            bg: "#0F1419",
+            surface: "#171D24",
+            surfaceAlt: "#1E262F",
+            text: "#E8F0F7",
+            muted: "#8FA3B5",
+            border: "#2A3642",
+            accent: "#8B5CF6"
+        },
+        preview: {
+            bg: "#0F1419",
+            card: "#171D24",
+            text: "#E8F0F7",
+            accent: "#8B5CF6",
+            border: "#2A3642"
+        }
+    },
+    {
+        id: "bamboo",
+        name: "Bamboo Garden",
+        description: "Zen greens, natural textures, tranquil flow.",
+        tone: "Asian fusion, zen, natural",
+        category: "modern",
+        cuisines: ["asian-fusion", "vietnamese", "thai"],
+        layout: "paper",
+        palette: {
+            bg: "#F7F9F4",
+            surface: "#FFFFFF",
+            surfaceAlt: "#EDF3E5",
+            text: "#1D2E1D",
+            muted: "#5C7A5C",
+            border: "#D4E2CC",
+            accent: "#16A34A"
+        },
+        preview: {
+            bg: "#F7F9F4",
+            card: "#FFFFFF",
+            text: "#1D2E1D",
+            accent: "#16A34A",
+            border: "#D4E2CC"
+        }
+    },
+    {
+        id: "espresso",
+        name: "Espresso Bar",
+        description: "Rich coffee hues, artisan warmth, cafe culture.",
+        tone: "Coffee shop, artisan, cozy",
+        category: "cafe",
+        cuisines: ["coffee", "brunch", "cafe"],
+        layout: "paper",
+        palette: {
+            bg: "#FAF6F3",
+            surface: "#FFFFFF",
+            surfaceAlt: "#F0E8E0",
+            text: "#2A1F1A",
+            muted: "#6B5344",
+            border: "#E0D5CB",
+            accent: "#78350F"
+        },
+        preview: {
+            bg: "#FAF6F3",
+            card: "#FFFFFF",
+            text: "#2A1F1A",
+            accent: "#78350F",
+            border: "#E0D5CB"
+        }
+    },
+    {
+        id: "lavender",
+        name: "Lavender Fields",
+        description: "Soft purples, dreamy pastels, gentle sophistication.",
+        tone: "Brunch, feminine, elegant",
+        category: "cafe",
+        cuisines: ["brunch", "afternoon-tea", "dessert"],
+        layout: "harbor",
+        palette: {
+            bg: "#FAF8FC",
+            surface: "#FFFFFF",
+            surfaceAlt: "#F3EEF8",
+            text: "#2D2235",
+            muted: "#7C6B8A",
+            border: "#E8DFF0",
+            accent: "#A855F7"
+        },
+        preview: {
+            bg: "#FAF8FC",
+            card: "#FFFFFF",
+            text: "#2D2235",
+            accent: "#A855F7",
+            border: "#E8DFF0"
+        }
+    },
+    {
+        id: "graphite",
+        name: "Graphite Studio",
+        description: "Industrial grays, minimalist edge, urban sophistication.",
+        tone: "Industrial, modern, urban",
+        category: "modern",
+        cuisines: ["modern", "fusion", "gastro-pub"],
+        layout: "noir",
+        palette: {
+            bg: "#18181B",
+            surface: "#27272A",
+            surfaceAlt: "#3F3F46",
+            text: "#FAFAFA",
+            muted: "#A1A1AA",
+            border: "#52525B",
+            accent: "#F4F4F5"
+        },
+        preview: {
+            bg: "#18181B",
+            card: "#27272A",
+            text: "#FAFAFA",
+            accent: "#F4F4F5",
+            border: "#52525B"
+        }
+    },
+    {
+        id: "sunkissed",
+        name: "Sunkissed Coast",
+        description: "Golden hour warmth, beach vibes, relaxed luxury.",
+        tone: "Beach club, coastal, relaxed",
+        category: "coastal",
+        cuisines: ["seafood", "beach-club", "cocktails"],
+        layout: "citrus",
+        palette: {
+            bg: "#FFFBF5",
+            surface: "#FFFFFF",
+            surfaceAlt: "#FFF5E6",
+            text: "#2D2418",
+            muted: "#8A7560",
+            border: "#F5E6D3",
+            accent: "#EA580C"
+        },
+        preview: {
+            bg: "#FFFBF5",
+            card: "#FFFFFF",
+            text: "#2D2418",
+            accent: "#EA580C",
+            border: "#F5E6D3"
+        }
+    },
+    {
+        id: "oceanic",
+        name: "Oceanic Depth",
+        description: "Deep sea blues, mysterious elegance, aquatic allure.",
+        tone: "Seafood, upscale, mysterious",
+        category: "coastal",
+        cuisines: ["seafood", "oyster-bar", "sushi"],
+        layout: "noir",
+        palette: {
+            bg: "#0A1628",
+            surface: "#0F1F35",
+            surfaceAlt: "#152942",
+            text: "#E6F0FA",
+            muted: "#7DA3C8",
+            border: "#1E3A5F",
+            accent: "#0EA5E9"
+        },
+        preview: {
+            bg: "#0A1628",
+            card: "#0F1F35",
+            text: "#E6F0FA",
+            accent: "#0EA5E9",
+            border: "#1E3A5F"
+        }
+    },
+    {
+        id: "rosegold",
+        name: "Rose Gold Luxe",
+        description: "Blush metallics, feminine opulence, refined glamour.",
+        tone: "Upscale, glamorous, chic",
+        category: "luxury",
+        cuisines: ["champagne-bar", "fine-dining", "dessert"],
+        layout: "harbor",
+        palette: {
+            bg: "#FDF7F7",
+            surface: "#FFFFFF",
+            surfaceAlt: "#FBF0F0",
+            text: "#3D2A2A",
+            muted: "#9C7A7A",
+            border: "#F0DDDD",
+            accent: "#E11D48"
+        },
+        preview: {
+            bg: "#FDF7F7",
+            card: "#FFFFFF",
+            text: "#3D2A2A",
+            accent: "#E11D48",
+            border: "#F0DDDD"
+        }
+    },
+    {
+        id: "midnight",
+        name: "Midnight Society",
+        description: "Deep navy, gold accents, members-only mystique.",
+        tone: "Speakeasy, exclusive, sophisticated",
+        category: "luxury",
+        cuisines: ["cocktails", "speakeasy", "late-night"],
+        layout: "noir",
+        palette: {
+            bg: "#0A0D14",
+            surface: "#111827",
+            surfaceAlt: "#1F2937",
+            text: "#F9FAFB",
+            muted: "#9CA3AF",
+            border: "#374151",
+            accent: "#F59E0B"
+        },
+        preview: {
+            bg: "#0A0D14",
+            card: "#111827",
+            text: "#F9FAFB",
+            accent: "#F59E0B",
+            border: "#374151"
+        }
+    },
+    {
+        id: "sage",
+        name: "Sage Kitchen",
+        description: "Herbal greens, farm-fresh feel, organic elegance.",
+        tone: "Farm-to-table, organic, fresh",
+        category: "modern",
+        cuisines: ["farm-to-table", "vegetarian", "healthy"],
+        layout: "paper",
+        palette: {
+            bg: "#F5F7F4",
+            surface: "#FFFFFF",
+            surfaceAlt: "#E8EDE5",
+            text: "#1F2E1F",
+            muted: "#5E7A5E",
+            border: "#D4DED0",
+            accent: "#4D7C0F"
+        },
+        preview: {
+            bg: "#F5F7F4",
+            card: "#FFFFFF",
+            text: "#1F2E1F",
+            accent: "#4D7C0F",
+            border: "#D4DED0"
+        }
+    },
+    {
+        id: "copper",
+        name: "Copper & Oak",
+        description: "Burnished metals, barrel-aged warmth, craft tradition.",
+        tone: "Brewery, craft, artisan",
+        category: "street",
+        cuisines: ["brewery", "gastropub", "craft-beer"],
+        layout: "citrus",
+        palette: {
+            bg: "#F9F5F0",
+            surface: "#FFFFFF",
+            surfaceAlt: "#F0E5D8",
+            text: "#2E1F14",
+            muted: "#7A5A3D",
+            border: "#E5D5C0",
+            accent: "#B45309"
+        },
+        preview: {
+            bg: "#F9F5F0",
+            card: "#FFFFFF",
+            text: "#2E1F14",
+            accent: "#B45309",
+            border: "#E5D5C0"
+        }
+    },
+    {
+        id: "arctic",
+        name: "Arctic Breeze",
+        description: "Icy blues, crystalline clarity, Nordic minimalism.",
+        tone: "Scandinavian, cool, pristine",
+        category: "modern",
+        cuisines: ["scandinavian", "seafood", "modern"],
+        layout: "harbor",
+        palette: {
+            bg: "#F0F9FF",
+            surface: "#FFFFFF",
+            surfaceAlt: "#E0F2FE",
+            text: "#0C4A6E",
+            muted: "#0369A1",
+            border: "#BAE6FD",
+            accent: "#0284C7"
+        },
+        preview: {
+            bg: "#F0F9FF",
+            card: "#FFFFFF",
+            text: "#0C4A6E",
+            accent: "#0284C7",
+            border: "#BAE6FD"
+        }
+    },
+    {
+        id: "vineyard",
+        name: "Vineyard Dusk",
+        description: "Wine country purples, sunset warmth, pastoral elegance.",
+        tone: "Winery, romantic, pastoral",
+        category: "heritage",
+        cuisines: ["wine", "french", "californian"],
+        layout: "paper",
+        palette: {
+            bg: "#FAF7F5",
+            surface: "#FFFFFF",
+            surfaceAlt: "#F3E8EB",
+            text: "#2D1F2D",
+            muted: "#7A5A6E",
+            border: "#E8D5DD",
+            accent: "#7C3AED"
+        },
+        preview: {
+            bg: "#FAF7F5",
+            card: "#FFFFFF",
+            text: "#2D1F2D",
+            accent: "#7C3AED",
+            border: "#E8D5DD"
+        }
+    },
+    {
+        id: "ember",
+        name: "Ember Grill",
+        description: "Smoldering reds, live-fire energy, primal warmth.",
+        tone: "Steakhouse, fire, bold",
+        category: "street",
+        cuisines: ["steakhouse", "grill", "argentine"],
+        layout: "noir",
+        palette: {
+            bg: "#0F0A08",
+            surface: "#1A1210",
+            surfaceAlt: "#251B17",
+            text: "#FAF5F2",
+            muted: "#BFA89C",
+            border: "#3D2E28",
+            accent: "#DC2626"
+        },
+        preview: {
+            bg: "#0F0A08",
+            card: "#1A1210",
+            text: "#FAF5F2",
+            accent: "#DC2626",
+            border: "#3D2E28"
+        }
+    },
+    {
+        id: "oasis",
+        name: "Desert Oasis",
+        description: "Warm sands, turquoise accents, Moroccan mystique.",
+        tone: "Moroccan, exotic, warm",
+        category: "heritage",
+        cuisines: ["moroccan", "middle-eastern", "persian"],
+        layout: "citrus",
+        palette: {
+            bg: "#FBF8F4",
+            surface: "#FFFFFF",
+            surfaceAlt: "#F5EDE0",
+            text: "#2E261E",
+            muted: "#8A7A64",
+            border: "#E8DBC8",
+            accent: "#0D9488"
+        },
+        preview: {
+            bg: "#FBF8F4",
+            card: "#FFFFFF",
+            text: "#2E261E",
+            accent: "#0D9488",
+            border: "#E8DBC8"
+        }
+    },
+    {
+        id: "slate",
+        name: "Slate & Stone",
+        description: "Cool grays, architectural lines, contemporary edge.",
+        tone: "Contemporary, minimalist, sleek",
+        category: "modern",
+        cuisines: ["modern", "tasting-menu", "fusion"],
+        layout: "harbor",
+        palette: {
+            bg: "#F8FAFC",
+            surface: "#FFFFFF",
+            surfaceAlt: "#F1F5F9",
+            text: "#0F172A",
+            muted: "#64748B",
+            border: "#E2E8F0",
+            accent: "#475569"
+        },
+        preview: {
+            bg: "#F8FAFC",
+            card: "#FFFFFF",
+            text: "#0F172A",
+            accent: "#475569",
+            border: "#E2E8F0"
+        }
+    },
+    {
+        id: "honeycomb",
+        name: "Honeycomb Café",
+        description: "Golden ambers, sweet warmth, artisanal charm.",
+        tone: "Artisan, sweet, welcoming",
+        category: "cafe",
+        cuisines: ["bakery", "breakfast", "honey-bar"],
+        layout: "citrus",
+        palette: {
+            bg: "#FFFCF5",
+            surface: "#FFFFFF",
+            surfaceAlt: "#FEF3C7",
+            text: "#451A03",
+            muted: "#92400E",
+            border: "#FDE68A",
+            accent: "#D97706"
+        },
+        preview: {
+            bg: "#FFFCF5",
+            card: "#FFFFFF",
+            text: "#451A03",
+            accent: "#D97706",
+            border: "#FDE68A"
         }
     }
 ];

@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 
@@ -11,23 +10,21 @@ export function ThemeToggle() {
     return (
         <button
             onClick={() => setTheme(isDark ? "light" : "dark")}
-            className="relative inline-flex h-8 w-16 items-center rounded-full border border-slate-200 bg-slate-100 transition-colors dark:border-slate-700 dark:bg-slate-800"
+            aria-pressed={isDark}
+            className="relative inline-flex h-8 w-16 items-center rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent-strong)]/25"
             aria-label="Toggle theme"
         >
-            {/* Sliding indicator */}
-            <span
-                className={`absolute h-6 w-6 rounded-full bg-white shadow-md transition-all duration-200 dark:bg-slate-600 ${isDark ? "left-[calc(100%-1.625rem)]" : "left-0.5"
-                    }`}
-            />
-            {/* Sun icon (left side) */}
             <Sun
-                className={`absolute left-1.5 h-4 w-4 transition-colors ${isDark ? "text-slate-500" : "text-amber-500"
-                    }`}
+                aria-hidden="true"
+                className={`absolute left-2 h-4 w-4 transition-colors ${isDark ? "text-[var(--cms-muted)]" : "text-[var(--cms-accent-strong)]"}`}
             />
-            {/* Moon icon (right side) */}
             <Moon
-                className={`absolute right-1.5 h-4 w-4 transition-colors ${isDark ? "text-blue-400" : "text-slate-400"
-                    }`}
+                aria-hidden="true"
+                className={`absolute right-2 h-4 w-4 transition-colors ${isDark ? "text-[var(--cms-accent-strong)]" : "text-[var(--cms-muted)]"}`}
+            />
+            <span
+                aria-hidden="true"
+                className={`absolute left-0.5 h-7 w-7 rounded-full bg-[var(--cms-panel)] shadow-sm ring-1 ring-[var(--cms-border)] transition-transform duration-200 ${isDark ? "translate-x-8" : "translate-x-0"}`}
             />
             <span className="sr-only">Toggle theme</span>
         </button>

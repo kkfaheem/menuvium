@@ -4,6 +4,7 @@ import * as React from "react";
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 
 type Theme = "light" | "dark" | "system";
+const LEGACY_CMS_THEME_KEY = "menuvium_cms_theme";
 
 interface ThemeProviderContextProps {
     theme: Theme;
@@ -48,6 +49,13 @@ export default function ThemeProvider({
             const storedTheme = localStorage.getItem(storageKey) as Theme | null;
             if (storedTheme) {
                 setThemeState(storedTheme);
+                return;
+            }
+
+            const legacyTheme = localStorage.getItem(LEGACY_CMS_THEME_KEY) as "light" | "dark" | null;
+            if (legacyTheme) {
+                setThemeState(legacyTheme);
+                localStorage.setItem(storageKey, legacyTheme);
             }
         } catch {
             // localStorage might not be available in some environments
@@ -71,6 +79,7 @@ export default function ThemeProvider({
         }
 
         root.classList.add(effectiveTheme);
+        root.dataset.cmsTheme = effectiveTheme;
         setResolvedTheme(effectiveTheme);
     }, [theme, mounted]);
 
@@ -93,6 +102,11 @@ export default function ThemeProvider({
     const setTheme = useCallback((newTheme: Theme) => {
         try {
             localStorage.setItem(storageKey, newTheme);
+            if (newTheme === "light" || newTheme === "dark") {
+                localStorage.setItem(LEGACY_CMS_THEME_KEY, newTheme);
+            } else {
+                localStorage.removeItem(LEGACY_CMS_THEME_KEY);
+            }
         } catch {
             // localStorage might not be available
         }

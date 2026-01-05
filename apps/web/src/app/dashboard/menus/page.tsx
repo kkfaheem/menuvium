@@ -126,7 +126,7 @@ export default function MenusPage() {
         }
     };
 
-    if (loading && !menus.length && !selectedOrg) return <div className="text-white/40">Loading context...</div>;
+    if (loading && !menus.length && !selectedOrg) return <div className="text-[var(--cms-muted)]">Loading context...</div>;
 
     const isManager = mode === "manager";
     const canCreateMenu = !isManager || Boolean(orgPermissions?.can_manage_menus);
