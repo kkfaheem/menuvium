@@ -38,7 +38,7 @@ export default function Home() {
     }, [user, mounted, router]);
 
     if (!mounted) {
-        return <div className="min-h-screen bg-white dark:bg-slate-900" />;
+        return <div className="min-h-screen bg-[var(--cms-bg)]" />;
     }
 
     // Animation variants
@@ -63,32 +63,32 @@ export default function Home() {
     };
 
     return (
-        <div className="min-h-screen bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-[#FF5A1F]/20">
+        <div className="min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] font-sans selection:bg-[var(--cms-accent)]/20 transition-colors">
             {/* Navigation */}
             <motion.nav
                 initial={{ y: -100 }}
                 animate={{ y: 0 }}
-                className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md border-b border-slate-100/50 dark:border-slate-800/50"
+                className="fixed top-0 left-0 right-0 z-50 bg-[var(--cms-panel)]/80 backdrop-blur-md border-b border-[var(--cms-border)]"
             >
                 <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-[#FF5A1F] rounded-lg flex items-center justify-center text-white shadow-lg shadow-[#FF5A1F]/20">
+                        <div className="w-8 h-8 bg-[var(--cms-accent)] rounded-lg flex items-center justify-center text-white shadow-lg shadow-[#FF5A1F]/20">
                             <ChefHat size={20} />
                         </div>
                         <span className="text-xl font-bold tracking-tight">Menuvium</span>
                     </div>
 
-                    <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600 dark:text-slate-400">
-                        <Link href="#features" className="hover:text-[#FF5A1F] dark:hover:text-[#FF5A1F] transition-colors">Features</Link>
-                        <Link href="#how-it-works" className="hover:text-[#FF5A1F] dark:hover:text-[#FF5A1F] transition-colors">How it Works</Link>
-                        <Link href="#pricing" className="hover:text-[#FF5A1F] dark:hover:text-[#FF5A1F] transition-colors">Pricing</Link>
+                    <div className="hidden md:flex items-center gap-8 text-sm font-medium text-[var(--cms-muted)]">
+                        <Link href="#features" className="hover:text-[var(--cms-accent)] transition-colors">Features</Link>
+                        <Link href="#how-it-works" className="hover:text-[var(--cms-accent)] transition-colors">How it Works</Link>
+                        <Link href="#pricing" className="hover:text-[var(--cms-accent)] transition-colors">Pricing</Link>
                     </div>
 
                     <div className="flex items-center gap-4">
                         <ThemeToggle />
                         <Link
                             href="/login"
-                            className="hidden md:block text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                            className="hidden md:block text-sm font-semibold text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
                         >
                             Log in
                         </Link>
@@ -122,14 +122,14 @@ export default function Home() {
                             <span>Reimagined Menu Management</span>
                         </motion.div>
 
-                        <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] mb-8 text-slate-900 dark:text-white">
+                        <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] mb-8 text-[var(--cms-text)]">
                             Your menu, <br />
                             <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF5A1F] to-[#FF8A50]">
                                 perfectly synced.
                             </span>
                         </motion.h1>
 
-                        <motion.p variants={itemVariants} className="text-xl text-slate-500 dark:text-slate-400 mb-10 max-w-2xl leading-relaxed">
+                        <motion.p variants={itemVariants} className="text-xl text-[var(--cms-muted)] mb-10 max-w-2xl leading-relaxed">
                             Create, edit, and publish your digital menus instantly.
                             Say goodbye to PDF uploads and outdated prices.
                             One system to rule them all.
@@ -143,7 +143,7 @@ export default function Home() {
                                 Start Free Trial
                                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                             </Link>
-                            <button className="px-8 py-4 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 font-semibold rounded-full transition-all flex items-center gap-2">
+                            <button className="px-8 py-4 bg-[var(--cms-panel)] border border-[var(--cms-border)] hover:bg-[var(--cms-panel-strong)] text-[var(--cms-text)] font-semibold rounded-full transition-all flex items-center gap-2">
                                 <Play size={16} fill="currentColor" />
                                 Watch Demo
                             </button>
@@ -157,7 +157,7 @@ export default function Home() {
                         transition={{ delay: 0.6, duration: 0.8 }}
                         className="relative max-w-6xl mx-auto"
                     >
-                        <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-slate-200/60 dark:border-white/10 bg-slate-100 dark:bg-slate-900 aspect-[16/9] lg:aspect-[2/1] group">
+                        <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] aspect-[16/9] lg:aspect-[2/1] group">
                             {/* Main Dashboard Image */}
                             <Image
                                 src="/images/dashboard-mockup.png"
@@ -168,14 +168,14 @@ export default function Home() {
                             />
 
                             {/* Overlay Gradient for Dark Mode */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 to-transparent pointer-events-none" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
 
                             {/* Floating Helper UI */}
                             <motion.div
                                 initial={{ y: 20, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
                                 transition={{ delay: 1, duration: 0.8 }}
-                                className="absolute -bottom-10 -right-10 md:bottom-[-20px] md:right-[-20px] w-48 md:w-64 aspect-[9/19] rounded-[2rem] shadow-2xl border-4 border-white dark:border-slate-800 overflow-hidden hidden sm:block ring-1 ring-slate-900/5 dark:ring-white/10"
+                                className="absolute -bottom-10 -right-10 md:bottom-[-20px] md:right-[-20px] w-48 md:w-64 aspect-[9/19] rounded-[2rem] shadow-2xl border-4 border-[var(--cms-panel)] overflow-hidden hidden sm:block ring-1 ring-[var(--cms-border)]"
                             >
                                 <Image
                                     src="/images/mobile-preview.png"
@@ -189,16 +189,16 @@ export default function Home() {
                 </section>
 
                 {/* Social Proof */}
-                <section className="py-12 border-y border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-white/5 mb-24 backdrop-blur-sm">
+                <section className="py-12 border-y border-[var(--cms-border)] bg-[var(--cms-panel)]/40 mb-24 backdrop-blur-sm">
                     <div className="max-w-7xl mx-auto px-6 text-center">
-                        <p className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-8">
+                        <p className="text-sm font-semibold text-[var(--cms-muted)] uppercase tracking-wider mb-8">
                             Powering Next-Gen Kitchens
                         </p>
                         <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
                             {/* Placeholders for logos */}
                             {['Bistro V', 'The Golden Spoon', 'Urban Eatery', 'Caffeine Fix', 'Pizza & Co'].map((name, i) => (
-                                <div key={i} className="text-xl font-bold font-serif text-slate-400 flex items-center gap-2">
-                                    <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-full" />
+                                <div key={i} className="text-xl font-bold font-serif text-[var(--cms-muted)] flex items-center gap-2">
+                                    <div className="w-8 h-8 bg-[var(--cms-pill)] rounded-full" />
                                     <span className="hidden sm:inline">{name}</span>
                                 </div>
                             ))}
@@ -209,11 +209,11 @@ export default function Home() {
                 {/* Features Grid */}
                 <section id="features" className="max-w-7xl mx-auto px-6 mb-32">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-5xl font-bold text-slate-900 dark:text-white mb-6">
+                        <h2 className="text-3xl md:text-5xl font-bold text-[var(--cms-text)] mb-6">
                             Constructed for <br />
                             <span className="text-[#FF5A1F]">Infinite Scalability</span>
                         </h2>
-                        <p className="text-lg text-slate-500 dark:text-slate-400 max-w-2xl mx-auto">
+                        <p className="text-lg text-[var(--cms-muted)] max-w-2xl mx-auto">
                             Whether you manage one menu or one hundred, the experience is identical.
                             Menuvium abstracts the complexity so you can focus on the food.
                         </p>
@@ -225,31 +225,31 @@ export default function Home() {
                                 icon: <Layout className="w-6 h-6 text-blue-500" />,
                                 title: "Unified Command Center",
                                 desc: "One dashboard to control every item, price, and description. Changes propagate instantly.",
-                                color: "bg-blue-50 dark:bg-blue-500/10"
+                                color: "bg-blue-500/10"
                             },
                             {
                                 icon: <Smartphone className="w-6 h-6 text-[#FF5A1F]" />,
                                 title: "Dynamic QR Menus",
                                 desc: "Beautiful, mobile-first menus that update in real-time. No more re-printing QR codes.",
-                                color: "bg-orange-50 dark:bg-orange-500/10"
+                                color: "bg-orange-500/10"
                             },
                             {
                                 icon: <Zap className="w-6 h-6 text-purple-500" />,
                                 title: "Real-time Availability",
                                 desc: "Mark items as 'Sold Out' instantly. Keep your customers happy and your staff stress-free.",
-                                color: "bg-purple-50 dark:bg-purple-500/10"
+                                color: "bg-purple-500/10"
                             }
                         ].map((feature, i) => (
                             <motion.div
                                 key={i}
                                 whileHover={{ y: -5 }}
-                                className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none hover:shadow-2xl transition-all"
+                                className="p-8 rounded-3xl bg-[var(--cms-panel)] border border-[var(--cms-border)] shadow-xl hover:shadow-2xl transition-all"
                             >
                                 <div className={`w-12 h-12 ${feature.color} rounded-xl flex items-center justify-center mb-6`}>
                                     {feature.icon}
                                 </div>
-                                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-3">{feature.title}</h3>
-                                <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                                <h3 className="text-xl font-bold text-[var(--cms-text)] mb-3">{feature.title}</h3>
+                                <p className="text-[var(--cms-muted)] leading-relaxed">
                                     {feature.desc}
                                 </p>
                             </motion.div>
@@ -259,15 +259,15 @@ export default function Home() {
 
                 {/* CTA Section */}
                 <section className="max-w-4xl mx-auto px-6 text-center mb-24">
-                    <div className="relative p-12 rounded-[2.5rem] bg-slate-900 dark:bg-slate-800 overflow-hidden">
+                    <div className="relative p-12 rounded-[2.5rem] bg-[var(--cms-panel)] border border-[var(--cms-border)] overflow-hidden">
                         <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#FF5A1F]/20 blur-[100px] rounded-full" />
                         <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/10 blur-[100px] rounded-full" />
 
                         <div className="relative z-10">
-                            <h2 className="text-4xl font-bold text-white mb-6">
+                            <h2 className="text-4xl font-bold text-[var(--cms-text)] mb-6">
                                 Ready to streamline your kitchen?
                             </h2>
-                            <p className="text-slate-300 mb-10 text-lg max-w-xl mx-auto">
+                            <p className="text-[var(--cms-muted)] mb-10 text-lg max-w-xl mx-auto">
                                 Join the future of menu management. Simple, fast, and beautiful.
                             </p>
                             <Link
@@ -282,16 +282,16 @@ export default function Home() {
             </main>
 
             {/* Footer */}
-            <footer className="bg-slate-50 dark:bg-slate-950 py-16 border-t border-slate-100 dark:border-slate-800">
+            <footer className="bg-[var(--cms-panel)]/40 py-16 border-t border-[var(--cms-border)]">
                 <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-start gap-12">
                     <div>
                         <div className="flex items-center gap-2 mb-6">
                             <div className="w-8 h-8 bg-[#FF5A1F] rounded-lg flex items-center justify-center text-white">
                                 <ChefHat size={20} />
                             </div>
-                            <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">Menuvium</span>
+                            <span className="text-xl font-bold tracking-tight text-[var(--cms-text)]">Menuvium</span>
                         </div>
-                        <p className="text-slate-500 dark:text-slate-400 max-w-xs">
+                        <p className="text-[var(--cms-muted)] max-w-xs">
                             The modern operating system for digital menus. <br />
                             Built for speed, designed for growth.
                         </p>
@@ -299,20 +299,20 @@ export default function Home() {
 
                     <div className="flex gap-16 text-sm">
                         <div className="flex flex-col gap-4">
-                            <span className="font-bold text-slate-900 dark:text-white">Product</span>
-                            <a href="#" className="text-slate-500 dark:text-slate-400 hover:text-[#FF5A1F] dark:hover:text-[#FF5A1F]">Features</a>
-                            <a href="#" className="text-slate-500 dark:text-slate-400 hover:text-[#FF5A1F] dark:hover:text-[#FF5A1F]">Integrations</a>
-                            <a href="#" className="text-slate-500 dark:text-slate-400 hover:text-[#FF5A1F] dark:hover:text-[#FF5A1F]">Pricing</a>
+                            <span className="font-bold text-[var(--cms-text)]">Product</span>
+                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">Features</a>
+                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">Integrations</a>
+                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">Pricing</a>
                         </div>
                         <div className="flex flex-col gap-4">
-                            <span className="font-bold text-slate-900 dark:text-white">Company</span>
-                            <a href="#" className="text-slate-500 dark:text-slate-400 hover:text-[#FF5A1F] dark:hover:text-[#FF5A1F]">About</a>
-                            <a href="#" className="text-slate-500 dark:text-slate-400 hover:text-[#FF5A1F] dark:hover:text-[#FF5A1F]">Blog</a>
-                            <a href="#" className="text-slate-500 dark:text-slate-400 hover:text-[#FF5A1F] dark:hover:text-[#FF5A1F]">Careers</a>
+                            <span className="font-bold text-[var(--cms-text)]">Company</span>
+                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">About</a>
+                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">Blog</a>
+                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">Careers</a>
                         </div>
                     </div>
                 </div>
-                <div className="max-w-7xl mx-auto px-6 mt-16 pt-8 border-t border-slate-200 dark:border-slate-800 text-center text-slate-400 text-sm">
+                <div className="max-w-7xl mx-auto px-6 mt-16 pt-8 border-t border-[var(--cms-border)] text-center text-[var(--cms-muted)] text-sm">
                     &copy; 2025 Menuvium. All rights reserved.
                 </div>
             </footer>
