@@ -6,24 +6,10 @@ import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { Building2, ChevronDown, ArrowRight } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
-import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
+import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
-
-// Types
-interface Menu {
-    id: string;
-    name: string;
-    slug: string;
-    is_active: boolean;
-    categories: any[];
-}
-
-type Organization = {
-    id: string;
-    name: string;
-    owner_id?: string;
-};
+import type { Menu, Organization, OrgPermissions } from "@/types";
 
 export default function MenusPage() {
     const router = useRouter();

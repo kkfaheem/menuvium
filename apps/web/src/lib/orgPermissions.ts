@@ -1,11 +1,7 @@
-export type OrgPermissions = {
-    is_owner: boolean;
-    can_view: boolean;
-    can_manage_availability: boolean;
-    can_edit_items: boolean;
-    can_manage_menus: boolean;
-    can_manage_users: boolean;
-};
+import type { OrgPermissions } from "@/types";
+
+// Re-export for convenience
+export type { OrgPermissions } from "@/types";
 
 export const FULL_PERMISSIONS: OrgPermissions = {
     is_owner: true,

@@ -4,19 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Sun, Moon, Plus, X } from "lucide-react";
 import { ALLERGEN_TAGS, DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
 import { getApiBase } from "@/lib/apiBase";
+import type { DietaryTag, Allergen } from "@/types";
 
 type Theme = "dark" | "light";
-
-interface DietaryTag {
-    id: string;
-    name: string;
-    icon?: string;
-}
-
-interface Allergen {
-    id: string;
-    name: string;
-}
 
 type TagLabels = {
     diet: string;

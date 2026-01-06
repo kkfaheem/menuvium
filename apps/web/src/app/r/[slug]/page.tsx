@@ -7,55 +7,13 @@ import { Bebas_Neue, Manrope, Playfair_Display, Space_Grotesk } from "next/font/
 import { MENU_THEME_BY_ID, MenuThemeId } from "@/lib/menuThemes";
 import { getApiBase } from "@/lib/apiBase";
 import { DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
+import type { Menu, Category, Item, DietaryTag, Allergen, ItemPhoto } from "@/types";
+import { ThemeLayout, THEME_LAYOUT_CONFIGS, type ThemeLayoutConfig } from "@/components/public-menu/ThemeLayout";
 
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["500", "600", "700"] });
 const bebas = Bebas_Neue({ subsets: ["latin"], weight: ["400"] });
 const manrope = Manrope({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
-
-// Types matching Backend Response
-interface DietaryTag {
-    id: string;
-    name: string;
-    icon?: string;
-}
-
-interface Allergen {
-    id: string;
-    name: string;
-}
-
-interface ItemPhoto {
-    url: string;
-}
-
-interface Item {
-    id: string;
-    name: string;
-    description?: string;
-    price: number;
-    is_sold_out: boolean;
-    photo_url?: string;
-    photos: ItemPhoto[];
-    dietary_tags: DietaryTag[];
-    allergens: Allergen[];
-}
-
-interface Category {
-    id: string;
-    name: string;
-    items: Item[];
-}
-
-interface Menu {
-    id: string;
-    name: string;
-    slug: string;
-    currency?: string;
-    theme?: string;
-    banner_url?: string | null;
-    categories: Category[];
-}
 
 export default function PublicMenuPage() {
     const params = useParams();
