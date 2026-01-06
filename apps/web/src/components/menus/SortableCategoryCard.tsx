@@ -9,8 +9,8 @@ interface SortableCategoryCardProps {
     className: string;
     disabled?: boolean;
     children: (props: {
-        attributes: Record<string, unknown>;
-        listeners: Record<string, unknown>;
+        attributes: ReturnType<typeof useSortable>['attributes'];
+        listeners: ReturnType<typeof useSortable>['listeners'];
         isDragging: boolean
     }) => ReactNode;
 }

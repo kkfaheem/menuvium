@@ -540,20 +540,20 @@ export default function PublicMenuPage() {
                                             </div>
 
                                             <div className="flex gap-1.5">
-                                                {item.dietary_tags.slice(0, 3).map((tag, index) => (
+                                                {(item.dietary_tags ?? []).slice(0, 3).map((tag, index) => (
                                                     <span
                                                         key={`${item.id}-diet-${tag.id ?? tag.name ?? index}`}
                                                         className="w-2 h-2 rounded-full bg-blue-400/60 ring-2 ring-blue-400/20"
                                                     />
                                                 ))}
-                                                {item.allergens.length > 0 && (
+                                                {(item.allergens?.length ?? 0) > 0 && (
                                                     <span className="w-2 h-2 rounded-full bg-red-400/60 ring-2 ring-red-400/20" />
                                                 )}
                                             </div>
                                         </div>
                                     </div>
 
-                                    {(item.photo_url || item.photos[0]?.url) ? (
+                                    {(item.photo_url || item.photos?.[0]?.url) ? (
                                         <div
                                             className="w-28 h-28 shrink-0 rounded-2xl overflow-hidden relative img-zoom-container"
                                             style={{
@@ -562,7 +562,7 @@ export default function PublicMenuPage() {
                                             }}
                                         >
                                             <img
-                                                src={item.photo_url || item.photos[0]?.url}
+                                                src={item.photo_url || item.photos?.[0]?.url}
                                                 alt={item.name}
                                                 className="w-full h-full object-cover"
                                             />
@@ -979,10 +979,10 @@ export default function PublicMenuPage() {
                             <X className="w-5 h-5" />
                         </button>
 
-                        {(selectedItem.photo_url || selectedItem.photos[0]?.url) ? (
+                        {(selectedItem.photo_url || selectedItem.photos?.[0]?.url) ? (
                             <div className="aspect-video w-full relative">
                                 <img
-                                    src={selectedItem.photo_url || selectedItem.photos[0]?.url}
+                                    src={selectedItem.photo_url || selectedItem.photos?.[0]?.url}
                                     className="w-full h-full object-cover"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
@@ -1006,15 +1006,15 @@ export default function PublicMenuPage() {
                                 </p>
 
                                 {/* Metadata Grid */}
-                                {(selectedItem.dietary_tags.length > 0 || selectedItem.allergens.length > 0) && (
+                                {((selectedItem.dietary_tags?.length ?? 0) > 0 || (selectedItem.allergens?.length ?? 0) > 0) && (
                                     <div className="grid grid-cols-2 gap-4 py-6 border-y" style={{ borderColor: palette.border }}>
-                                        {selectedItem.dietary_tags.length > 0 && (
+                                        {(selectedItem.dietary_tags?.length ?? 0) > 0 && (
                                             <div>
                                                 <h4 className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: palette.muted }}>
                                                     Dietary
                                                 </h4>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {selectedItem.dietary_tags.map((tag, index) => (
+                                                    {(selectedItem.dietary_tags ?? []).map((tag, index) => (
                                                         <span
                                                             key={`${selectedItem.id}-diet-${tag.id ?? tag.name ?? index}`}
                                                             className="px-3 py-1 rounded-lg text-xs font-bold border"
@@ -1026,13 +1026,13 @@ export default function PublicMenuPage() {
                                                 </div>
                                             </div>
                                         )}
-                                        {selectedItem.allergens.length > 0 && (
+                                        {(selectedItem.allergens?.length ?? 0) > 0 && (
                                             <div>
                                                 <h4 className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: palette.muted }}>
                                                     Allergens
                                                 </h4>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {selectedItem.allergens.map((tag, index) => (
+                                                    {(selectedItem.allergens ?? []).map((tag, index) => (
                                                         <span
                                                             key={`${selectedItem.id}-allergen-${tag.id ?? tag.name ?? index}`}
                                                             className="px-3 py-1 rounded-lg text-xs font-bold border"

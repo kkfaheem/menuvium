@@ -5,6 +5,8 @@ import pytest
 from main import app
 from database import get_session
 from dependencies import get_current_user
+# Import models to ensure they're registered with SQLModel.metadata
+from models import Organization
 
 # Setup in-memory DB for tests
 engine = create_engine(
