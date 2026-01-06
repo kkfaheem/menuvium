@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Loader2, PencilLine, Sparkles } from "lucide-react";
+import { Loader2, PencilLine, Sparkles, Link, Upload } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
@@ -59,7 +59,9 @@ export default function CreateMenuFlow({
     const [menuName, setMenuName] = useState(initialMenuName || "");
     const [mode, setMode] = useState<"manual" | "import">("manual");
     const [creating, setCreating] = useState(false);
-    const [importFile, setImportFile] = useState<File | null>(null);
+    const [importFiles, setImportFiles] = useState<File[]>([]);
+    const [importUrl, setImportUrl] = useState("");
+    const [importTab, setImportTab] = useState<"files" | "url">("files");
     const [parsedMenu, setParsedMenu] = useState<ParsedMenu | null>(null);
     const [isParsing, setIsParsing] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
@@ -253,7 +255,8 @@ export default function CreateMenuFlow({
     };
 
     const handleParseImport = async () => {
-        if (!importFile) return;
+        if (importTab === "files" && importFiles.length === 0) return;
+        if (importTab === "url" && !importUrl.trim()) return;
         if (orgPermissions && !orgPermissions.can_manage_menus) {
             alert("Not authorized to create menus for this company.");
             return;
@@ -263,14 +266,37 @@ export default function CreateMenuFlow({
         setIsParsing(true);
         try {
             const token = await getAuthToken();
-            const formData = new FormData();
-            formData.append("file", importFile);
             const apiBase = getApiBase();
-            const res = await fetch(`${apiBase}/imports/menu/parse?menu_id=${menuId}`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-                body: formData
-            });
+            let res: Response;
+
+            if (importTab === "url") {
+                // URL-based import
+                res = await fetch(`${apiBase}/imports/menu/parse-url?menu_id=${menuId}&url=${encodeURIComponent(importUrl.trim())}`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+            } else if (importFiles.length === 1) {
+                // Single file import (original endpoint for backwards compatibility)
+                const formData = new FormData();
+                formData.append("file", importFiles[0]);
+                res = await fetch(`${apiBase}/imports/menu/parse?menu_id=${menuId}`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: formData
+                });
+            } else {
+                // Multi-file import
+                const formData = new FormData();
+                importFiles.forEach((file) => {
+                    formData.append("files", file);
+                });
+                res = await fetch(`${apiBase}/imports/menu/parse-multi?menu_id=${menuId}`, {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: formData
+                });
+            }
+
             if (!res.ok) {
                 const err = await res.json();
                 alert(err.detail || "Failed to parse menu");
@@ -440,23 +466,84 @@ export default function CreateMenuFlow({
                     <div className={`rounded-2xl border ${palette.border} ${palette.panelMuted} p-5 space-y-4`}>
                         <div className="flex items-center justify-between">
                             <div>
-                                <h4 className={`text-base font-bold ${palette.text}`}>Import from file</h4>
-                                <p className={`text-sm ${palette.muted}`}>Upload a menu image or PDF to parse.</p>
+                                <h4 className={`text-base font-bold ${palette.text}`}>Import menu</h4>
+                                <p className={`text-sm ${palette.muted}`}>Upload files or paste a public URL.</p>
                             </div>
                             <span className={`text-xs inline-flex items-center gap-1 ${palette.muted}`}>
                                 <Sparkles className="w-3 h-3" /> OCR + AI
                             </span>
                         </div>
+
+                        {/* Import source tabs */}
+                        <div className={`inline-flex rounded-full border ${palette.border} ${palette.panelMuted} p-1`}>
+                            <button
+                                onClick={() => { setImportTab("files"); setParsedMenu(null); }}
+                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors inline-flex items-center gap-1.5 ${importTab === "files" ? palette.primary : palette.muted}`}
+                            >
+                                <Upload className="w-3 h-3" /> Files
+                            </button>
+                            <button
+                                onClick={() => { setImportTab("url"); setParsedMenu(null); }}
+                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors inline-flex items-center gap-1.5 ${importTab === "url" ? palette.primary : palette.muted}`}
+                            >
+                                <Link className="w-3 h-3" /> URL
+                            </button>
+                        </div>
+
+                        {/* Files import */}
+                        {importTab === "files" && (
+                            <div className="space-y-3">
+                                <p className={`text-xs ${palette.muted}`}>
+                                    Upload one or more images/PDFs. Multiple files will be combined and parsed together.
+                                </p>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <input
+                                        type="file"
+                                        accept="image/*,.pdf"
+                                        multiple
+                                        onChange={(e) => {
+                                            setImportFiles(Array.from(e.target.files || []));
+                                            setParsedMenu(null);
+                                        }}
+                                        className="text-sm"
+                                    />
+                                    {importFiles.length > 0 && (
+                                        <span className={`text-xs ${palette.muted}`}>
+                                            {importFiles.length} file{importFiles.length > 1 ? "s" : ""} selected
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* URL import */}
+                        {importTab === "url" && (
+                            <div className="space-y-3">
+                                <p className={`text-xs ${palette.muted}`}>
+                                    Paste a public link to a menu image, PDF, or web page.
+                                </p>
+                                <input
+                                    type="url"
+                                    placeholder="https://restaurant.com/menu.pdf"
+                                    value={importUrl}
+                                    onChange={(e) => {
+                                        setImportUrl(e.target.value);
+                                        setParsedMenu(null);
+                                    }}
+                                    className={`w-full h-11 rounded-xl px-4 focus:outline-none focus:border-current border ${palette.input}`}
+                                />
+                            </div>
+                        )}
+
+                        {/* Parse button */}
                         <div className="flex flex-wrap items-center gap-3">
-                            <input
-                                type="file"
-                                accept="image/*,.pdf"
-                                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                                className="text-sm"
-                            />
                             <button
                                 onClick={handleParseImport}
-                                disabled={!importFile || isParsing || !selectedOrg || permissionsLoading || !canManageMenus}
+                                disabled={
+                                    (importTab === "files" && importFiles.length === 0) ||
+                                    (importTab === "url" && !importUrl.trim()) ||
+                                    isParsing || !selectedOrg || permissionsLoading || !canManageMenus
+                                }
                                 className={`h-10 px-4 rounded-lg font-semibold text-sm disabled:opacity-50 ${palette.primary}`}
                             >
                                 {isParsing ? "Parsing..." : "Parse menu"}

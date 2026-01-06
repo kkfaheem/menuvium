@@ -18,3 +18,5 @@ openai
 pytesseract
 pillow
 pdfplumber
+beautifulsoup4
+

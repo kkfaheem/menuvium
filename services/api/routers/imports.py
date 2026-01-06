@@ -5,8 +5,10 @@ import uuid
 from typing import List, Optional
 
 import boto3
+import httpx
 import pdfplumber
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from bs4 import BeautifulSoup
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from openai import OpenAI
 from pydantic import BaseModel, Field
 from sqlmodel import Session
@@ -71,6 +73,26 @@ def _ocr_with_tesseract(file: UploadFile) -> str:
     return pytesseract.image_to_string(image)
 
 
+def _ocr_with_tesseract_bytes(content: bytes, content_type: str) -> str:
+    """OCR from raw bytes instead of UploadFile."""
+    try:
+        from PIL import Image
+        import pytesseract
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OCR dependencies missing: {e}")
+
+    if content_type == "application/pdf":
+        text_parts: List[str] = []
+        with pdfplumber.open(io.BytesIO(content)) as pdf:
+            for page in pdf.pages:
+                text_parts.append(page.extract_text() or "")
+        text = "\n".join(text_parts).strip()
+        return text
+
+    image = Image.open(io.BytesIO(content)).convert("RGB")
+    return pytesseract.image_to_string(image)
+
+
 def _ocr_with_textract(file: UploadFile) -> str:
     bucket = os.getenv("S3_BUCKET_NAME")
     if not bucket:
@@ -112,6 +134,40 @@ def _parse_menu_text_with_openai(text: str) -> ParsedMenu:
     return ParsedMenu.model_validate(data)
 
 
+def _fetch_url_content(url: str) -> tuple[bytes, str]:
+    """Fetch content from URL. Returns (content_bytes, content_type)."""
+    try:
+        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
+            response = client.get(url, headers={
+                # Use a realistic browser User-Agent to avoid 406/403 blocks
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+            })
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "").lower()
+            return response.content, content_type
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=400, detail="URL request timed out")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {str(e)}")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=400, detail=f"URL returned error: {e.response.status_code}")
+
+
+def _extract_text_from_html(html_content: bytes) -> str:
+    """Extract readable text from HTML content."""
+    soup = BeautifulSoup(html_content, "html.parser")
+    # Remove script and style elements
+    for element in soup(["script", "style", "nav", "footer", "header"]):
+        element.decompose()
+    # Get text
+    text = soup.get_text(separator="\n")
+    # Clean up whitespace
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return "\n".join(lines)
+
+
 @router.post("/menu/parse", response_model=ParsedMenu)
 def parse_menu_from_file(
     menu_id: uuid.UUID,
@@ -128,6 +184,79 @@ def parse_menu_from_file(
         text = _ocr_with_tesseract(file)
     if not text.strip():
         raise HTTPException(status_code=400, detail="No text detected in file")
+    return _parse_menu_text_with_openai(text)
+
+
+@router.post("/menu/parse-multi", response_model=ParsedMenu)
+def parse_menu_from_files(
+    menu_id: uuid.UUID,
+    files: List[UploadFile] = File(...),
+    session: Session = SessionDep,
+    user: dict = UserDep
+):
+    """Parse menu from multiple uploaded files. OCRs each file and combines text for AI parsing."""
+    _get_menu_or_404(menu_id, session, user)
+    
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    ocr_mode = os.getenv("OCR_MODE", "tesseract").lower()
+    all_text_parts: List[str] = []
+    
+    for file in files:
+        file.file.seek(0)
+        if ocr_mode == "textract":
+            text = _ocr_with_textract(file)
+        else:
+            text = _ocr_with_tesseract(file)
+        if text.strip():
+            all_text_parts.append(f"--- File: {file.filename} ---\n{text}")
+    
+    combined_text = "\n\n".join(all_text_parts)
+    if not combined_text.strip():
+        raise HTTPException(status_code=400, detail="No text detected in any of the files")
+    
+    return _parse_menu_text_with_openai(combined_text)
+
+
+@router.post("/menu/parse-url", response_model=ParsedMenu)
+def parse_menu_from_url(
+    menu_id: uuid.UUID,
+    url: str = Query(..., description="Public URL to fetch menu from"),
+    session: Session = SessionDep,
+    user: dict = UserDep
+):
+    """Parse menu from a public URL. Supports images, PDFs, and web pages."""
+    _get_menu_or_404(menu_id, session, user)
+    
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+    
+    content, content_type = _fetch_url_content(url)
+    
+    # Determine content type and process accordingly
+    if "image/" in content_type:
+        # Image file - OCR it
+        text = _ocr_with_tesseract_bytes(content, content_type.split(";")[0])
+    elif "application/pdf" in content_type:
+        # PDF file - OCR it
+        text = _ocr_with_tesseract_bytes(content, "application/pdf")
+    elif "text/html" in content_type or "application/xhtml" in content_type:
+        # Web page - extract text from HTML
+        text = _extract_text_from_html(content)
+    else:
+        # Try to treat as plain text
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported content type: {content_type}"
+            )
+    
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="No text detected from URL")
+    
     return _parse_menu_text_with_openai(text)
 
 
@@ -161,3 +290,4 @@ def apply_imported_menu(
             session.add(new_item)
     session.commit()
     return {"ok": True}
+
