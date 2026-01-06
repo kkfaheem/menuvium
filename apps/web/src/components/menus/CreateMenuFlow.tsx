@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Loader2, PencilLine, Sparkles, Link, Upload } from "lucide-react";
+import { Loader2, PencilLine, Sparkles, Link, Upload, Package } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
@@ -61,7 +61,7 @@ export default function CreateMenuFlow({
     const [creating, setCreating] = useState(false);
     const [importFiles, setImportFiles] = useState<File[]>([]);
     const [importUrl, setImportUrl] = useState("");
-    const [importTab, setImportTab] = useState<"files" | "url">("files");
+    const [importTab, setImportTab] = useState<"files" | "url" | "menuvium">("files");
     const [parsedMenu, setParsedMenu] = useState<ParsedMenu | null>(null);
     const [isParsing, setIsParsing] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
@@ -69,6 +69,17 @@ export default function CreateMenuFlow({
     const [orgPermissions, setOrgPermissions] = useState<OrgPermissions | null>(null);
     const [permissionsLoading, setPermissionsLoading] = useState(false);
     const [permissionsError, setPermissionsError] = useState<string | null>(null);
+    // Menuvium ZIP import state
+    const [zipFile, setZipFile] = useState<File | null>(null);
+    const [zipPreview, setZipPreview] = useState<{
+        version: string;
+        menu_name: string;
+        categories_count: number;
+        items_count: number;
+        has_images: boolean;
+    } | null>(null);
+    const [isPreviewingZip, setIsPreviewingZip] = useState(false);
+    const [isImportingZip, setIsImportingZip] = useState(false);
 
     const [resolvedVariant, setResolvedVariant] = useState<"light" | "dark">(
         variant === "dark" ? "dark" : "light"
@@ -349,8 +360,91 @@ export default function CreateMenuFlow({
         }
     };
 
+    // Handle ZIP file selection and preview
+    const handleZipFileChange = async (file: File | null) => {
+        setZipFile(file);
+        setZipPreview(null);
+        if (!file) return;
+
+        setIsPreviewingZip(true);
+        try {
+            const token = await getAuthToken();
+            const apiBase = getApiBase();
+            const formData = new FormData();
+            formData.append("file", file);
+
+            const res = await fetch(`${apiBase}/imports/menu/preview-zip`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert(err.detail || "Failed to preview ZIP file");
+                setZipFile(null);
+                return;
+            }
+
+            setZipPreview(await res.json());
+        } catch (e) {
+            console.error(e);
+            alert("Failed to preview ZIP file");
+            setZipFile(null);
+        } finally {
+            setIsPreviewingZip(false);
+        }
+    };
+
+    // Import from Menuvium ZIP
+    const handleImportFromZip = async () => {
+        if (!zipFile || !zipPreview) return;
+        if (orgPermissions && !orgPermissions.can_manage_menus) {
+            alert("Not authorized to create menus for this company.");
+            return;
+        }
+
+        const menuId = draftMenuId ?? (await ensureDraftMenu());
+        if (!menuId) return;
+
+        setIsImportingZip(true);
+        try {
+            const token = await getAuthToken();
+            const apiBase = getApiBase();
+            const formData = new FormData();
+            formData.append("file", zipFile);
+
+            const res = await fetch(`${apiBase}/imports/menu/from-zip?menu_id=${menuId}`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: formData
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert(err.detail || "Failed to import from ZIP");
+                return;
+            }
+
+            const result = await res.json();
+            console.log("Import result:", result);
+
+            if (onCreated) {
+                onCreated(menuId);
+            } else {
+                router.push(`/dashboard/menus/${menuId}`);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Failed to import from ZIP");
+        } finally {
+            setIsImportingZip(false);
+        }
+    };
+
     const selectedOrgName = organizations.find((org) => org.id === selectedOrg)?.name || "Company locked";
     const canManageMenus = orgPermissions ? orgPermissions.can_manage_menus : true;
+
 
     return (
         <div className="space-y-8">
@@ -475,18 +569,24 @@ export default function CreateMenuFlow({
                         </div>
 
                         {/* Import source tabs */}
-                        <div className={`inline-flex rounded-full border ${palette.border} ${palette.panelMuted} p-1`}>
+                        <div className={`inline-flex rounded-full border ${palette.border} ${palette.panelMuted} p-1 flex-wrap`}>
                             <button
-                                onClick={() => { setImportTab("files"); setParsedMenu(null); }}
+                                onClick={() => { setImportTab("files"); setParsedMenu(null); setZipPreview(null); }}
                                 className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors inline-flex items-center gap-1.5 ${importTab === "files" ? palette.primary : palette.muted}`}
                             >
                                 <Upload className="w-3 h-3" /> Files
                             </button>
                             <button
-                                onClick={() => { setImportTab("url"); setParsedMenu(null); }}
+                                onClick={() => { setImportTab("url"); setParsedMenu(null); setZipPreview(null); }}
                                 className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors inline-flex items-center gap-1.5 ${importTab === "url" ? palette.primary : palette.muted}`}
                             >
                                 <Link className="w-3 h-3" /> URL
+                            </button>
+                            <button
+                                onClick={() => { setImportTab("menuvium"); setParsedMenu(null); setZipFile(null); setZipPreview(null); }}
+                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors inline-flex items-center gap-1.5 ${importTab === "menuvium" ? palette.primary : palette.muted}`}
+                            >
+                                <Package className="w-3 h-3" /> Menuvium Export
                             </button>
                         </div>
 
@@ -535,29 +635,81 @@ export default function CreateMenuFlow({
                             </div>
                         )}
 
-                        {/* Parse button */}
-                        <div className="flex flex-wrap items-center gap-3">
-                            <button
-                                onClick={handleParseImport}
-                                disabled={
-                                    (importTab === "files" && importFiles.length === 0) ||
-                                    (importTab === "url" && !importUrl.trim()) ||
-                                    isParsing || !selectedOrg || permissionsLoading || !canManageMenus
-                                }
-                                className={`h-10 px-4 rounded-lg font-semibold text-sm disabled:opacity-50 ${palette.primary}`}
-                            >
-                                {isParsing ? "Parsing..." : "Parse menu"}
-                            </button>
-                            {parsedMenu && (
+                        {/* Menuvium Export import */}
+                        {importTab === "menuvium" && (
+                            <div className="space-y-4">
+                                <p className={`text-xs ${palette.muted}`}>
+                                    Upload a .zip file exported from Menuvium. All menu data, tags, and images will be imported.
+                                </p>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <input
+                                        type="file"
+                                        accept=".zip"
+                                        onChange={(e) => handleZipFileChange(e.target.files?.[0] || null)}
+                                        className="text-sm"
+                                    />
+                                    {isPreviewingZip && (
+                                        <span className={`text-xs ${palette.muted} flex items-center gap-1`}>
+                                            <Loader2 className="w-3 h-3 animate-spin" /> Previewing...
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* ZIP Preview */}
+                                {zipPreview && (
+                                    <div className={`rounded-xl border p-4 space-y-2 ${palette.border} ${palette.panelMuted}`}>
+                                        <div className="flex items-center justify-between">
+                                            <h5 className={`text-sm font-semibold ${palette.text}`}>{zipPreview.menu_name}</h5>
+                                            <span className={`text-xs ${palette.muted}`}>v{zipPreview.version}</span>
+                                        </div>
+                                        <div className={`text-xs ${palette.muted} flex flex-wrap gap-4`}>
+                                            <span>{zipPreview.categories_count} categories</span>
+                                            <span>{zipPreview.items_count} items</span>
+                                            <span>{zipPreview.has_images ? "✓ Images included" : "No images"}</span>
+                                        </div>
+                                        <button
+                                            onClick={handleImportFromZip}
+                                            disabled={isImportingZip || permissionsLoading || !canManageMenus || !selectedOrg}
+                                            className={`mt-2 h-10 px-4 rounded-lg font-semibold text-sm disabled:opacity-50 ${palette.primary}`}
+                                        >
+                                            {isImportingZip ? (
+                                                <span className="flex items-center gap-2">
+                                                    <Loader2 className="w-4 h-4 animate-spin" /> Importing...
+                                                </span>
+                                            ) : (
+                                                "Import & open"
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Parse button - only for files/url tabs */}
+                        {importTab !== "menuvium" && (
+                            <div className="flex flex-wrap items-center gap-3">
                                 <button
-                                    onClick={handleApplyImport}
-                                    disabled={isImporting || permissionsLoading || !canManageMenus}
-                                    className={`h-10 px-4 rounded-lg font-semibold text-sm border ${palette.border} ${palette.panelMuted} disabled:opacity-50`}
+                                    onClick={handleParseImport}
+                                    disabled={
+                                        (importTab === "files" && importFiles.length === 0) ||
+                                        (importTab === "url" && !importUrl.trim()) ||
+                                        isParsing || !selectedOrg || permissionsLoading || !canManageMenus
+                                    }
+                                    className={`h-10 px-4 rounded-lg font-semibold text-sm disabled:opacity-50 ${palette.primary}`}
                                 >
-                                    {isImporting ? "Importing..." : "Import & open"}
+                                    {isParsing ? "Parsing..." : "Parse menu"}
                                 </button>
-                            )}
-                        </div>
+                                {parsedMenu && (
+                                    <button
+                                        onClick={handleApplyImport}
+                                        disabled={isImporting || permissionsLoading || !canManageMenus}
+                                        className={`h-10 px-4 rounded-lg font-semibold text-sm border ${palette.border} ${palette.panelMuted} disabled:opacity-50`}
+                                    >
+                                        {isImporting ? "Importing..." : "Import & open"}
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
                         {parsedMenu && (
                             <div className="space-y-4">

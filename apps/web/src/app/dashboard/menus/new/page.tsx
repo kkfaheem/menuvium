@@ -3,8 +3,19 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import CreateMenuFlow from "@/components/menus/CreateMenuFlow";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function NewMenuPage() {
+    const router = useRouter();
+
+    useEffect(() => {
+        const mode = typeof window !== "undefined" ? localStorage.getItem("menuvium_user_mode") : null;
+        if (mode === "manager") {
+            router.replace("/dashboard/menus");
+        }
+    }, [router]);
+
     return (
         <div className="w-full max-w-5xl mr-auto space-y-8">
             <header className="flex items-center justify-between">

@@ -4,10 +4,7 @@ import { Authenticator, ThemeProvider, useAuthenticator, View } from "@aws-ampli
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { Fraunces, Space_Grotesk } from "next/font/google";
-import { getApiBase } from "@/lib/apiBase";
-import { getJwtSub } from "@/lib/jwt";
-import { getAuthToken } from "@/lib/authToken";
-import { ThemeToggle } from "@/components/ThemeToggle"; // Import ThemeToggle
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
 
 const fraunces = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
@@ -20,61 +17,8 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (authStatus !== 'authenticated') return;
-        const resolveLanding = async () => {
-            try {
-                const storedMode = typeof window !== "undefined" ? localStorage.getItem("menuvium_user_mode") : null;
-                if (!storedMode) {
-                    router.push("/dashboard/mode");
-                    return;
-                }
-                const apiBase = getApiBase();
-                const token = await getAuthToken();
-                const orgRes = await fetch(`${apiBase}/organizations/`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                if (!orgRes.ok) {
-                    router.push("/dashboard/mode");
-                    return;
-                }
-                const orgs = await orgRes.json();
-                const userSub = getJwtSub(token);
-                const ownedOrgs = userSub ? orgs.filter((org: { owner_id?: string }) => org.owner_id === userSub) : [];
-
-                if (storedMode === "admin" && !ownedOrgs.length) {
-                    router.push("/onboarding");
-                    return;
-                }
-
-                if (storedMode === "manager" && !orgs.length) {
-                    router.push("/dashboard/menus");
-                    return;
-                }
-
-                if (!orgs.length) {
-                    router.push(storedMode === "admin" ? "/onboarding" : "/dashboard/mode");
-                    return;
-                }
-                const orgsForMenuCheck = storedMode === "admin" ? ownedOrgs : orgs;
-                const menuLists = await Promise.all(
-                    orgsForMenuCheck.map((org: { id: string }) =>
-                        fetch(`${apiBase}/menus/?org_id=${org.id}`, {
-                            headers: { Authorization: `Bearer ${token}` }
-                        }).then((res) => (res.ok ? res.json() : []))
-                    )
-                );
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                const hasMenus = menuLists.flat().length > 0;
-                if (storedMode === "manager") {
-                    router.push("/dashboard/menus");
-                    return;
-                }
-                router.push(hasMenus ? "/dashboard/menus" : "/onboarding");
-            } catch (e) {
-                console.error(e);
-                router.push("/dashboard/mode");
-            }
-        };
-        resolveLanding();
+        // Always redirect to mode selection page after login
+        router.push("/dashboard/mode");
     }, [authStatus, router]);
 
     const isConfigured = process.env.NEXT_PUBLIC_USER_POOL_ID && process.env.NEXT_PUBLIC_USER_POOL_ID !== 'us-east-1_dummy';

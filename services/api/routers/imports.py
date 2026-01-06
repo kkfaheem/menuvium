@@ -8,7 +8,7 @@ import boto3
 import httpx
 import pdfplumber
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from openai import OpenAI
 from pydantic import BaseModel, Field
 from sqlmodel import Session
@@ -291,3 +291,330 @@ def apply_imported_menu(
     session.commit()
     return {"ok": True}
 
+
+# ================== Menuvium ZIP Import ==================
+
+import zipfile
+import boto3
+from pathlib import Path
+from models import DietaryTag, Allergen, ItemPhoto
+
+
+def _get_or_create_dietary_tag(session: Session, name: str, icon: str = None) -> DietaryTag:
+    """Get existing dietary tag by name or create a new one with optional icon."""
+    from sqlmodel import select
+    name = name.strip()
+    existing = session.exec(select(DietaryTag).where(DietaryTag.name == name)).first()
+    if existing:
+        # Update icon if provided and different
+        if icon is not None and existing.icon != icon:
+            existing.icon = icon
+            session.add(existing)
+            session.flush()
+        return existing
+    tag = DietaryTag(name=name, icon=icon)
+    session.add(tag)
+    session.flush()
+    return tag
+
+
+def _get_or_create_allergen(session: Session, name: str) -> Allergen:
+    """Get existing allergen by name or create a new one."""
+    from sqlmodel import select
+    name = name.strip()
+    existing = session.exec(select(Allergen).where(Allergen.name == name)).first()
+    if existing:
+        return existing
+    allergen = Allergen(name=name)
+    session.add(allergen)
+    session.flush()
+    return allergen
+
+
+def _local_uploads_enabled() -> bool:
+    return os.getenv("LOCAL_UPLOADS") == "1"
+
+
+def _local_upload_dir() -> Path:
+    return Path(__file__).resolve().parent.parent / "uploads"
+
+
+def _upload_image_to_storage(
+    image_data: bytes,
+    filename: str,
+    content_type: str = "image/jpeg",
+    base_url: str = ""
+) -> tuple[str, str]:
+    """
+    Upload image to S3 or local storage.
+    Returns (s3_key, public_url).
+    """
+    key = f"items/{uuid.uuid4()}-{filename}"
+    
+    bucket_name = os.getenv("S3_BUCKET_NAME")
+    if bucket_name:
+        s3 = boto3.client("s3")
+        s3.put_object(
+            Bucket=bucket_name,
+            Key=key,
+            Body=image_data,
+            ContentType=content_type
+        )
+        public_url = f"https://{bucket_name}.s3.amazonaws.com/{key}"
+        return key, public_url
+    elif _local_uploads_enabled():
+        upload_dir = _local_upload_dir()
+        target = upload_dir / key
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("wb") as f:
+            f.write(image_data)
+        # Use full base URL for local uploads
+        public_url = f"{base_url}/uploads/{key}" if base_url else f"/uploads/{key}"
+        return key, public_url
+    else:
+        raise HTTPException(status_code=500, detail="No storage configured for uploads")
+
+
+class ZipImportResult(BaseModel):
+    categories_created: int
+    items_created: int
+    photos_imported: int
+    tags_created: int
+    allergens_created: int
+
+
+@router.post("/menu/from-zip", response_model=ZipImportResult, status_code=201)
+def import_menu_from_zip(
+    menu_id: uuid.UUID,
+    request: Request,
+    file: UploadFile = File(...),
+    session: Session = SessionDep,
+    user: dict = UserDep
+):
+    """
+    Import menu data from a Menuvium export ZIP file.
+    
+    The ZIP must contain:
+    - manifest.json: Menu structure and metadata
+    - images/: Folder with item photos (optional)
+    
+    Missing dietary tags and allergens will be auto-created.
+    """
+    menu = _get_menu_or_404(menu_id, session, user)
+    base_url = str(request.base_url).rstrip("/")
+    
+    # Validate file type
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+    
+    # Read ZIP file
+    try:
+        file_content = file.file.read()
+        zip_buffer = io.BytesIO(file_content)
+        zf = zipfile.ZipFile(zip_buffer, "r")
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid or corrupted ZIP file")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read ZIP file: {str(e)}")
+    
+    # Extract and validate manifest
+    try:
+        manifest_data = zf.read("manifest.json")
+        manifest = json.loads(manifest_data.decode("utf-8"))
+    except KeyError:
+        raise HTTPException(status_code=400, detail="ZIP archive missing manifest.json")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid manifest.json format")
+    
+    # Validate manifest version
+    version = manifest.get("version", "1.0")
+    if not version.startswith("1."):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported manifest version: {version}. Expected 1.x"
+        )
+    
+    # Track statistics
+    categories_created = 0
+    items_created = 0
+    photos_imported = 0
+    tags_created_set = set()
+    allergens_created_set = set()
+    
+    # Get list of files in ZIP for image lookup
+    zip_files = set(zf.namelist())
+    
+    # Process categories
+    categories_data = manifest.get("categories", [])
+    for cat_data in categories_data:
+        cat_name = cat_data.get("name", "Untitled Category")
+        cat_rank = cat_data.get("rank", categories_created)
+        
+        category = Category(name=cat_name, menu_id=menu.id, rank=cat_rank)
+        session.add(category)
+        session.flush()
+        categories_created += 1
+        
+        # Process items in category
+        items_data = cat_data.get("items", [])
+        for item_index, item_data in enumerate(items_data):
+            item_name = item_data.get("name")
+            if not item_name:
+                continue
+            
+            # Create item
+            new_item = Item(
+                name=item_name,
+                description=item_data.get("description"),
+                price=item_data.get("price", 0.0),
+                position=item_data.get("position", item_index),
+                is_sold_out=item_data.get("is_sold_out", False),
+                category_id=category.id
+            )
+            session.add(new_item)
+            session.flush()
+            items_created += 1
+            
+            # Link dietary tags (get-or-create)
+            # Supports both object format {name, icon} and legacy string format
+            dietary_tags = item_data.get("dietary_tags", [])
+            for tag_data in dietary_tags:
+                if isinstance(tag_data, dict):
+                    tag_name = tag_data.get("name")
+                    tag_icon = tag_data.get("icon")
+                elif isinstance(tag_data, str):
+                    tag_name = tag_data
+                    tag_icon = None
+                else:
+                    continue
+                
+                if tag_name:
+                    tag = _get_or_create_dietary_tag(session, tag_name, tag_icon)
+                    if tag not in new_item.dietary_tags:
+                        new_item.dietary_tags.append(tag)
+                    tags_created_set.add(tag_name)
+            
+            # Link allergens (get-or-create)
+            # Supports both object format {name} and legacy string format
+            allergens = item_data.get("allergens", [])
+            for allergen_data in allergens:
+                if isinstance(allergen_data, dict):
+                    allergen_name = allergen_data.get("name")
+                elif isinstance(allergen_data, str):
+                    allergen_name = allergen_data
+                else:
+                    continue
+                
+                if allergen_name:
+                    allergen = _get_or_create_allergen(session, allergen_name)
+                    if allergen not in new_item.allergens:
+                        new_item.allergens.append(allergen)
+                    allergens_created_set.add(allergen_name)
+            
+            # Process photos
+            photos_data = item_data.get("photos", [])
+            for photo_data in photos_data:
+                zip_path = photo_data.get("filename")
+                if not zip_path or zip_path not in zip_files:
+                    continue
+                
+                try:
+                    image_data = zf.read(zip_path)
+                    # Extract just the filename for upload
+                    image_filename = zip_path.split("/")[-1]
+                    
+                    # Determine content type from extension
+                    ext = image_filename.split(".")[-1].lower() if "." in image_filename else "jpg"
+                    content_type_map = {
+                        "jpg": "image/jpeg",
+                        "jpeg": "image/jpeg",
+                        "png": "image/png",
+                        "gif": "image/gif",
+                        "webp": "image/webp"
+                    }
+                    content_type = content_type_map.get(ext, "image/jpeg")
+                    
+                    # Upload to storage
+                    s3_key, public_url = _upload_image_to_storage(
+                        image_data, image_filename, content_type, base_url
+                    )
+                    
+                    # Create photo record
+                    photo = ItemPhoto(
+                        s3_key=s3_key,
+                        url=public_url,
+                        item_id=new_item.id
+                    )
+                    session.add(photo)
+                    photos_imported += 1
+                except Exception as e:
+                    # Log but continue - missing images shouldn't fail the import
+                    print(f"Warning: Failed to import photo {zip_path}: {e}")
+                    continue
+    
+    session.commit()
+    zf.close()
+    
+    return ZipImportResult(
+        categories_created=categories_created,
+        items_created=items_created,
+        photos_imported=photos_imported,
+        tags_created=len(tags_created_set),
+        allergens_created=len(allergens_created_set)
+    )
+
+
+class ManifestPreview(BaseModel):
+    version: str
+    menu_name: str
+    categories_count: int
+    items_count: int
+    has_images: bool
+
+
+@router.post("/menu/preview-zip", response_model=ManifestPreview)
+def preview_zip_manifest(
+    file: UploadFile = File(...),
+    user: dict = UserDep
+):
+    """
+    Preview the contents of a Menuvium export ZIP without importing.
+    Useful for showing user what will be imported.
+    """
+    # Validate file type
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="File must be a ZIP archive")
+    
+    try:
+        file_content = file.file.read()
+        zip_buffer = io.BytesIO(file_content)
+        zf = zipfile.ZipFile(zip_buffer, "r")
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid or corrupted ZIP file")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read ZIP file: {str(e)}")
+    
+    try:
+        manifest_data = zf.read("manifest.json")
+        manifest = json.loads(manifest_data.decode("utf-8"))
+    except KeyError:
+        raise HTTPException(status_code=400, detail="ZIP archive missing manifest.json")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid manifest.json format")
+    
+    # Count items
+    categories = manifest.get("categories", [])
+    items_count = sum(len(cat.get("items", [])) for cat in categories)
+    
+    # Check for images folder
+    has_images = any(name.startswith("images/") for name in zf.namelist())
+    
+    zf.close()
+    
+    return ManifestPreview(
+        version=manifest.get("version", "unknown"),
+        menu_name=manifest.get("menu_name", "Unknown Menu"),
+        categories_count=len(categories),
+        items_count=items_count,
+        has_images=has_images
+    )

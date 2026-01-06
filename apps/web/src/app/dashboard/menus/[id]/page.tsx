@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2, Check, ChevronDown, ChevronRight, Download, PencilLine } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useParams, useRouter } from "next/navigation";
@@ -38,6 +38,7 @@ export default function MenuDetailPage() {
     const [menuActive, setMenuActive] = useState(true);
     const [isSavingMenu, setIsSavingMenu] = useState(false);
     const [isDeletingMenu, setIsDeletingMenu] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const [pageDirty, setPageDirty] = useState(false);
     const [hasLoadedMenu, setHasLoadedMenu] = useState(false);
     const [menuBaseline, setMenuBaseline] = useState<{ name: string; is_active: boolean } | null>(null);
@@ -756,6 +757,43 @@ export default function MenuDetailPage() {
         }
     };
 
+    const handleExportMenu = async () => {
+        if (!menu) return;
+        setIsExporting(true);
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${apiBase}/export/menu/${menu.id}`, {
+                headers: { "Authorization": `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert(`Export failed: ${err.detail || "Unknown error"}`);
+                return;
+            }
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            // Extract filename from Content-Disposition header or use default
+            const contentDisposition = res.headers.get("Content-Disposition");
+            let filename = `menu_${menu.name.replace(/[^a-zA-Z0-9]/g, "_")}_export.zip`;
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename="?([^"]+)"?/);
+                if (match) filename = match[1];
+            }
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error(e);
+            alert("Error exporting menu");
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     if (loading) return <div className="text-[var(--cms-muted)] flex items-center gap-2"><Loader2 className="animate-spin" /> Loading menu...</div>;
     if (!menu) return <div className="text-[var(--cms-muted)]">Menu not found</div>;
 
@@ -819,13 +857,17 @@ export default function MenuDetailPage() {
                             <>
                                 {canManageMenus ? (
                                     <button
+                                        type="button"
                                         onClick={() => {
                                             setMenuNameDraft(menuName);
                                             setIsEditingMenuName(true);
                                         }}
-                                        className="text-3xl font-bold tracking-tight text-left hover:opacity-80"
+                                        className="group inline-flex items-center gap-2 text-3xl font-bold tracking-tight text-left hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent-strong)]/25"
+                                        aria-label="Edit menu name"
+                                        title="Edit menu name"
                                     >
-                                        {menuName}
+                                        <span>{menuName}</span>
+                                        <PencilLine className="w-4 h-4 text-[var(--cms-muted)] transition-colors group-hover:text-[var(--cms-text)]" />
                                     </button>
                                 ) : (
                                     <h1 className="text-3xl font-bold tracking-tight">{menuName}</h1>
@@ -869,6 +911,14 @@ export default function MenuDetailPage() {
                                     >
                                         Themes
                                     </Link>
+                                    <button
+                                        onClick={handleExportMenu}
+                                        disabled={isExporting}
+                                        className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)] disabled:opacity-50"
+                                    >
+                                        {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                                        {isExporting ? "Exporting..." : "Export"}
+                                    </button>
                                 </>
                             )}
                             <Link href={`/r/${menu.id}`} target="_blank" className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]">
@@ -1031,7 +1081,12 @@ export default function MenuDetailPage() {
                                                                         onClick={() => {
                                                                             if (isDragging) return;
                                                                             if (!canOpenItemModal) return;
-                                                                            setEditingItem({ ...item, categoryId: category.id });
+                                                                            setEditingItem({
+                                                                                ...item,
+                                                                                categoryId: category.id,
+                                                                                dietary_tag_ids: (item.dietary_tags || []).map((t: any) => t.id),
+                                                                                allergen_ids: (item.allergens || []).map((a: any) => a.id)
+                                                                            } as any);
                                                                             setFileToUpload(null);
                                                                         }}
                                                                     >
