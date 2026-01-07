@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useEffect, useLayoutEffect, useState } from "react";
-import { ThemeToggle } from "@/components/ThemeToggle"; // Added import
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Logo } from "@/components/Logo";
 
 export default function DashboardLayout({
     children,
@@ -60,18 +61,30 @@ export default function DashboardLayout({
     if (isModePage) {
         return (
             <div className="relative min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] transition-colors">
-                <div className="absolute top-4 right-4 z-50">
-                    <ThemeToggle />
-                </div>
-                {/* ... existing abstract background ... */}
+                {/* Header - glassmorphism */}
+                <header className="fixed top-0 left-0 right-0 z-50 glass-subtle">
+                    <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+                        {/* Left spacer */}
+                        <div className="flex-1" />
+
+                        {/* Centered logo */}
+                        <Logo size="lg" />
+
+                        {/* Right side */}
+                        <div className="flex items-center gap-3 flex-1 justify-end">
+                            <ThemeToggle />
+                        </div>
+                    </div>
+                </header>
+
+                {/* Abstract background */}
                 <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                    <div className="absolute -top-32 left-[18%] h-72 w-72 rounded-full bg-emerald-400/10 blur-[140px] float-slow" />
-                    <div className="absolute top-[20%] -right-24 h-72 w-72 rounded-full bg-cyan-400/10 blur-[160px] float-medium" />
-                    <div className="absolute bottom-[-160px] right-[20%] h-80 w-80 rounded-full bg-indigo-400/10 blur-[170px] float-slow" />
-                    <div className="absolute inset-0 opacity-10 gradient-shift bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_transparent_50%),linear-gradient(130deg,_rgba(16,185,129,0.12),_rgba(34,211,238,0.1),_rgba(99,102,241,0.08))]" />
+                    <div className="absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-[var(--cms-accent)]/15 blur-[140px]" />
+                    <div className="absolute top-[20%] -right-24 h-72 w-72 rounded-full bg-pink-400/10 blur-[160px]" />
+                    <div className="absolute bottom-[-160px] right-[20%] h-80 w-80 rounded-full bg-blue-400/10 blur-[170px]" />
                 </div>
 
-                <main className="relative mx-auto flex min-h-screen w-full max-w-5xl items-center px-6 py-12">
+                <main className="relative mx-auto flex min-h-screen w-full max-w-5xl items-center px-6 pt-20 pb-12">
                     {children}
                 </main>
             </div>
@@ -97,7 +110,7 @@ export default function DashboardLayout({
                         >
                             <Menu className="w-5 h-5" />
                         </button>
-                        <span className="text-base font-semibold tracking-tight">Menuvium</span>
+                        <Logo size="md" />
                         <div className="flex items-center gap-2">
                             <ThemeToggle />
                         </div>
@@ -113,7 +126,7 @@ export default function DashboardLayout({
                     className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-[var(--cms-border)] bg-[var(--cms-panel)]/95 backdrop-blur-xl p-6 transition-transform duration-300 md:sticky md:top-0 md:z-10 md:w-64 md:h-screen md:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
                 >
                     <div className="flex items-center justify-between mb-10">
-                        <h2 className="text-xl font-bold tracking-tight">Menuvium</h2>
+                        <Logo size="lg" />
                         <button
                             onClick={() => setNavOpen(false)}
                             className="md:hidden h-9 w-9 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] flex items-center justify-center"

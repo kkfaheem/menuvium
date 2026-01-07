@@ -74,6 +74,7 @@ class MenuExportManifest(BaseModel):
     menu_theme: str
     menu_is_active: bool
     menu_banner_url: Optional[str] = None
+    menu_logo_url: Optional[str] = None
     categories: List[CategoryExport]
 
 
@@ -186,6 +187,7 @@ def export_menu(
         menu_theme=menu.theme or "noir",
         menu_is_active=menu.is_active,
         menu_banner_url=menu.banner_url,
+        menu_logo_url=getattr(menu, "logo_url", None),
         categories=categories_export
     )
     

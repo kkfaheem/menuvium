@@ -48,6 +48,7 @@ export interface Menu {
     is_active?: boolean;
     theme?: string;
     banner_url?: string | null;
+    logo_url?: string | null;
     currency?: string;
     org_id?: string;
     categories: Category[];
@@ -109,4 +110,5 @@ export interface MenuFormData {
     is_active?: boolean;
     theme?: string;
     banner_url?: string | null;
+    logo_url?: string | null;
 }

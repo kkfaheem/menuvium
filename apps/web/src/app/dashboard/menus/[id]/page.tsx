@@ -866,8 +866,8 @@ export default function MenuDetailPage() {
                                         aria-label="Edit menu name"
                                         title="Edit menu name"
                                     >
-                                        <span>{menuName}</span>
-                                        <PencilLine className="w-4 h-4 text-[var(--cms-muted)] transition-colors group-hover:text-[var(--cms-text)]" />
+                                        <span className="leading-none">{menuName}</span>
+                                        <PencilLine className="relative top-[1px] w-4 h-4 text-[var(--cms-muted)] transition-colors group-hover:text-[var(--cms-text)]" />
                                     </button>
                                 ) : (
                                     <h1 className="text-3xl font-bold tracking-tight">{menuName}</h1>
@@ -909,7 +909,7 @@ export default function MenuDetailPage() {
                                         href={`/dashboard/menus/${menu.id}/themes`}
                                         className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
                                     >
-                                        Themes
+                                        Design Studio
                                     </Link>
                                     <button
                                         onClick={handleExportMenu}

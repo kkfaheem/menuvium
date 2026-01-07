@@ -40,6 +40,7 @@ class MenuBase(SQLModel):
     is_active: bool = Field(default=True)
     theme: str = Field(default="noir")
     banner_url: Optional[str] = None
+    logo_url: Optional[str] = None
     org_id: uuid.UUID = Field(foreign_key="organization.id", index=True)
 
 class CategoryBase(SQLModel):
@@ -153,6 +154,7 @@ class MenuUpdate(SQLModel):
     is_active: Optional[bool] = None
     theme: Optional[str] = None
     banner_url: Optional[str] = None
+    logo_url: Optional[str] = None
 
 class OrganizationUpdate(SQLModel):
     name: Optional[str] = None

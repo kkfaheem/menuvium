@@ -42,6 +42,17 @@ export type MenuTheme = {
     category: "classic" | "modern" | "playful" | "heritage" | "luxury" | "street" | "coastal" | "cafe";
     cuisines: string[];
     layout: "noir" | "paper" | "citrus" | "harbor";
+    /** Typography configuration */
+    fonts: {
+        /** Google Font name for headings (menu name, category titles) */
+        heading: string;
+        /** Google Font weights for heading (comma-separated) */
+        headingWeights: string;
+        /** Google Font name for body text (items, descriptions) */
+        body: string;
+        /** Google Font weights for body */
+        bodyWeights: string;
+    };
     palette: {
         bg: string;
         surface: string;
@@ -69,6 +80,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "luxury",
         cuisines: ["cocktails", "steakhouse", "late-night"],
         layout: "noir",
+        fonts: {
+            heading: "Outfit",
+            headingWeights: "600,700,800",
+            body: "Space Grotesk",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#050505",
             surface: "#121212",
@@ -94,6 +111,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "classic",
         cuisines: ["cafe", "bakery", "brunch"],
         layout: "paper",
+        fonts: {
+            heading: "Playfair Display",
+            headingWeights: "500,600,700",
+            body: "Libre Baskerville",
+            bodyWeights: "400,700"
+        },
         palette: {
             bg: "#F6F1EA",
             surface: "#FFFFFF",
@@ -119,6 +142,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "playful",
         cuisines: ["fast-casual", "street-food", "tacos"],
         layout: "citrus",
+        fonts: {
+            heading: "Bebas Neue",
+            headingWeights: "400",
+            body: "Poppins",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#FFF6E8",
             surface: "#FFFFFF",
@@ -144,6 +173,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "coastal",
         cuisines: ["seafood", "oysters", "coastal"],
         layout: "harbor",
+        fonts: {
+            heading: "Josefin Sans",
+            headingWeights: "500,600,700",
+            body: "Work Sans",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#F1F6F8",
             surface: "#FFFFFF",
@@ -169,6 +204,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "heritage",
         cuisines: ["indian", "tandoor", "curry"],
         layout: "paper",
+        fonts: {
+            heading: "EB Garamond",
+            headingWeights: "500,600,700",
+            body: "Crimson Pro",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#F8F3E8",
             surface: "#FFFFFF",
@@ -194,6 +235,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "modern",
         cuisines: ["japanese", "sushi", "kappo"],
         layout: "noir",
+        fonts: {
+            heading: "Zen Kaku Gothic New",
+            headingWeights: "500,700,900",
+            body: "Noto Sans JP",
+            bodyWeights: "400,500"
+        },
         palette: {
             bg: "#0B0C10",
             surface: "#14161B",
@@ -219,6 +266,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "heritage",
         cuisines: ["middle-eastern", "mezze", "mediterranean"],
         layout: "paper",
+        fonts: {
+            heading: "Lora",
+            headingWeights: "500,600,700",
+            body: "Source Serif 4",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#F6F3ED",
             surface: "#FFFFFF",
@@ -244,6 +297,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "classic",
         cuisines: ["italian", "pasta", "pizza"],
         layout: "paper",
+        fonts: {
+            heading: "Gilda Display",
+            headingWeights: "400",
+            body: "Lora",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#F5EFE7",
             surface: "#FFFFFF",
@@ -269,6 +328,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "classic",
         cuisines: ["french", "brasserie", "wine"],
         layout: "harbor",
+        fonts: {
+            heading: "Bodoni Moda",
+            headingWeights: "500,600,700",
+            body: "Source Sans 3",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#EEF2F7",
             surface: "#FFFFFF",
@@ -294,6 +359,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "street",
         cuisines: ["mexican", "tacos", "street-food"],
         layout: "citrus",
+        fonts: {
+            heading: "Oswald",
+            headingWeights: "500,600,700",
+            body: "Barlow",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#FFF1E6",
             surface: "#FFFFFF",
@@ -319,6 +390,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "modern",
         cuisines: ["ramen", "noodles", "japanese"],
         layout: "noir",
+        fonts: {
+            heading: "Dela Gothic One",
+            headingWeights: "400",
+            body: "M PLUS 1p",
+            bodyWeights: "400,500,700"
+        },
         palette: {
             bg: "#07090C",
             surface: "#13161C",
@@ -344,6 +421,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "street",
         cuisines: ["bbq", "grill", "meats"],
         layout: "noir",
+        fonts: {
+            heading: "Teko",
+            headingWeights: "500,600,700",
+            body: "Barlow Condensed",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#0A0A0B",
             surface: "#151515",
@@ -369,6 +452,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "cafe",
         cuisines: ["dessert", "bakery", "patisserie"],
         layout: "paper",
+        fonts: {
+            heading: "Cormorant Infant",
+            headingWeights: "600,700",
+            body: "Jost",
+            bodyWeights: "400,500"
+        },
         palette: {
             bg: "#FDF6F5",
             surface: "#FFFFFF",
@@ -394,6 +483,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "cafe",
         cuisines: ["tea", "matcha", "wellness"],
         layout: "harbor",
+        fonts: {
+            heading: "Zen Maru Gothic",
+            headingWeights: "400,500,700",
+            body: "Noto Sans",
+            bodyWeights: "400,500"
+        },
         palette: {
             bg: "#F3F8F2",
             surface: "#FFFFFF",
@@ -419,6 +514,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "luxury",
         cuisines: ["wine-bar", "tapas", "cocktails"],
         layout: "noir",
+        fonts: {
+            heading: "Cormorant Garamond",
+            headingWeights: "500,600,700",
+            body: "Raleway",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#0D0809",
             surface: "#1A1314",
@@ -444,6 +545,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "luxury",
         cuisines: ["fine-dining", "modern", "tasting-menu"],
         layout: "harbor",
+        fonts: {
+            heading: "Fraunces",
+            headingWeights: "600,700,800",
+            body: "Nunito Sans",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#FAFAFA",
             surface: "#FFFFFF",
@@ -469,6 +576,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "heritage",
         cuisines: ["mediterranean", "greek", "spanish"],
         layout: "paper",
+        fonts: {
+            heading: "Merriweather",
+            headingWeights: "700,900",
+            body: "Nunito Sans",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#FBF5F0",
             surface: "#FFFFFF",
@@ -494,6 +607,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "modern",
         cuisines: ["scandinavian", "nordic", "modern"],
         layout: "harbor",
+        fonts: {
+            heading: "Righteous",
+            headingWeights: "400",
+            body: "Lexend",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#0F1419",
             surface: "#171D24",
@@ -519,6 +638,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "modern",
         cuisines: ["asian-fusion", "vietnamese", "thai"],
         layout: "paper",
+        fonts: {
+            heading: "Noto Serif Display",
+            headingWeights: "500,600,700",
+            body: "Noto Sans",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#F7F9F4",
             surface: "#FFFFFF",
@@ -544,6 +669,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "cafe",
         cuisines: ["coffee", "brunch", "cafe"],
         layout: "paper",
+        fonts: {
+            heading: "Bitter",
+            headingWeights: "500,600,700",
+            body: "Manrope",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#FAF6F3",
             surface: "#FFFFFF",
@@ -569,6 +700,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "cafe",
         cuisines: ["brunch", "afternoon-tea", "dessert"],
         layout: "harbor",
+        fonts: {
+            heading: "Italiana",
+            headingWeights: "400",
+            body: "Questrial",
+            bodyWeights: "400"
+        },
         palette: {
             bg: "#FAF8FC",
             surface: "#FFFFFF",
@@ -594,6 +731,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "modern",
         cuisines: ["modern", "fusion", "gastro-pub"],
         layout: "noir",
+        fonts: {
+            heading: "Space Grotesk",
+            headingWeights: "500,600,700",
+            body: "IBM Plex Sans",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#18181B",
             surface: "#27272A",
@@ -619,6 +762,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "coastal",
         cuisines: ["seafood", "beach-club", "cocktails"],
         layout: "citrus",
+        fonts: {
+            heading: "Aleo",
+            headingWeights: "400,700",
+            body: "Quicksand",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#FFFBF5",
             surface: "#FFFFFF",
@@ -644,6 +793,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "coastal",
         cuisines: ["seafood", "oyster-bar", "sushi"],
         layout: "noir",
+        fonts: {
+            heading: "Rufina",
+            headingWeights: "400,700",
+            body: "Open Sans",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#0A1628",
             surface: "#0F1F35",
@@ -669,6 +824,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "luxury",
         cuisines: ["champagne-bar", "fine-dining", "dessert"],
         layout: "harbor",
+        fonts: {
+            heading: "Marcellus",
+            headingWeights: "400",
+            body: "Karla",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#FDF7F7",
             surface: "#FFFFFF",
@@ -694,6 +855,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "luxury",
         cuisines: ["cocktails", "speakeasy", "late-night"],
         layout: "noir",
+        fonts: {
+            heading: "Cinzel",
+            headingWeights: "500,600,700",
+            body: "EB Garamond",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#0A0D14",
             surface: "#111827",
@@ -719,6 +886,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "modern",
         cuisines: ["farm-to-table", "vegetarian", "healthy"],
         layout: "paper",
+        fonts: {
+            heading: "Plus Jakarta Sans",
+            headingWeights: "600,700,800",
+            body: "DM Sans",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#F5F7F4",
             surface: "#FFFFFF",
@@ -744,6 +917,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "street",
         cuisines: ["brewery", "gastropub", "craft-beer"],
         layout: "citrus",
+        fonts: {
+            heading: "Archivo Black",
+            headingWeights: "400",
+            body: "Public Sans",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#F9F5F0",
             surface: "#FFFFFF",
@@ -769,6 +948,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "modern",
         cuisines: ["scandinavian", "seafood", "modern"],
         layout: "harbor",
+        fonts: {
+            heading: "Outfit",
+            headingWeights: "500,600,700",
+            body: "Inter",
+            bodyWeights: "400,500"
+        },
         palette: {
             bg: "#F0F9FF",
             surface: "#FFFFFF",
@@ -794,6 +979,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "heritage",
         cuisines: ["wine", "french", "californian"],
         layout: "paper",
+        fonts: {
+            heading: "Cormorant Garamond",
+            headingWeights: "500,600,700",
+            body: "Quattrocento Sans",
+            bodyWeights: "400,700"
+        },
         palette: {
             bg: "#FAF7F5",
             surface: "#FFFFFF",
@@ -819,6 +1010,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "street",
         cuisines: ["steakhouse", "grill", "argentine"],
         layout: "noir",
+        fonts: {
+            heading: "Anton",
+            headingWeights: "400",
+            body: "Rubik",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#0F0A08",
             surface: "#1A1210",
@@ -844,6 +1041,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "heritage",
         cuisines: ["moroccan", "middle-eastern", "persian"],
         layout: "citrus",
+        fonts: {
+            heading: "Amiri",
+            headingWeights: "400,700",
+            body: "Cairo",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#FBF8F4",
             surface: "#FFFFFF",
@@ -869,6 +1072,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "modern",
         cuisines: ["modern", "tasting-menu", "fusion"],
         layout: "harbor",
+        fonts: {
+            heading: "Sora",
+            headingWeights: "500,600,700",
+            body: "Work Sans",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#F8FAFC",
             surface: "#FFFFFF",
@@ -894,6 +1103,12 @@ export const MENU_THEMES: MenuTheme[] = [
         category: "cafe",
         cuisines: ["bakery", "breakfast", "honey-bar"],
         layout: "citrus",
+        fonts: {
+            heading: "Fredoka",
+            headingWeights: "500,600,700",
+            body: "Nunito",
+            bodyWeights: "400,500,600"
+        },
         palette: {
             bg: "#FFFCF5",
             surface: "#FFFFFF",

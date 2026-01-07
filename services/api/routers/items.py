@@ -11,6 +11,7 @@ from models import Item, Category, Menu, ItemPhoto, Organization, ItemCreate, It
 from dependencies import get_current_user
 from pathlib import Path
 from permissions import get_org_permissions
+from url_utils import external_base_url
 
 router = APIRouter(prefix="/items", tags=["items"])
 SessionDep = Depends(get_session)
@@ -44,7 +45,7 @@ def generate_upload_url(req: PresignedUrlRequest, request: Request, user: dict =
     if not bucket_name:
         if _local_uploads_enabled():
             key = f"items/{uuid.uuid4()}-{os.path.basename(req.filename)}"
-            base_url = str(request.base_url).rstrip("/")
+            base_url = external_base_url(request)
             return {
                 "upload_url": f"{base_url}/items/local-upload/{key}",
                 "s3_key": key,

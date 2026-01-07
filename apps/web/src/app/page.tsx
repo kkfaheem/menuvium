@@ -4,7 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import {
     MoveRight,
-    ChefHat,
     ArrowRight,
     Play,
     Sparkles,
@@ -17,6 +16,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { Logo } from "@/components/Logo";
 
 export default function Home() {
     const { user, authStatus } = useAuthenticator(context => [context.user, context.authStatus]);
@@ -63,38 +63,36 @@ export default function Home() {
     };
 
     return (
-        <div className="min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] font-sans selection:bg-[var(--cms-accent)]/20 transition-colors">
+        <div className="min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] selection:bg-[var(--cms-accent)]/20 transition-colors">
             {/* Navigation */}
             <motion.nav
                 initial={{ y: -100 }}
                 animate={{ y: 0 }}
-                className="fixed top-0 left-0 right-0 z-50 bg-[var(--cms-panel)]/80 backdrop-blur-md border-b border-[var(--cms-border)]"
+                className="fixed top-0 left-0 right-0 z-50 glass-subtle"
             >
-                <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-[var(--cms-accent)] rounded-lg flex items-center justify-center text-white shadow-lg shadow-[#FF5A1F]/20">
-                            <ChefHat size={20} />
-                        </div>
-                        <span className="text-xl font-bold tracking-tight">Menuvium</span>
-                    </div>
-
-                    <div className="hidden md:flex items-center gap-8 text-sm font-medium text-[var(--cms-muted)]">
+                <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+                    {/* Left nav links */}
+                    <div className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--cms-muted)] flex-1">
                         <Link href="#features" className="hover:text-[var(--cms-accent)] transition-colors">Features</Link>
                         <Link href="#how-it-works" className="hover:text-[var(--cms-accent)] transition-colors">How it Works</Link>
                         <Link href="#pricing" className="hover:text-[var(--cms-accent)] transition-colors">Pricing</Link>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    {/* Centered logo */}
+                    <Logo size="lg" />
+
+                    {/* Right side actions */}
+                    <div className="flex items-center gap-3 flex-1 justify-end">
                         <ThemeToggle />
                         <Link
                             href="/login"
-                            className="hidden md:block text-sm font-semibold text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
+                            className="hidden md:block text-sm font-medium text-[var(--cms-muted)] hover:text-[var(--cms-text)] transition-colors"
                         >
                             Log in
                         </Link>
                         <Link
                             href="/login"
-                            className="px-5 py-2.5 bg-[#FF5A1F] hover:bg-[#E04812] text-white text-sm font-semibold rounded-full transition-all hover:shadow-lg hover:shadow-[#FF5A1F]/20 active:scale-95"
+                            className="px-5 py-2.5 bg-[var(--cms-accent)] hover:bg-[var(--cms-accent-strong)] text-white text-sm font-semibold rounded-full transition-all hover:shadow-lg hover:shadow-[var(--cms-accent)]/20 active:scale-95"
                         >
                             Get Started
                         </Link>
@@ -107,8 +105,8 @@ export default function Home() {
                 <section className="px-6 max-w-7xl mx-auto mb-24 md:mb-32 relative">
                     {/* Abstract Shapes */}
                     <div className="absolute top-0 right-0 -z-10 opacity-30 dark:opacity-20 pointer-events-none">
-                        <div className="absolute top-10 right-10 w-64 h-64 bg-[#FF5A1F] rounded-full blur-[100px] animate-pulse" />
-                        <div className="absolute top-40 right-60 w-72 h-72 bg-purple-500 rounded-full blur-[120px] animate-pulse delay-700" />
+                        <div className="absolute top-10 right-10 w-64 h-64 bg-[var(--cms-accent)] rounded-full blur-[100px] animate-pulse" />
+                        <div className="absolute top-40 right-60 w-72 h-72 bg-pink-400 rounded-full blur-[120px] animate-pulse delay-700" />
                     </div>
 
                     <motion.div
@@ -117,14 +115,14 @@ export default function Home() {
                         animate="visible"
                         className="flex flex-col items-center text-center max-w-4xl mx-auto"
                     >
-                        <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-50 dark:bg-orange-500/10 text-[#FF5A1F] text-sm font-semibold mb-8 border border-orange-100 dark:border-orange-500/20">
+                        <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--cms-accent-subtle)] text-[var(--cms-accent)] text-sm font-semibold mb-8 border border-[var(--cms-accent-light)]">
                             <Sparkles size={14} />
                             <span>Reimagined Menu Management</span>
                         </motion.div>
 
-                        <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl font-bold tracking-tight leading-[1.1] mb-8 text-[var(--cms-text)]">
+                        <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1] mb-8 text-[var(--cms-text)]">
                             Your menu, <br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#FF5A1F] to-[#FF8A50]">
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--cms-accent)] to-[var(--cms-accent-light)]">
                                 perfectly synced.
                             </span>
                         </motion.h1>
@@ -138,12 +136,12 @@ export default function Home() {
                         <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-center gap-4 mb-16">
                             <Link
                                 href="/login"
-                                className="px-8 py-4 bg-[#FF5A1F] hover:bg-[#E04812] text-white font-semibold rounded-full transition-all hover:scale-105 shadow-xl shadow-[#FF5A1F]/20 flex items-center gap-2 group"
+                                className="px-8 py-4 bg-[var(--cms-accent)] hover:bg-[var(--cms-accent-strong)] text-white font-semibold rounded-full transition-all hover:scale-105 shadow-xl shadow-[var(--cms-accent)]/25 flex items-center gap-2 group"
                             >
                                 Start Free Trial
                                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                             </Link>
-                            <button className="px-8 py-4 bg-[var(--cms-panel)] border border-[var(--cms-border)] hover:bg-[var(--cms-panel-strong)] text-[var(--cms-text)] font-semibold rounded-full transition-all flex items-center gap-2">
+                            <button className="px-8 py-4 bg-[var(--cms-panel)] border border-[var(--cms-border)] hover:bg-[var(--cms-panel-strong)] text-[var(--cms-text)] font-medium rounded-full transition-all flex items-center gap-2">
                                 <Play size={16} fill="currentColor" />
                                 Watch Demo
                             </button>
@@ -211,7 +209,7 @@ export default function Home() {
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-5xl font-bold text-[var(--cms-text)] mb-6">
                             Constructed for <br />
-                            <span className="text-[#FF5A1F]">Infinite Scalability</span>
+                            <span className="text-[var(--cms-accent)]">Infinite Scalability</span>
                         </h2>
                         <p className="text-lg text-[var(--cms-muted)] max-w-2xl mx-auto">
                             Whether you manage one menu or one hundred, the experience is identical.
@@ -228,10 +226,10 @@ export default function Home() {
                                 color: "bg-blue-500/10"
                             },
                             {
-                                icon: <Smartphone className="w-6 h-6 text-[#FF5A1F]" />,
+                                icon: <Smartphone className="w-6 h-6 text-[var(--cms-accent)]" />,
                                 title: "Dynamic QR Menus",
                                 desc: "Beautiful, mobile-first menus that update in real-time. No more re-printing QR codes.",
-                                color: "bg-orange-500/10"
+                                color: "bg-[var(--cms-accent-subtle)]"
                             },
                             {
                                 icon: <Zap className="w-6 h-6 text-purple-500" />,
@@ -260,8 +258,8 @@ export default function Home() {
                 {/* CTA Section */}
                 <section className="max-w-4xl mx-auto px-6 text-center mb-24">
                     <div className="relative p-12 rounded-[2.5rem] bg-[var(--cms-panel)] border border-[var(--cms-border)] overflow-hidden">
-                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#FF5A1F]/20 blur-[100px] rounded-full" />
-                        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-blue-500/10 blur-[100px] rounded-full" />
+                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[var(--cms-accent)]/20 blur-[100px] rounded-full" />
+                        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-pink-400/10 blur-[100px] rounded-full" />
 
                         <div className="relative z-10">
                             <h2 className="text-4xl font-bold text-[var(--cms-text)] mb-6">
@@ -272,7 +270,7 @@ export default function Home() {
                             </p>
                             <Link
                                 href="/login"
-                                className="inline-flex items-center justify-center px-10 py-5 bg-[#FF5A1F] hover:bg-[#E04812] text-white text-lg font-bold rounded-full transition-all hover:scale-105 shadow-xl shadow-[#FF5A1F]/30"
+                                className="inline-flex items-center justify-center px-10 py-5 bg-[var(--cms-accent)] hover:bg-[var(--cms-accent-strong)] text-white text-lg font-bold rounded-full transition-all hover:scale-105 shadow-xl shadow-[var(--cms-accent)]/30"
                             >
                                 Get Started Now
                             </Link>
@@ -282,16 +280,13 @@ export default function Home() {
             </main>
 
             {/* Footer */}
-            <footer className="bg-[var(--cms-panel)]/40 py-16 border-t border-[var(--cms-border)]">
+            <footer className="bg-[var(--cms-panel)]/50 py-16 border-t border-[var(--cms-border)]">
                 <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-start gap-12">
                     <div>
-                        <div className="flex items-center gap-2 mb-6">
-                            <div className="w-8 h-8 bg-[#FF5A1F] rounded-lg flex items-center justify-center text-white">
-                                <ChefHat size={20} />
-                            </div>
-                            <span className="text-xl font-bold tracking-tight text-[var(--cms-text)]">Menuvium</span>
+                        <div className="mb-6">
+                            <Logo size="lg" />
                         </div>
-                        <p className="text-[var(--cms-muted)] max-w-xs">
+                        <p className="text-[var(--cms-muted)] max-w-xs text-sm leading-relaxed">
                             The modern operating system for digital menus. <br />
                             Built for speed, designed for growth.
                         </p>

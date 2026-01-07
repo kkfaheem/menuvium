@@ -3,17 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { Search, X, AlertCircle, SlidersHorizontal } from "lucide-react";
-import { Bebas_Neue, Manrope, Playfair_Display, Space_Grotesk } from "next/font/google";
 import { MENU_THEME_BY_ID, MenuThemeId } from "@/lib/menuThemes";
 import { getApiBase } from "@/lib/apiBase";
 import { DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
 import type { Menu, Category, Item, DietaryTag, Allergen, ItemPhoto } from "@/types";
 import { ThemeLayout, THEME_LAYOUT_CONFIGS, type ThemeLayoutConfig } from "@/components/public-menu/ThemeLayout";
-
-const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
-const playfair = Playfair_Display({ subsets: ["latin"], weight: ["500", "600", "700"] });
-const bebas = Bebas_Neue({ subsets: ["latin"], weight: ["400"] });
-const manrope = Manrope({ subsets: ["latin"], weight: ["400", "500", "600", "700"] });
 
 export default function PublicMenuPage() {
     const params = useParams();
@@ -181,6 +175,55 @@ export default function PublicMenuPage() {
     const activeTheme = MENU_THEME_BY_ID[themeId];
     const palette = activeTheme.palette;
     const themeLayout = activeTheme.layout;
+
+    // Dynamic font loading from theme configuration
+    const themeFonts = activeTheme.fonts;
+
+    // Load Google Fonts dynamically when theme changes
+    useEffect(() => {
+        if (!themeFonts) return;
+
+        // Create Google Fonts URL
+        const headingFamily = themeFonts.heading.replace(/\s+/g, '+');
+        const bodyFamily = themeFonts.body.replace(/\s+/g, '+');
+        const headingWeights = themeFonts.headingWeights;
+        const bodyWeights = themeFonts.bodyWeights;
+
+        // Avoid duplicate font loads
+        const fontId = `theme-fonts-${themeId}`;
+        const existingLink = document.getElementById(fontId);
+        if (existingLink) return;
+
+        // Remove old theme fonts
+        document.querySelectorAll('[data-theme-font]').forEach(el => el.remove());
+
+        // Create and append Google Fonts link
+        const link = document.createElement('link');
+        link.id = fontId;
+        link.setAttribute('data-theme-font', 'true');
+        link.rel = 'stylesheet';
+        link.href = `https://fonts.googleapis.com/css2?family=${headingFamily}:wght@${headingWeights}&family=${bodyFamily}:wght@${bodyWeights}&display=swap`;
+        document.head.appendChild(link);
+
+        // Create CSS variables for fonts
+        const style = document.createElement('style');
+        style.id = `${fontId}-vars`;
+        style.setAttribute('data-theme-font', 'true');
+        style.textContent = `
+            :root {
+                --theme-heading-font: "${themeFonts.heading}", sans-serif;
+                --theme-body-font: "${themeFonts.body}", sans-serif;
+            }
+            .theme-heading { font-family: var(--theme-heading-font) !important; }
+            .theme-body { font-family: var(--theme-body-font) !important; }
+        `;
+        document.head.appendChild(style);
+
+        return () => {
+            document.querySelectorAll('[data-theme-font]').forEach(el => el.remove());
+        };
+    }, [themeId, themeFonts]);
+
     const themeVars = {
         "--menu-bg": palette.bg,
         "--menu-surface": palette.surface,
@@ -188,7 +231,9 @@ export default function PublicMenuPage() {
         "--menu-text": palette.text,
         "--menu-muted": palette.muted,
         "--menu-border": palette.border,
-        "--menu-accent": palette.accent
+        "--menu-accent": palette.accent,
+        "--theme-heading-font": themeFonts ? `"${themeFonts.heading}", sans-serif` : "inherit",
+        "--theme-body-font": themeFonts ? `"${themeFonts.body}", sans-serif` : "inherit",
     } as React.CSSProperties;
 
     if (loading) {
@@ -429,7 +474,7 @@ export default function PublicMenuPage() {
 
     const renderNoir = () => (
         <div
-            className={`min-h-screen pb-20 selection:bg-orange-500/30 ${spaceGrotesk.className} bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
+            className={`min-h-screen pb-20 selection:bg-orange-500/30 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
             style={themeVars}
         >
             {/* Subtle ambient gradient */}
@@ -451,7 +496,7 @@ export default function PublicMenuPage() {
             >
                 <div className="max-w-md mx-auto p-4">
                     <div className="flex items-center justify-between mb-4">
-                        <h1 className="text-xl font-bold tracking-tight truncate pr-4">{menu.name}</h1>
+                        <h1 className="text-xl font-bold tracking-tight truncate pr-4 theme-heading">{menu.name}</h1>
                     </div>
 
                     <div className="relative group">
@@ -494,7 +539,7 @@ export default function PublicMenuPage() {
                         className="scroll-mt-48 animate-fade-in-up"
                         style={{ animationDelay: `${categoryIndex * 0.1}s`, animationFillMode: 'backwards' }}
                     >
-                        <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
+                        <h2 className="text-2xl font-black mb-6 flex items-center gap-3 theme-heading">
                             {category.name}
                             <span
                                 className="text-xs font-mono font-normal px-2.5 py-1 rounded-full"
@@ -600,7 +645,7 @@ export default function PublicMenuPage() {
 
     const renderPaper = () => (
         <div
-            className={`min-h-screen pb-20 ${manrope.className} bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
+            className={`min-h-screen pb-20 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
             style={themeVars}
         >
             <div
@@ -614,7 +659,7 @@ export default function PublicMenuPage() {
             >
                 <div className="max-w-md mx-auto p-4">
                     <div className="flex items-center justify-between mb-4">
-                        <h1 className={`text-2xl font-semibold tracking-tight ${playfair.className}`}>{menu.name}</h1>
+                        <h1 className="text-2xl font-semibold tracking-tight theme-heading">{menu.name}</h1>
                     </div>
                     <div className="relative">
                         <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
@@ -668,7 +713,7 @@ export default function PublicMenuPage() {
                         style={{ animationDelay: `${categoryIndex * 0.08}s`, animationFillMode: 'backwards' }}
                     >
                         <div className="flex items-center justify-between mb-5">
-                            <h2 className={`text-2xl ${playfair.className}`}>{category.name}</h2>
+                            <h2 className="text-2xl theme-heading">{category.name}</h2>
                             <span className="text-xs" style={{ color: palette.muted }}>
                                 {visibleItems(category.items).length} items
                             </span>
@@ -712,7 +757,7 @@ export default function PublicMenuPage() {
 
     const renderCitrus = () => (
         <div
-            className={`min-h-screen pb-20 ${spaceGrotesk.className} bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
+            className={`min-h-screen pb-20 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
             style={themeVars}
         >
             <div
@@ -726,7 +771,7 @@ export default function PublicMenuPage() {
             >
                 <div className="max-w-md mx-auto p-4">
                     <div className="flex items-center justify-between mb-4">
-                        <h1 className={`text-3xl tracking-wide ${bebas.className}`}>{menu.name}</h1>
+                        <h1 className="text-3xl tracking-wide theme-heading">{menu.name}</h1>
                         <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: palette.accent }}>Menu</span>
                     </div>
                     <div className="relative">
@@ -775,7 +820,7 @@ export default function PublicMenuPage() {
                         style={{ animationDelay: `${categoryIndex * 0.08}s`, animationFillMode: 'backwards' }}
                     >
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className={`text-2xl tracking-wide ${bebas.className}`}>{category.name}</h2>
+                            <h2 className="text-2xl tracking-wide theme-heading">{category.name}</h2>
                             <span className="text-xs" style={{ color: palette.muted }}>
                                 {visibleItems(category.items).length} items
                             </span>
@@ -814,7 +859,7 @@ export default function PublicMenuPage() {
 
     const renderHarbor = () => (
         <div
-            className={`min-h-screen pb-20 ${manrope.className} bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
+            className={`min-h-screen pb-20 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)]`}
             style={themeVars}
         >
             <div
@@ -828,7 +873,7 @@ export default function PublicMenuPage() {
             >
                 <div className="max-w-md mx-auto p-4">
                     <div className="flex items-center justify-between mb-3">
-                        <h1 className="text-2xl font-semibold tracking-tight">{menu.name}</h1>
+                        <h1 className="text-2xl font-semibold tracking-tight theme-heading">{menu.name}</h1>
                     </div>
                     <div className="relative">
                         <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
@@ -882,7 +927,7 @@ export default function PublicMenuPage() {
                         style={{ animationDelay: `${categoryIndex * 0.08}s`, animationFillMode: 'backwards' }}
                     >
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-semibold">{category.name}</h2>
+                            <h2 className="text-xl font-semibold theme-heading">{category.name}</h2>
                             <span className="text-xs" style={{ color: palette.muted }}>
                                 {visibleItems(category.items).length} items
                             </span>

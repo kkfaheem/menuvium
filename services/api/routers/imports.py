@@ -17,6 +17,7 @@ from database import get_session
 from dependencies import get_current_user
 from models import Category, Item, Menu, Organization
 from permissions import get_org_permissions
+from url_utils import external_base_url
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 SessionDep = Depends(get_session)
@@ -401,7 +402,7 @@ def import_menu_from_zip(
     Missing dietary tags and allergens will be auto-created.
     """
     menu = _get_menu_or_404(menu_id, session, user)
-    base_url = str(request.base_url).rstrip("/")
+    base_url = external_base_url(request)
     
     # Validate file type
     if not file.filename or not file.filename.lower().endswith(".zip"):

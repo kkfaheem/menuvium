@@ -2,53 +2,109 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 html {
   scroll-behavior: smooth;
 }
 
 :root {
-  /* Light Theme (Default) */
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light Theme - Cool gray with prominent glassmorphism */
+  --background: #f0f2f5;
+  --foreground: #1a1a1a;
 
-  --cms-bg: #f8fafc;
-  /* Slate 50 */
-  --cms-panel: #ffffff;
-  --cms-panel-strong: #f1f5f9;
-  /* Slate 100 */
-  --cms-border: rgba(15, 23, 42, 0.08);
-  --cms-text: #0f172a;
-  /* Slate 900 */
-  --cms-muted: rgba(15, 23, 42, 0.5);
-  --cms-muted-strong: rgba(15, 23, 42, 0.4);
-  --cms-pill: rgba(15, 23, 42, 0.04);
+  --cms-bg: #e8ebf0;
+  --cms-panel: rgba(255, 255, 255, 0.65);
+  --cms-panel-strong: rgba(255, 255, 255, 0.85);
+  --cms-border: rgba(255, 255, 255, 0.5);
+  --cms-text: #1a1a1a;
+  --cms-muted: rgba(26, 26, 26, 0.6);
+  --cms-muted-strong: rgba(26, 26, 26, 0.45);
+  --cms-pill: rgba(255, 255, 255, 0.5);
 
-  --cms-accent: #FF5A1F;
-  --cms-accent-strong: #E04812;
+  /* Strong glassmorphism */
+  --cms-glass: rgba(255, 255, 255, 0.25);
+  --cms-glass-border: rgba(255, 255, 255, 0.4);
+  --cms-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+
+  /* Refined warm orange - playful & friendly */
+  --cms-accent: #F97316;
+  --cms-accent-strong: #EA580C;
+  --cms-accent-light: #FDBA74;
+  --cms-accent-subtle: rgba(249, 115, 22, 0.1);
 }
 
 .dark {
-  /* Dark Theme */
+  /* Dark Theme - Deep black with visible glassmorphism */
   --background: #0a0a0a;
-  --foreground: #ededed;
+  --foreground: #fafafa;
 
-  --cms-bg: #0b0c10;
-  --cms-panel: #12131a;
-  --cms-panel-strong: #181a22;
-  --cms-border: rgba(255, 255, 255, 0.08);
-  --cms-text: #f6f3ee;
-  --cms-muted: rgba(246, 243, 238, 0.62);
-  --cms-muted-strong: rgba(246, 243, 238, 0.42);
-  --cms-pill: rgba(255, 255, 255, 0.14);
+  --cms-bg: #0a0a0a;
+  --cms-panel: rgba(255, 255, 255, 0.05);
+  --cms-panel-strong: rgba(255, 255, 255, 0.08);
+  --cms-border: rgba(255, 255, 255, 0.1);
+  --cms-text: #fafafa;
+  --cms-muted: rgba(250, 250, 250, 0.6);
+  --cms-muted-strong: rgba(250, 250, 250, 0.4);
+  --cms-pill: rgba(255, 255, 255, 0.08);
 
-  --cms-accent: #FF5A1F;
-  --cms-accent-strong: #FF8A50;
+  /* Strong glassmorphism */
+  --cms-glass: rgba(255, 255, 255, 0.08);
+  --cms-glass-border: rgba(255, 255, 255, 0.15);
+  --cms-glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+  /* Refined warm orange - slightly brighter for dark mode */
+  --cms-accent: #FB923C;
+  --cms-accent-strong: #F97316;
+  --cms-accent-light: rgba(251, 146, 60, 0.2);
+  --cms-accent-subtle: rgba(251, 146, 60, 0.08);
+}
+
+/* Glassmorphism utility class */
+.glass {
+  background: var(--cms-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--cms-glass-border);
+  box-shadow: var(--cms-glass-shadow);
+}
+
+.glass-subtle {
+  background: var(--cms-panel);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--cms-border);
+}
+
+/* Auth wrapper - constrain Amplify Authenticator */
+.auth-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.auth-wrapper>* {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Fix Amplify Authenticator button and input widths */
+[data-amplify-authenticator] {
+  --amplify-components-authenticator-container-width-max: 100%;
+}
+
+[data-amplify-authenticator] button,
+[data-amplify-authenticator] input {
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 @keyframes floatSlow {

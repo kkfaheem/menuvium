@@ -3,12 +3,9 @@
 import { Authenticator, ThemeProvider, useAuthenticator, View } from "@aws-amplify/ui-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
-import { Fraunces, Space_Grotesk } from "next/font/google";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
-
-const fraunces = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
-const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600"] });
+import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -28,18 +25,18 @@ export default function LoginPage() {
         const isDark = resolvedTheme === "dark";
         const base = isDark
             ? {
-                fontPrimary: "#f6f3ee",
-                fontSecondary: "rgba(246, 243, 238, 0.62)",
-                border: "rgba(255, 255, 255, 0.12)",
-                backgroundPrimary: "#12131a",
-                backgroundSecondary: "#0b0c10"
+                fontPrimary: "#fafafa",
+                fontSecondary: "rgba(250, 250, 250, 0.6)",
+                border: "rgba(255, 255, 255, 0.08)",
+                backgroundPrimary: "#141414",
+                backgroundSecondary: "#0a0a0a"
             }
             : {
-                fontPrimary: "#0f172a",
-                fontSecondary: "rgba(15, 23, 42, 0.5)",
-                border: "rgba(15, 23, 42, 0.12)",
+                fontPrimary: "#1a1a1a",
+                fontSecondary: "rgba(26, 26, 26, 0.55)",
+                border: "rgba(0, 0, 0, 0.06)",
                 backgroundPrimary: "#ffffff",
-                backgroundSecondary: "#f8fafc"
+                backgroundSecondary: "#fafafa"
             };
 
         return {
@@ -51,10 +48,10 @@ export default function LoginPage() {
                     background: { primary: base.backgroundPrimary, secondary: base.backgroundSecondary },
                     brand: {
                         primary: {
-                            10: "rgba(255, 90, 31, 0.10)",
-                            80: "#FF5A1F",
-                            90: "#E04812",
-                            100: "#B45309"
+                            10: "rgba(249, 115, 22, 0.10)",
+                            80: "#F97316",
+                            90: "#EA580C",
+                            100: "#C2410C"
                         }
                     }
                 },
@@ -62,18 +59,18 @@ export default function LoginPage() {
                 components: {
                     button: {
                         primary: {
-                            backgroundColor: "#FF5A1F",
+                            backgroundColor: "#F97316",
                             color: "#FFFFFF",
-                            _hover: { backgroundColor: "#E04812" }
+                            _hover: { backgroundColor: "#EA580C" }
                         },
                         link: {
-                            color: "#FF5A1F"
+                            color: "#F97316"
                         }
                     },
                     fieldcontrol: {
                         borderColor: base.border,
                         backgroundColor: base.backgroundPrimary,
-                        _focus: { borderColor: "#FF5A1F", boxShadow: "0 0 0 2px rgba(255,90,31,0.2)" }
+                        _focus: { borderColor: "#F97316", boxShadow: "0 0 0 2px rgba(249,115,22,0.2)" }
                     }
                 }
             }
@@ -81,63 +78,80 @@ export default function LoginPage() {
     }, [resolvedTheme]);
 
     return (
-        <div className={`min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] ${spaceGrotesk.className} relative transition-colors`}>
-            <div className="absolute top-6 right-6 z-50">
-                <ThemeToggle />
-            </div>
+        <div className="min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] relative transition-colors overflow-x-hidden">
+            {/* Header - glassmorphism */}
+            <header className="fixed top-0 left-0 right-0 z-50 glass-subtle">
+                <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+                    {/* Left spacer */}
+                    <div className="flex-1" />
 
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute -top-32 -left-32 h-72 w-72 rounded-full bg-[var(--cms-accent)]/15 blur-[120px]" />
-                <div className="absolute bottom-[-120px] right-[-120px] h-80 w-80 rounded-full bg-indigo-500/10 blur-[140px]" />
-            </div>
+                    {/* Centered logo */}
+                    <Logo size="lg" />
 
-            <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-center gap-10 px-6 py-16 lg:grid lg:grid-cols-[1.05fr_0.95fr] lg:gap-12">
-                <div className="space-y-6">
-                    <p className="text-xs uppercase tracking-[0.4em] text-[var(--cms-muted)]">Menuvium</p>
-                    <h1 className={`text-4xl md:text-5xl font-bold tracking-tight ${fraunces.className}`}>
-                        Login to the menu studio
-                    </h1>
-                    <p className="text-base text-[var(--cms-muted)] max-w-md">
-                        Design menus that feel premium on every phone. Launch faster with import, edit, and themes.
-                    </p>
-                    <div className="flex flex-wrap gap-3 text-xs uppercase tracking-[0.2em] text-[var(--cms-muted)]">
-                        <span className="px-3 py-1 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]">Mobile-first</span>
-                        <span className="px-3 py-1 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]">Theme-ready</span>
-                        <span className="px-3 py-1 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]">OCR import</span>
+                    {/* Right side */}
+                    <div className="flex items-center gap-3 flex-1 justify-end">
+                        <ThemeToggle />
                     </div>
                 </div>
+            </header>
 
-                <div className="w-full">
-                    <div className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] shadow-2xl text-[var(--cms-text)] overflow-hidden relative">
-                        {/* Light mode gradient behind form */}
-                        <div className="absolute inset-0 bg-gradient-to-br from-[var(--cms-panel)] to-[var(--cms-panel-strong)] pointer-events-none -z-10" />
+            {/* Background blobs */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-[var(--cms-accent)]/20 blur-[120px]" />
+                <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-pink-400/15 blur-[140px]" />
+                <div className="absolute top-1/2 left-0 h-64 w-64 rounded-full bg-blue-400/10 blur-[100px]" />
+            </div>
 
-                        <div className="p-8">
-                            {isConfigured ? (
-                                <div className="space-y-6">
-                                    <div>
-                                        <h2 className="text-lg font-bold mb-1">Sign in or create an account</h2>
-                                        <p className="text-sm text-[var(--cms-muted)]">Use email or a social provider.</p>
+            {/* Main content */}
+            <div className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 pt-20 pb-10">
+                <div className="w-full max-w-5xl grid gap-12 lg:grid-cols-2 lg:gap-20 items-center">
+                    {/* Left side - Marketing content */}
+                    <div className="space-y-6 text-center lg:text-left">
+                        <p className="text-xs uppercase tracking-[0.3em] text-[var(--cms-accent)] font-semibold">Welcome back</p>
+                        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
+                            Sign in to your <br />
+                            <span className="text-[var(--cms-accent)]">menu studio</span>
+                        </h1>
+                        <p className="text-base text-[var(--cms-muted)] max-w-md mx-auto lg:mx-0 leading-relaxed">
+                            Design menus that feel premium on every device. Launch faster with smart import, live editing, and beautiful themes.
+                        </p>
+                        <div className="flex flex-wrap gap-2 text-xs font-medium text-[var(--cms-muted)] justify-center lg:justify-start">
+                            <span className="glass px-3 py-1.5 rounded-full">📱 Mobile-first</span>
+                            <span className="glass px-3 py-1.5 rounded-full">🎨 Theme-ready</span>
+                            <span className="glass px-3 py-1.5 rounded-full">📄 OCR import</span>
+                        </div>
+                    </div>
+
+                    {/* Right side - Auth form with glassmorphism */}
+                    <div className="w-full max-w-md mx-auto lg:max-w-none lg:mx-0">
+                        <div className="glass rounded-3xl text-[var(--cms-text)] overflow-hidden">
+                            <div className="p-6 sm:p-8">
+                                {isConfigured ? (
+                                    <div className="space-y-6">
+                                        <div>
+                                            <h2 className="text-lg font-bold mb-1">Sign in or create an account</h2>
+                                            <p className="text-sm text-[var(--cms-muted)]">Use email or a social provider.</p>
+                                        </div>
+                                        <ThemeProvider theme={amplifyTheme}>
+                                            <View className="auth-wrapper">
+                                                <Authenticator
+                                                    loginMechanisms={["email"]}
+                                                    socialProviders={hasOAuth ? ["google", "apple", "facebook"] : []}
+                                                    signUpAttributes={["email", "name"]}
+                                                />
+                                            </View>
+                                        </ThemeProvider>
                                     </div>
-                                    <ThemeProvider theme={amplifyTheme}>
-                                        <View className="auth-wrapper">
-                                            <Authenticator
-                                                loginMechanisms={["email"]}
-                                                socialProviders={hasOAuth ? ["google", "apple", "facebook"] : []}
-                                                signUpAttributes={["email", "name"]}
-                                            />
-                                        </View>
-                                    </ThemeProvider>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <div className="p-4 bg-[var(--cms-pill)] border border-[var(--cms-border)] rounded-xl text-sm text-[var(--cms-text)] leading-relaxed">
-                                        <p className="font-bold mb-1">Auth not configured</p>
-                                        <p>Set `NEXT_PUBLIC_USER_POOL_ID` and `NEXT_PUBLIC_USER_POOL_CLIENT_ID` to enable login.</p>
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="p-4 bg-[var(--cms-pill)] border border-[var(--cms-border)] rounded-xl text-sm text-[var(--cms-text)] leading-relaxed">
+                                            <p className="font-bold mb-1">Auth not configured</p>
+                                            <p>Set `NEXT_PUBLIC_USER_POOL_ID` and `NEXT_PUBLIC_USER_POOL_CLIENT_ID` to enable login.</p>
+                                        </div>
+                                        <p className="text-xs text-[var(--cms-muted)]">Check `docs/SETUP.md` for configuration details.</p>
                                     </div>
-                                    <p className="text-xs text-[var(--cms-muted)]">Check `docs/SETUP.md` for configuration details.</p>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
