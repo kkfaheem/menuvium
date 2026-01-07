@@ -191,7 +191,7 @@ export default function MenusPage() {
                     )}
                     {canCreateMenu && (
                         <Link
-                            href="/dashboard/menus/new"
+                            href={`/dashboard/menus/new?org_id=${encodeURIComponent(selectedOrg)}`}
                             className="bg-[var(--cms-text)] text-[var(--cms-bg)] px-4 py-2 rounded-lg font-bold hover:opacity-90 inline-flex items-center justify-center gap-2 w-full sm:w-auto"
                         >
                             Create Menu

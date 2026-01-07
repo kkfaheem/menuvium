@@ -4,10 +4,12 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import CreateMenuFlow from "@/components/menus/CreateMenuFlow";
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function NewMenuPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const orgIdFromQuery = searchParams.get("org_id") || "";
 
     useEffect(() => {
         const mode = typeof window !== "undefined" ? localStorage.getItem("menuvium_user_mode") : null;
@@ -26,6 +28,7 @@ export default function NewMenuPage() {
 
             <CreateMenuFlow
                 variant="auto"
+                initialOrgId={orgIdFromQuery || undefined}
                 heroLabel="Create Menu"
                 heroTitle="Design a menu guests will crave"
                 heroDescription="Pick a creation path, then fine‑tune everything inside the editor."

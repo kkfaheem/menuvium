@@ -93,6 +93,11 @@ export default function CreateMenuFlow({
         setResolvedVariant(variant === "dark" ? "dark" : "light");
     }, [variant, resolvedTheme]);
 
+    useEffect(() => {
+        if (!initialOrgId) return;
+        setSelectedOrg(initialOrgId);
+    }, [initialOrgId]);
+
     const palette = useMemo(() => {
         if (variant === "auto") {
             return {
