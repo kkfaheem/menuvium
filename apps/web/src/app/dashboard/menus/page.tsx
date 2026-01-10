@@ -16,6 +16,9 @@ export default function MenusPage() {
     const { user } = useAuthenticator((context) => [context.user]);
     const [menus, setMenus] = useState<Menu[]>([]);
     const [loading, setLoading] = useState(true);
+    const [menusError, setMenusError] = useState<string | null>(null);
+    const [orgError, setOrgError] = useState<string | null>(null);
+    const [orgsHiddenByMode, setOrgsHiddenByMode] = useState(false);
 
     const [organizations, setOrganizations] = useState<Organization[]>([]);
     const [selectedOrg, setSelectedOrg] = useState<string>("");
@@ -44,6 +47,8 @@ export default function MenusPage() {
     }, [selectedOrg]);
 
     const fetchOrganizations = async () => {
+        setOrgError(null);
+        setOrgsHiddenByMode(false);
         try {
             const token = await getAuthToken();
             const apiBase = getApiBase();
@@ -52,6 +57,9 @@ export default function MenusPage() {
             });
 
             if (!orgRes.ok) {
+                setOrganizations([]);
+                setSelectedOrg("");
+                setOrgError("Could not load companies. Please refresh and try again.");
                 return;
             }
             const orgs = (await orgRes.json()) as Organization[];
@@ -60,6 +68,11 @@ export default function MenusPage() {
             const visibleOrgs = isAdminMode && userSub ? orgs.filter((org) => org.owner_id === userSub) : orgs;
 
             if (visibleOrgs.length === 0) {
+                if (isAdminMode && orgs.length > 0) {
+                    setOrgsHiddenByMode(true);
+                }
+                setOrganizations([]);
+                setSelectedOrg("");
                 return;
             }
             const preferredOrgId =
@@ -95,6 +108,7 @@ export default function MenusPage() {
     const fetchMenus = async () => {
         if (!selectedOrg) return;
         setLoading(true);
+        setMenusError(null);
         try {
             const token = await getAuthToken();
             const apiBase = getApiBase();
@@ -104,9 +118,14 @@ export default function MenusPage() {
             if (res.ok) {
                 const data = await res.json();
                 setMenus(data);
+                return;
             }
+            setMenus([]);
+            setMenusError("Could not load menus for this company.");
         } catch (e) {
             console.error(e);
+            setMenus([]);
+            setMenusError("Could not reach the API. Make sure the backend is running.");
         } finally {
             setLoading(false);
         }
@@ -123,9 +142,13 @@ export default function MenusPage() {
                 <header>
                     <h1 className="text-3xl font-bold tracking-tight mb-2">Menus</h1>
                     <p className="text-[var(--cms-muted)]">
-                        {isManager
-                            ? "You don’t have access to any companies yet."
-                            : "Create your first company to start building menus."}
+                        {orgError
+                            ? orgError
+                            : orgsHiddenByMode
+                                ? "You’re in Admin mode. Admin mode only shows companies you own."
+                                : isManager
+                                    ? "You don’t have access to any companies yet."
+                                    : "Create your first company to start building menus."}
                     </p>
                 </header>
 
@@ -133,9 +156,13 @@ export default function MenusPage() {
                     <div className="flex items-start justify-between gap-4">
                         <div className="space-y-2">
                             <p className="text-sm text-[var(--cms-muted)]">
-                                {isManager
-                                    ? "Ask an admin to invite your email under Team & permissions. Once invited, you’ll see your assigned menus here."
-                                    : "Finish onboarding to create a company and your first menu."}
+                                {orgError
+                                    ? "If you’re running locally, confirm `docker-compose up --build` is running and you’re logged in."
+                                    : orgsHiddenByMode
+                                        ? "Switch to Manager mode to see companies you’ve been invited to."
+                                        : isManager
+                                            ? "Ask an admin to invite your email under Team & permissions. Once invited, you’ll see your assigned menus here."
+                                            : "Finish onboarding to create a company and your first menu."}
                             </p>
                         </div>
                         <button
@@ -199,6 +226,31 @@ export default function MenusPage() {
                     )}
                 </div>
             </header>
+
+            {!loading && menus.length === 0 && selectedOrg && (
+                <div className="mb-6 rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                            <p className="text-lg font-semibold">No menus yet</p>
+                            <p className="text-sm text-[var(--cms-muted)]">
+                                {menusError
+                                    ? menusError
+                                    : isManager
+                                        ? "This company doesn’t have any menus assigned to you yet."
+                                        : "Create your first menu for this company."}
+                            </p>
+                        </div>
+                        {canCreateMenu && (
+                            <Link
+                                href={`/dashboard/menus/new?org_id=${encodeURIComponent(selectedOrg)}`}
+                                className="inline-flex items-center justify-center rounded-2xl bg-[var(--cms-text)] px-5 py-3 text-sm font-semibold text-[var(--cms-bg)] hover:opacity-90"
+                            >
+                                Create a menu
+                            </Link>
+                        )}
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
                 {menus.map(menu => (

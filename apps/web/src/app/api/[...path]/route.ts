@@ -34,8 +34,9 @@ function forwardedHeaders(request: NextRequest) {
     return headers;
 }
 
-async function proxy(request: NextRequest, { params }: { params: { path: string[] } }) {
-    const url = toBackendUrl(request, params.path || []);
+async function proxy(request: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
+    const { path } = await params;
+    const url = toBackendUrl(request, path || []);
     const headers = forwardedHeaders(request);
 
     const init: RequestInit = {

@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, Column, JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import SQLModel, Field, Relationship
 
 class Organization(SQLModel, table=True):
@@ -41,6 +42,10 @@ class MenuBase(SQLModel):
     theme: str = Field(default="noir")
     banner_url: Optional[str] = None
     logo_url: Optional[str] = None
+    title_design_config: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON().with_variant(JSONB, "postgresql")),
+    )
     org_id: uuid.UUID = Field(foreign_key="organization.id", index=True)
 
 class CategoryBase(SQLModel):
@@ -155,6 +160,7 @@ class MenuUpdate(SQLModel):
     theme: Optional[str] = None
     banner_url: Optional[str] = None
     logo_url: Optional[str] = None
+    title_design_config: Optional[dict] = None
 
 class OrganizationUpdate(SQLModel):
     name: Optional[str] = None

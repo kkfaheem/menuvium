@@ -236,6 +236,18 @@ export default function PublicMenuPage() {
         "--theme-body-font": themeFonts ? `"${themeFonts.body}", sans-serif` : "inherit",
     } as React.CSSProperties;
 
+    const menuColorScheme = isLightHex(palette.bg) ? "light" : "dark";
+
+    // Prevent mobile browsers (and auto-darkening features) from forcing a dark scheme on light themes.
+    useEffect(() => {
+        const root = document.documentElement;
+        const previous = root.style.colorScheme;
+        root.style.colorScheme = menuColorScheme;
+        return () => {
+            root.style.colorScheme = previous;
+        };
+    }, [menuColorScheme]);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-black flex items-center justify-center text-white/50">
@@ -264,6 +276,39 @@ export default function PublicMenuPage() {
         return (
             <div className="rounded-3xl overflow-hidden border shadow-sm" style={{ borderColor: palette.border }}>
                 <img src={menu.banner_url} alt={`${menu.name} banner`} className="w-full h-44 object-cover" />
+            </div>
+        );
+    };
+
+    // Render title area with logo when title_design_config is enabled
+    const renderTitleArea = (headingClass: string = "text-xl font-bold tracking-tight") => {
+        const config = menu.title_design_config;
+
+        // If title design is enabled and we have a logo, render logo-based title
+        if (config?.enabled && menu.logo_url) {
+            return (
+                <div
+                    className="flex items-center justify-center mb-2"
+                    style={{ paddingTop: '4px', paddingBottom: '4px' }}
+                >
+                    <img
+                        src={menu.logo_url}
+                        alt={menu.name}
+                        className="object-contain"
+                        style={{
+                            transform: `scale(${config.logoScale || 1})`,
+                            maxHeight: '48px',
+                            transformOrigin: 'center'
+                        }}
+                    />
+                </div>
+            );
+        }
+
+        // Default to text-based title
+        return (
+            <div className="flex items-center justify-between mb-3">
+                <h1 className={`${headingClass} truncate pr-4 theme-heading`}>{menu.name}</h1>
             </div>
         );
     };
@@ -495,9 +540,7 @@ export default function PublicMenuPage() {
                 }}
             >
                 <div className="max-w-md mx-auto p-4">
-                    <div className="flex items-center justify-between mb-4">
-                        <h1 className="text-xl font-bold tracking-tight truncate pr-4 theme-heading">{menu.name}</h1>
-                    </div>
+                    {renderTitleArea("text-xl font-bold tracking-tight")}
 
                     <div className="relative group">
                         <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
@@ -584,38 +627,34 @@ export default function PublicMenuPage() {
                                                 ${item.price.toFixed(2)}
                                             </div>
 
-                                            <div className="flex gap-1.5">
-                                                {(item.dietary_tags ?? []).slice(0, 3).map((tag, index) => (
-                                                    <span
-                                                        key={`${item.id}-diet-${tag.id ?? tag.name ?? index}`}
-                                                        className="w-2 h-2 rounded-full bg-blue-400/60 ring-2 ring-blue-400/20"
-                                                    />
-                                                ))}
-                                                {(item.allergens?.length ?? 0) > 0 && (
-                                                    <span className="w-2 h-2 rounded-full bg-red-400/60 ring-2 ring-red-400/20" />
-                                                )}
-                                            </div>
+                                            <span />
                                         </div>
                                     </div>
 
                                     {(item.photo_url || item.photos?.[0]?.url) ? (
                                         <div
-                                            className="w-28 h-28 shrink-0 rounded-2xl overflow-hidden relative img-zoom-container"
-                                            style={{
-                                                backgroundColor: palette.surfaceAlt,
-                                                boxShadow: `0 8px 32px -8px rgba(0,0,0,0.4)`
-                                            }}
+                                            className="w-28 shrink-0 flex flex-col items-end gap-2"
                                         >
-                                            <img
-                                                src={item.photo_url || item.photos?.[0]?.url}
-                                                alt={item.name}
-                                                className="w-full h-full object-cover"
-                                            />
-                                            {item.is_sold_out && (
-                                                <div className="absolute inset-0 bg-black/75 flex items-center justify-center backdrop-blur-sm">
-                                                    <span className="text-xs font-black uppercase tracking-widest rotate-[-12deg] border-2 border-red-500 px-2 py-1 text-red-400 bg-black/90 shadow-2xl">Sold Out</span>
-                                                </div>
-                                            )}
+                                            <div
+                                                className="w-28 h-28 rounded-2xl overflow-hidden relative img-zoom-container"
+                                                style={{
+                                                    backgroundColor: palette.surfaceAlt,
+                                                    boxShadow: `0 8px 32px -8px rgba(0,0,0,0.4)`
+                                                }}
+                                            >
+                                                <img
+                                                    src={item.photo_url || item.photos?.[0]?.url}
+                                                    alt={item.name}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                                {item.is_sold_out && (
+                                                    <div className="absolute inset-0 bg-black/75 flex items-center justify-center backdrop-blur-sm">
+                                                        <span className="text-xs font-black uppercase tracking-widest rotate-[-12deg] border-2 border-red-500 px-2 py-1 text-red-400 bg-black/90 shadow-2xl">Sold Out</span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <span />
                                         </div>
                                     ) : (
                                         item.is_sold_out && (
@@ -658,9 +697,7 @@ export default function PublicMenuPage() {
                 }}
             >
                 <div className="max-w-md mx-auto p-4">
-                    <div className="flex items-center justify-between mb-4">
-                        <h1 className="text-2xl font-semibold tracking-tight theme-heading">{menu.name}</h1>
-                    </div>
+                    {renderTitleArea("text-2xl font-semibold tracking-tight")}
                     <div className="relative">
                         <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                             <Search className="h-4 w-4" style={{ color: palette.muted }} />
@@ -770,10 +807,7 @@ export default function PublicMenuPage() {
                 }}
             >
                 <div className="max-w-md mx-auto p-4">
-                    <div className="flex items-center justify-between mb-4">
-                        <h1 className="text-3xl tracking-wide theme-heading">{menu.name}</h1>
-                        <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: palette.accent }}>Menu</span>
-                    </div>
+                    {renderTitleArea("text-3xl tracking-wide")}
                     <div className="relative">
                         <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                             <Search className="h-4 w-4" style={{ color: palette.accent }} />
@@ -872,9 +906,7 @@ export default function PublicMenuPage() {
                 }}
             >
                 <div className="max-w-md mx-auto p-4">
-                    <div className="flex items-center justify-between mb-3">
-                        <h1 className="text-2xl font-semibold tracking-tight theme-heading">{menu.name}</h1>
-                    </div>
+                    {renderTitleArea("text-2xl font-semibold tracking-tight")}
                     <div className="relative">
                         <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                             <Search className="h-4 w-4" style={{ color: palette.muted }} />
@@ -997,7 +1029,7 @@ export default function PublicMenuPage() {
     };
 
     return (
-        <div className="min-h-screen">
+        <div className="min-h-screen" style={{ colorScheme: menuColorScheme }}>
             {renderTheme()}
 
             {selectedItem && (

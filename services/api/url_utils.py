@@ -1,4 +1,6 @@
 from fastapi import Request
+from typing import Optional
+from urllib.parse import urlparse
 
 
 def external_base_url(request: Request, default_prefix: str = "") -> str:
@@ -18,3 +20,29 @@ def external_base_url(request: Request, default_prefix: str = "") -> str:
 
     return f"{scheme}://{host}{prefix}".rstrip("/")
 
+
+def forwarded_prefix(request: Request, default_prefix: str = "") -> str:
+    prefix = request.headers.get("x-forwarded-prefix") or default_prefix
+    prefix = prefix.rstrip("/")
+    return prefix
+
+
+def normalize_upload_url(url: Optional[str], request: Request, default_prefix: str = "") -> Optional[str]:
+    """
+    Normalize local upload URLs so they work across devices.
+
+    - If `url` is already relative, return it.
+    - If `url` contains `/uploads/<key>`, return `/<prefix>/uploads/<key>` using forwarded prefix.
+    """
+    if not url:
+        return url
+    if url.startswith("/"):
+        return url
+
+    path = urlparse(url).path or ""
+    if "/uploads/" not in path:
+        return url
+
+    key = path.split("/uploads/", 1)[1].lstrip("/")
+    prefix = forwarded_prefix(request, default_prefix=default_prefix)
+    return f"{prefix}/uploads/{key}" if prefix else f"/uploads/{key}"

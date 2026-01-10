@@ -41,6 +41,23 @@ export interface Category {
     items: Item[];
 }
 
+export interface TitleDesignConfig {
+    enabled?: boolean;
+    logoPosition?: "left" | "center" | "right";
+    logoScale?: number;
+    spacing?: {
+        top: number;
+        bottom: number;
+        horizontal: number;
+    };
+    layout?: "logo-only" | "logo-with-text";
+    textPosition?: "beside" | "below" | "none";
+    dominantColors?: string[];
+    recommendation?: string;
+    generatedAt?: string;
+    logoUrl?: string;
+}
+
 export interface Menu {
     id: string;
     name: string;
@@ -49,6 +66,7 @@ export interface Menu {
     theme?: string;
     banner_url?: string | null;
     logo_url?: string | null;
+    title_design_config?: TitleDesignConfig | null;
     currency?: string;
     org_id?: string;
     categories: Category[];
@@ -111,4 +129,5 @@ export interface MenuFormData {
     theme?: string;
     banner_url?: string | null;
     logo_url?: string | null;
+    title_design_config?: TitleDesignConfig | null;
 }

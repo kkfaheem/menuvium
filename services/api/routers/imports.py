@@ -17,7 +17,7 @@ from database import get_session
 from dependencies import get_current_user
 from models import Category, Item, Menu, Organization
 from permissions import get_org_permissions
-from url_utils import external_base_url
+from url_utils import forwarded_prefix
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 SessionDep = Depends(get_session)
@@ -344,7 +344,7 @@ def _upload_image_to_storage(
     image_data: bytes,
     filename: str,
     content_type: str = "image/jpeg",
-    base_url: str = ""
+    public_prefix: str = ""
 ) -> tuple[str, str]:
     """
     Upload image to S3 or local storage.
@@ -369,8 +369,8 @@ def _upload_image_to_storage(
         target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("wb") as f:
             f.write(image_data)
-        # Use full base URL for local uploads
-        public_url = f"{base_url}/uploads/{key}" if base_url else f"/uploads/{key}"
+        prefix = public_prefix.rstrip("/")
+        public_url = f"{prefix}/uploads/{key}" if prefix else f"/uploads/{key}"
         return key, public_url
     else:
         raise HTTPException(status_code=500, detail="No storage configured for uploads")
@@ -402,7 +402,7 @@ def import_menu_from_zip(
     Missing dietary tags and allergens will be auto-created.
     """
     menu = _get_menu_or_404(menu_id, session, user)
-    base_url = external_base_url(request)
+    public_prefix = forwarded_prefix(request)
     
     # Validate file type
     if not file.filename or not file.filename.lower().endswith(".zip"):
@@ -537,7 +537,7 @@ def import_menu_from_zip(
                     
                     # Upload to storage
                     s3_key, public_url = _upload_image_to_storage(
-                        image_data, image_filename, content_type, base_url
+                        image_data, image_filename, content_type, public_prefix
                     )
                     
                     # Create photo record

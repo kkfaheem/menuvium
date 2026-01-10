@@ -7,7 +7,7 @@ import uuid
 from main import app
 from database import get_session
 from dependencies import get_current_user
-from models import Organization
+from models import Organization, OrganizationMember
 
 
 @pytest.fixture(name="session")
@@ -59,3 +59,39 @@ def test_list_organizations(client: TestClient):
         headers={"Authorization": "Bearer mocktoken"}
     )
     assert response.status_code == 200, response.text
+
+
+def test_list_organizations_matches_member_email_case_insensitive(session: Session):
+    def get_session_override():
+        return session
+
+    def mock_get_current_user():
+        return {"sub": "member-user", "email": "Test.User@Example.com"}
+
+    app.dependency_overrides[get_session] = get_session_override
+    app.dependency_overrides[get_current_user] = mock_get_current_user
+    client = TestClient(app)
+
+    org = Organization(name="Owned by someone else", slug="other-org", owner_id="other-user")
+    session.add(org)
+    session.commit()
+    session.refresh(org)
+
+    session.add(
+        OrganizationMember(
+            org_id=org.id,
+            email="test.user@example.com",
+            can_manage_availability=False,
+            can_edit_items=False,
+            can_manage_menus=True,
+            can_manage_users=False,
+        )
+    )
+    session.commit()
+
+    res = client.get("/organizations/", headers={"Authorization": "Bearer mocktoken"})
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert any(o["id"] == str(org.id) for o in data)
+
+    app.dependency_overrides.clear()

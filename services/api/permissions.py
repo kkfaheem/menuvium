@@ -45,6 +45,8 @@ def get_org_permissions(session: Session, org_id: uuid.UUID, user: dict) -> OrgP
         )
 
     email: Optional[str] = user.get("email")
+    if isinstance(email, str):
+        email = email.strip().lower() or None
     if not email:
         return OrgPermissions(
             is_owner=False,
@@ -76,4 +78,3 @@ def get_org_permissions(session: Session, org_id: uuid.UUID, user: dict) -> OrgP
         can_manage_menus=member.can_manage_menus,
         can_manage_users=member.can_manage_users,
     )
-

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Loader2, PencilLine, Sparkles, Link, Upload, Package } from "lucide-react";
+import { Check, Loader2, PencilLine, Sparkles, Link, Upload, Package } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
@@ -57,7 +58,7 @@ export default function CreateMenuFlow({
     const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>(providedOrganizations || []);
     const [selectedOrg, setSelectedOrg] = useState<string>(initialOrgId || "");
     const [menuName, setMenuName] = useState(initialMenuName || "");
-    const [mode, setMode] = useState<"manual" | "import">("manual");
+    const [mode, setMode] = useState<"manual" | "import">("import");
     const [creating, setCreating] = useState(false);
     const [importFiles, setImportFiles] = useState<File[]>([]);
     const [importUrl, setImportUrl] = useState("");
@@ -80,6 +81,8 @@ export default function CreateMenuFlow({
     } | null>(null);
     const [isPreviewingZip, setIsPreviewingZip] = useState(false);
     const [isImportingZip, setIsImportingZip] = useState(false);
+    const importFilesInputRef = useRef<HTMLInputElement | null>(null);
+    const importZipInputRef = useRef<HTMLInputElement | null>(null);
 
     const [resolvedVariant, setResolvedVariant] = useState<"light" | "dark">(
         variant === "dark" ? "dark" : "light"
@@ -450,146 +453,155 @@ export default function CreateMenuFlow({
     const selectedOrgName = organizations.find((org) => org.id === selectedOrg)?.name || "Company locked";
     const canManageMenus = orgPermissions ? orgPermissions.can_manage_menus : true;
 
+    // Helper to check if step is complete
+    const isStep1Complete = Boolean(mode);
+    const isStep2Complete =
+        mode === "manual" ||
+        (mode === "import" &&
+            ((importTab === "files" && importFiles.length > 0) ||
+                (importTab === "url" && importUrl.trim().length > 0) ||
+                (importTab === "menuvium" && Boolean(zipFile))));
+    const isStep3Complete = selectedOrg !== "";
+
+    // Step indicator component
+    const StepIndicator = ({ number, title, isActive, isComplete }: { number: number; title: string; isActive: boolean; isComplete: boolean }) => (
+        <div className="flex items-center gap-3 mb-4">
+            <div className={`
+                w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300
+                ${isComplete
+                    ? "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30"
+                    : isActive
+                        ? "bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30"
+                        : `border-2 ${palette.border} ${palette.muted}`
+                }
+            `}>
+                {isComplete ? <Check className="w-4 h-4" /> : number}
+            </div>
+            <div>
+                <span className={`text-xs uppercase tracking-wide ${isActive || isComplete ? palette.text : palette.muted}`}>
+                    Step {number}
+                </span>
+                <h3 className={`text-base font-bold ${palette.text}`}>{title}</h3>
+            </div>
+        </div>
+    );
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
+            {/* Hero Section - Simplified */}
             <div className={`relative overflow-hidden rounded-3xl border ${palette.border} ${palette.panel} p-6 md:p-8`}>
                 <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute -top-24 -right-20 h-48 w-48 rounded-full bg-amber-300/10 blur-[80px]" />
-                    <div className="absolute -bottom-24 -left-16 h-48 w-48 rounded-full bg-emerald-300/10 blur-[90px]" />
+                    <div className="absolute -top-24 -right-20 h-48 w-48 rounded-full bg-purple-500/10 blur-[80px]" />
+                    <div className="absolute -bottom-24 -left-16 h-48 w-48 rounded-full bg-pink-500/10 blur-[90px]" />
                 </div>
-                <div className={`relative ${showMenuDetails ? "grid gap-6 md:grid-cols-[1.15fr_0.85fr]" : "space-y-4"} items-center`}>
-                    <div className="space-y-3">
-                        <p className={`text-xs uppercase tracking-[0.3em] ${palette.muted}`}>{heroLabel}</p>
-                        <h2 className={`text-3xl md:text-4xl font-bold tracking-tight ${palette.text}`}>
-                            {heroTitle}
-                        </h2>
-                        <p className={`text-sm ${palette.muted}`}>
-                            {heroDescription}
-                        </p>
-                        {!showMenuDetails && (
-                            <div className="flex flex-wrap gap-2 pt-2 text-xs">
-                                <span className={`px-3 py-1 rounded-full border ${palette.border} ${palette.panelMuted}`}>
-                                    Menu: {menuName || "Untitled menu"}
-                                </span>
-                                <span className={`px-3 py-1 rounded-full border ${palette.border} ${palette.panelMuted}`}>
-                                    Company: {selectedOrgName}
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                    {showMenuDetails && (
-                        <div className="space-y-3">
-                            <div className={`text-xs uppercase tracking-[0.2em] ${palette.muted}`}>Menu details</div>
-                            <input
-                                value={menuName}
-                                onChange={(e) => setMenuName(e.target.value)}
-                                placeholder="Menu name (optional for import)"
-                                disabled={lockMenuName}
-                                className={`w-full h-11 rounded-xl px-4 focus:outline-none focus:border-current border ${palette.input} ${lockMenuName ? "opacity-70 cursor-not-allowed" : ""}`}
-                            />
-                            {allowOrgSelect ? (
-                                <select
-                                    value={selectedOrg}
-                                    onChange={(e) => setSelectedOrg(e.target.value)}
-                                    className={`w-full h-11 rounded-xl px-4 focus:outline-none border ${palette.input}`}
-                                >
-                                    {organizations.map((org) => (
-                                        <option key={org.id} value={org.id}>{org.name}</option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <div className={`h-11 rounded-xl px-4 flex items-center border ${palette.input}`}>
-                                    {selectedOrgName}
-                                </div>
-                            )}
-                            <p className={`text-xs ${palette.muted}`}>{selectedOrg ? "Company locked for this menu." : "Select a company to continue."}</p>
-                            {permissionsError && (
-                                <p className={`text-xs ${palette.muted}`}>{permissionsError}</p>
-                            )}
-                            {!permissionsLoading && orgPermissions && !orgPermissions.can_manage_menus && (
-                                <p className={`text-xs ${palette.muted}`}>
-                                    You don’t have permission to create menus for this company.
-                                </p>
-                            )}
-                        </div>
-                    )}
+                <div className="relative text-center max-w-xl mx-auto">
+                    <p className={`text-xs uppercase tracking-[0.3em] ${palette.muted} mb-2`}>{heroLabel}</p>
+                    <h2 className={`text-3xl md:text-4xl font-bold tracking-tight ${palette.text} mb-2`}>
+                        {heroTitle}
+                    </h2>
+                    <p className={`text-sm ${palette.muted}`}>
+                        {heroDescription}
+                    </p>
                 </div>
             </div>
 
-            <div className={`rounded-3xl border ${palette.border} ${palette.panel} p-6 space-y-5`}>
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                        <h3 className={`text-lg font-bold ${palette.text}`}>Choose a starting point</h3>
-                        <p className={`text-sm ${palette.muted}`}>Switch anytime after creation.</p>
-                    </div>
-                    <div className={`inline-flex rounded-full border ${palette.border} ${palette.panelMuted} p-1`}>
-                        <button
-                            onClick={() => setMode("manual")}
-                            className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors ${mode === "manual" ? palette.primary : palette.muted}`}
-                        >
-                            Manual build
-                        </button>
-                        <button
-                            onClick={() => setMode("import")}
-                            className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors ${mode === "import" ? palette.primary : palette.muted}`}
-                        >
-                            Import
-                        </button>
-                    </div>
-                </div>
+            {/* Step 1: Choose Your Path */}
+            <div className={`rounded-3xl border ${palette.border} ${palette.panel} p-6`}>
+                <StepIndicator number={1} title="Choose your path" isActive={true} isComplete={isStep1Complete && isStep2Complete} />
 
-                {mode === "manual" && (
-                    <div className={`rounded-2xl border ${palette.border} ${palette.panelMuted} p-5 flex flex-col gap-3`}>
-                        <div className="flex items-center gap-3">
-                            <div className={`h-10 w-10 rounded-2xl ${palette.pill} flex items-center justify-center`}>
-                                <PencilLine className="w-5 h-5" />
+                <div className="grid gap-4 sm:grid-cols-2">
+                    {/* Import Option */}
+                    <button
+                        type="button"
+                        onClick={() => setMode("import")}
+                        className={`
+                            group relative rounded-2xl p-5 text-left transition-all duration-300 overflow-hidden
+                            ${mode === "import"
+                                ? "bg-gradient-to-br from-purple-500/10 via-pink-500/5 to-transparent border-2 border-purple-500/50 shadow-xl shadow-purple-500/10"
+                                : `border-2 ${palette.border} hover:border-purple-500/30 hover:bg-purple-500/5`
+                            }
+                        `}
+                    >
+                        {mode === "import" && (
+                            <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
+                                <Check className="w-4 h-4 text-white" />
                             </div>
-                            <div>
-                                <h4 className={`text-base font-bold ${palette.text}`}>Create manually</h4>
-                                <p className={`text-sm ${palette.muted}`}>Add categories, items, and pricing from scratch.</p>
-                            </div>
+                        )}
+                        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110`}>
+                            <Sparkles className={`w-6 h-6 ${mode === "import" ? "text-purple-400" : palette.muted}`} />
                         </div>
-                        <button
-                            onClick={createManualMenu}
-                            disabled={creating || !menuName.trim() || !selectedOrg || permissionsLoading || !canManageMenus}
-                            className={`h-12 rounded-2xl font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50 ${palette.primary}`}
-                        >
-                            {creating && <Loader2 className="w-4 h-4 animate-spin" />}
-                            Create menu
-                        </button>
-                    </div>
-                )}
-
-                {mode === "import" && (
-                    <div className={`rounded-2xl border ${palette.border} ${palette.panelMuted} p-5 space-y-4`}>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h4 className={`text-base font-bold ${palette.text}`}>Import menu</h4>
-                                <p className={`text-sm ${palette.muted}`}>Upload files or paste a public URL.</p>
-                            </div>
-                            <span className={`text-xs inline-flex items-center gap-1 ${palette.muted}`}>
-                                <Sparkles className="w-3 h-3" /> OCR + AI
+                        <div className="flex items-center gap-2 mb-1">
+                            <h4 className={`font-bold ${palette.text}`}>Import existing menu</h4>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-semibold">
+                                AI-Powered
                             </span>
                         </div>
+                        <p className={`text-sm ${palette.muted}`}>
+                            Upload PDFs, images, or paste a URL. AI extracts all items automatically.
+                        </p>
+                    </button>
 
+                    {/* Manual Option */}
+                    <button
+                        type="button"
+                        onClick={() => setMode("manual")}
+                        className={`
+                            group relative rounded-2xl p-5 text-left transition-all duration-300 overflow-hidden
+                            ${mode === "manual"
+                                ? "bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent border-2 border-emerald-500/50 shadow-xl shadow-emerald-500/10"
+                                : `border-2 ${palette.border} hover:border-emerald-500/30 hover:bg-emerald-500/5`
+                            }
+                        `}
+                    >
+                        {mode === "manual" && (
+                            <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg">
+                                <Check className="w-4 h-4 text-white" />
+                            </div>
+                        )}
+                        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110`}>
+                            <PencilLine className={`w-6 h-6 ${mode === "manual" ? "text-emerald-400" : palette.muted}`} />
+                        </div>
+                        <h4 className={`font-bold mb-1 ${palette.text}`}>Start from scratch</h4>
+                        <p className={`text-sm ${palette.muted}`}>
+                            Create an empty menu and add your items manually in the editor.
+                        </p>
+                    </button>
+                </div>
+            </div>
+
+            {/* Step 2: Add Your Content */}
+            <div className={`rounded-3xl border ${palette.border} ${palette.panel} p-6 transition-all duration-300 ${!mode ? "opacity-50 pointer-events-none" : ""}`}>
+                <StepIndicator number={2} title={mode === "manual" ? "Ready to go" : "Add your content"} isActive={!!mode} isComplete={isStep2Complete} />
+
+                {mode === "manual" ? (
+                    <div className={`rounded-2xl border-2 border-dashed ${palette.border} p-6 text-center`}>
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center mx-auto mb-4">
+                            <Check className="w-7 h-7 text-emerald-400" />
+                        </div>
+                        <h4 className={`font-bold mb-1 ${palette.text}`}>You're all set!</h4>
+                        <p className={`text-sm ${palette.muted}`}>
+                            We'll create an empty menu for you. Add categories and items in the editor.
+                        </p>
+                    </div>
+                ) : mode === "import" ? (
+                    <div className="space-y-4">
                         {/* Import source tabs */}
-                        <div className={`inline-flex rounded-full border ${palette.border} ${palette.panelMuted} p-1 flex-wrap`}>
+                        <div className={`inline-flex rounded-full border ${palette.border} ${palette.panelMuted} p-1 flex-wrap gap-1`}>
                             <button
                                 onClick={() => { setImportTab("files"); setParsedMenu(null); setZipPreview(null); }}
-                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors inline-flex items-center gap-1.5 ${importTab === "files" ? palette.primary : palette.muted}`}
+                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${importTab === "files" ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg" : palette.muted + " hover:bg-white/5"}`}
                             >
                                 <Upload className="w-3 h-3" /> Files
                             </button>
                             <button
                                 onClick={() => { setImportTab("url"); setParsedMenu(null); setZipPreview(null); }}
-                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors inline-flex items-center gap-1.5 ${importTab === "url" ? palette.primary : palette.muted}`}
+                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${importTab === "url" ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg" : palette.muted + " hover:bg-white/5"}`}
                             >
                                 <Link className="w-3 h-3" /> URL
                             </button>
                             <button
                                 onClick={() => { setImportTab("menuvium"); setParsedMenu(null); setZipFile(null); setZipPreview(null); }}
-                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-colors inline-flex items-center gap-1.5 ${importTab === "menuvium" ? palette.primary : palette.muted}`}
+                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${importTab === "menuvium" ? "bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg" : palette.muted + " hover:bg-white/5"}`}
                             >
                                 <Package className="w-3 h-3" /> Menuvium Export
                             </button>
@@ -598,24 +610,67 @@ export default function CreateMenuFlow({
                         {/* Files import */}
                         {importTab === "files" && (
                             <div className="space-y-3">
-                                <p className={`text-xs ${palette.muted}`}>
-                                    Upload one or more images/PDFs. Multiple files will be combined and parsed together.
-                                </p>
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <input
-                                        type="file"
-                                        accept="image/*,.pdf"
-                                        multiple
-                                        onChange={(e) => {
-                                            setImportFiles(Array.from(e.target.files || []));
-                                            setParsedMenu(null);
-                                        }}
-                                        className="text-sm"
-                                    />
+                                <input
+                                    ref={importFilesInputRef}
+                                    type="file"
+                                    accept="image/*,.pdf"
+                                    multiple
+                                    onChange={(e) => {
+                                        setImportFiles(Array.from(e.target.files || []));
+                                        setParsedMenu(null);
+                                        e.currentTarget.value = "";
+                                    }}
+                                    className="hidden"
+                                />
+                                <div
+                                    onDragOver={(e: DragEvent<HTMLDivElement>) => e.preventDefault()}
+                                    onDrop={(e: DragEvent<HTMLDivElement>) => {
+                                        e.preventDefault();
+                                        const next = Array.from(e.dataTransfer.files || []).filter(
+                                            (file) => file.type.startsWith("image/") || file.type === "application/pdf"
+                                        );
+                                        if (!next.length) return;
+                                        setImportFiles(next);
+                                        setParsedMenu(null);
+                                    }}
+                                    className={`rounded-2xl border-2 border-dashed ${importFiles.length > 0 ? "border-purple-500/50 bg-purple-500/5" : palette.border} p-6 text-center transition-all hover:border-purple-500/30`}
+                                >
+                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center mx-auto mb-3">
+                                        <Upload className="w-6 h-6 text-purple-400" />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => importFilesInputRef.current?.click()}
+                                        className="text-sm font-semibold text-purple-400 hover:text-purple-300 transition-colors"
+                                    >
+                                        Choose files
+                                    </button>
+                                    <span className={`text-sm ${palette.muted}`}> or drag and drop</span>
+                                    <p className={`text-xs ${palette.muted} mt-2`}>PDF, PNG, JPG supported</p>
+
                                     {importFiles.length > 0 && (
-                                        <span className={`text-xs ${palette.muted}`}>
-                                            {importFiles.length} file{importFiles.length > 1 ? "s" : ""} selected
-                                        </span>
+                                        <div className="mt-4 pt-4 border-t border-white/10">
+                                            <div className="flex flex-wrap gap-2 justify-center">
+                                                {importFiles.slice(0, 6).map((file) => (
+                                                    <span
+                                                        key={`${file.name}-${file.size}`}
+                                                        className="text-[11px] px-3 py-1 rounded-full bg-purple-500/20 text-purple-300"
+                                                    >
+                                                        {file.name}
+                                                    </span>
+                                                ))}
+                                                {importFiles.length > 6 && (
+                                                    <span className={`text-[11px] ${palette.muted}`}>+{importFiles.length - 6} more</span>
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setImportFiles([]); setParsedMenu(null); }}
+                                                className={`mt-2 text-xs ${palette.muted} hover:text-red-400 transition-colors`}
+                                            >
+                                                Clear all
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             </div>
@@ -635,7 +690,7 @@ export default function CreateMenuFlow({
                                         setImportUrl(e.target.value);
                                         setParsedMenu(null);
                                     }}
-                                    className={`w-full h-11 rounded-xl px-4 focus:outline-none focus:border-current border ${palette.input}`}
+                                    className={`w-full h-12 rounded-xl px-4 focus:outline-none focus:ring-2 focus:ring-purple-500/30 border ${palette.input} transition-all`}
                                 />
                             </div>
                         )}
@@ -648,11 +703,27 @@ export default function CreateMenuFlow({
                                 </p>
                                 <div className="flex flex-wrap items-center gap-3">
                                     <input
+                                        ref={importZipInputRef}
                                         type="file"
                                         accept=".zip"
-                                        onChange={(e) => handleZipFileChange(e.target.files?.[0] || null)}
-                                        className="text-sm"
+                                        onChange={(e) => {
+                                            handleZipFileChange(e.target.files?.[0] || null);
+                                            e.currentTarget.value = "";
+                                        }}
+                                        className="hidden"
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => importZipInputRef.current?.click()}
+                                        className="h-11 px-5 rounded-xl font-semibold text-sm inline-flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:shadow-purple-500/30 transition-all"
+                                    >
+                                        <Package className="w-4 h-4" /> Choose export ZIP
+                                    </button>
+                                    {zipFile && (
+                                        <span className={`text-xs ${palette.muted}`}>
+                                            {zipFile.name}
+                                        </span>
+                                    )}
                                     {isPreviewingZip && (
                                         <span className={`text-xs ${palette.muted} flex items-center gap-1`}>
                                             <Loader2 className="w-3 h-3 animate-spin" /> Previewing...
@@ -662,7 +733,7 @@ export default function CreateMenuFlow({
 
                                 {/* ZIP Preview */}
                                 {zipPreview && (
-                                    <div className={`rounded-xl border p-4 space-y-2 ${palette.border} ${palette.panelMuted}`}>
+                                    <div className={`rounded-xl border p-4 space-y-3 ${palette.border} bg-gradient-to-br from-purple-500/5 to-pink-500/5`}>
                                         <div className="flex items-center justify-between">
                                             <h5 className={`text-sm font-semibold ${palette.text}`}>{zipPreview.menu_name}</h5>
                                             <span className={`text-xs ${palette.muted}`}>v{zipPreview.version}</span>
@@ -672,67 +743,145 @@ export default function CreateMenuFlow({
                                             <span>{zipPreview.items_count} items</span>
                                             <span>{zipPreview.has_images ? "✓ Images included" : "No images"}</span>
                                         </div>
-                                        <button
-                                            onClick={handleImportFromZip}
-                                            disabled={isImportingZip || permissionsLoading || !canManageMenus || !selectedOrg}
-                                            className={`mt-2 h-10 px-4 rounded-lg font-semibold text-sm disabled:opacity-50 ${palette.primary}`}
-                                        >
-                                            {isImportingZip ? (
-                                                <span className="flex items-center gap-2">
-                                                    <Loader2 className="w-4 h-4 animate-spin" /> Importing...
-                                                </span>
-                                            ) : (
-                                                "Import & open"
-                                            )}
-                                        </button>
                                     </div>
                                 )}
                             </div>
                         )}
 
-                        {/* Parse button - only for files/url tabs */}
-                        {importTab !== "menuvium" && (
-                            <div className="flex flex-wrap items-center gap-3">
-                                <button
-                                    onClick={handleParseImport}
-                                    disabled={
-                                        (importTab === "files" && importFiles.length === 0) ||
-                                        (importTab === "url" && !importUrl.trim()) ||
-                                        isParsing || !selectedOrg || permissionsLoading || !canManageMenus
-                                    }
-                                    className={`h-10 px-4 rounded-lg font-semibold text-sm disabled:opacity-50 ${palette.primary}`}
-                                >
-                                    {isParsing ? "Parsing..." : "Parse menu"}
-                                </button>
-                                {parsedMenu && (
-                                    <button
-                                        onClick={handleApplyImport}
-                                        disabled={isImporting || permissionsLoading || !canManageMenus}
-                                        className={`h-10 px-4 rounded-lg font-semibold text-sm border ${palette.border} ${palette.panelMuted} disabled:opacity-50`}
-                                    >
-                                        {isImporting ? "Importing..." : "Import & open"}
-                                    </button>
-                                )}
-                            </div>
-                        )}
-
+                        {/* Parsed menu preview */}
                         {parsedMenu && (
-                            <div className="space-y-4">
+                            <div className="space-y-3 mt-4">
+                                <div className={`text-xs font-semibold uppercase tracking-wide ${palette.muted}`}>Preview</div>
                                 {parsedMenu.categories.map((cat, idx) => (
-                                    <div key={`${cat.name}-${idx}`} className={`border ${palette.border} rounded-2xl p-4`}>
+                                    <div key={`${cat.name}-${idx}`} className={`border ${palette.border} rounded-2xl p-4 bg-gradient-to-br from-purple-500/5 to-transparent`}>
                                         <h4 className={`font-bold mb-2 ${palette.text}`}>{cat.name}</h4>
                                         <ul className={`text-sm ${palette.muted} space-y-1`}>
-                                            {cat.items.map((item, itemIdx) => (
+                                            {cat.items.slice(0, 5).map((item, itemIdx) => (
                                                 <li key={`${item.name}-${itemIdx}`}>
                                                     {item.name}{item.price != null ? ` — $${item.price}` : ""}{item.description ? ` · ${item.description}` : ""}
                                                 </li>
                                             ))}
+                                            {cat.items.length > 5 && (
+                                                <li className="text-purple-400">+{cat.items.length - 5} more items</li>
+                                            )}
                                         </ul>
                                     </div>
                                 ))}
                             </div>
                         )}
                     </div>
+                ) : (
+                    <div className={`rounded-2xl border-2 border-dashed ${palette.border} p-6 text-center`}>
+                        <p className={`text-sm ${palette.muted}`}>Select a path above to continue</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Step 3: Menu Details */}
+            <div className={`rounded-3xl border ${palette.border} ${palette.panel} p-6 transition-all duration-300 ${!isStep2Complete ? "opacity-50 pointer-events-none" : ""}`}>
+                <StepIndicator number={3} title="Menu details" isActive={isStep2Complete} isComplete={isStep3Complete && menuName.trim() !== ""} />
+
+                {showMenuDetails && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <label className={`text-xs font-semibold uppercase tracking-wide ${palette.muted}`}>
+                                Menu name {mode === "import" && <span className="normal-case font-normal">(optional)</span>}
+                            </label>
+                            <input
+                                value={menuName}
+                                onChange={(e) => setMenuName(e.target.value)}
+                                placeholder={mode === "import" ? "Auto-detected from import" : "e.g. Dinner Menu"}
+                                disabled={lockMenuName}
+                                className={`w-full h-12 rounded-xl px-4 focus:outline-none focus:ring-2 focus:ring-purple-500/30 border ${palette.input} ${lockMenuName ? "opacity-70 cursor-not-allowed" : ""} transition-all`}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className={`text-xs font-semibold uppercase tracking-wide ${palette.muted}`}>Company</label>
+                            {allowOrgSelect ? (
+                                <select
+                                    value={selectedOrg}
+                                    onChange={(e) => setSelectedOrg(e.target.value)}
+                                    className={`w-full h-12 rounded-xl px-4 focus:outline-none focus:ring-2 focus:ring-purple-500/30 border ${palette.input} transition-all`}
+                                >
+                                    {organizations.map((org) => (
+                                        <option key={org.id} value={org.id}>{org.name}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <div className={`h-12 rounded-xl px-4 flex items-center border ${palette.input}`}>
+                                    {selectedOrgName}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+                {permissionsError && (
+                    <p className={`text-xs text-red-400 mt-2`}>{permissionsError}</p>
+                )}
+                {!permissionsLoading && orgPermissions && !orgPermissions.can_manage_menus && (
+                    <p className={`text-xs text-amber-400 mt-2`}>
+                        You don't have permission to create menus for this company.
+                    </p>
+                )}
+            </div>
+
+            {/* Action Button */}
+            <div className="flex flex-col items-center gap-3">
+                {mode === "manual" ? (
+                    <button
+                        onClick={createManualMenu}
+                        disabled={creating || !selectedOrg || permissionsLoading || !canManageMenus || (mode === "manual" && !menuName.trim())}
+                        className="h-14 px-8 rounded-2xl font-bold text-base bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-xl shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                    >
+                        {creating && <Loader2 className="w-5 h-5 animate-spin" />}
+                        Create Menu
+                    </button>
+                ) : mode === "import" ? (
+                    importTab === "menuvium" && zipPreview ? (
+                        <button
+                            onClick={handleImportFromZip}
+                            disabled={isImportingZip || permissionsLoading || !canManageMenus || !selectedOrg}
+                            className="h-14 px-8 rounded-2xl font-bold text-base bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-xl shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                        >
+                            {isImportingZip && <Loader2 className="w-5 h-5 animate-spin" />}
+                            Import & Create Menu
+                        </button>
+                    ) : parsedMenu ? (
+                        <button
+                            onClick={handleApplyImport}
+                            disabled={isImporting || permissionsLoading || !canManageMenus}
+                            className="h-14 px-8 rounded-2xl font-bold text-base bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-xl shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                        >
+                            {isImporting && <Loader2 className="w-5 h-5 animate-spin" />}
+                            Import & Create Menu
+                        </button>
+                    ) : (
+                        <button
+                            onClick={handleParseImport}
+                            disabled={
+                                (importTab === "files" && importFiles.length === 0) ||
+                                (importTab === "url" && !importUrl.trim()) ||
+                                (importTab === "menuvium") ||
+                                isParsing || !selectedOrg || permissionsLoading || !canManageMenus
+                            }
+                            className="h-14 px-8 rounded-2xl font-bold text-base bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-xl shadow-purple-500/30 hover:shadow-purple-500/50 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+                        >
+                            {isParsing && <Loader2 className="w-5 h-5 animate-spin" />}
+                            <Sparkles className="w-5 h-5" />
+                            Parse Menu with AI
+                        </button>
+                    )
+                ) : (
+                    <button
+                        disabled
+                        className="h-14 px-8 rounded-2xl font-bold text-base bg-gradient-to-r from-gray-500 to-gray-600 text-white/50 cursor-not-allowed"
+                    >
+                        Select a path to continue
+                    </button>
+                )}
+
+                {mode === "manual" && !menuName.trim() && (
+                    <p className={`text-xs ${palette.muted}`}>Enter a menu name to continue</p>
                 )}
             </div>
 

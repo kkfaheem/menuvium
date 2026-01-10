@@ -1,11 +1,12 @@
 import uuid
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlmodel import Session, select
 from database import get_session
 from models import Category, Menu, CategoryRead, Item
 from dependencies import get_current_user
 from permissions import get_org_permissions
+from url_utils import normalize_upload_url
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 SessionDep = Depends(get_session)
@@ -32,7 +33,7 @@ def create_category(category: Category, session: Session = SessionDep, user: dic
     return category
 
 @router.get("/{menu_id}", response_model=List[CategoryRead])
-def list_categories(menu_id: uuid.UUID, session: Session = SessionDep):
+def list_categories(menu_id: uuid.UUID, request: Request, session: Session = SessionDep):
     # Publicly accessible for now? Or protected? 
     # Let's make it protected for manager view. Public view will use a different endpoint.
     from sqlalchemy.orm import selectinload
@@ -46,6 +47,10 @@ def list_categories(menu_id: uuid.UUID, session: Session = SessionDep):
             selectinload(Category.items).selectinload(Item.allergens),
         )
     ).all()
+    for category in categories:
+        for item in category.items or []:
+            for photo in item.photos or []:
+                photo.url = normalize_upload_url(photo.url, request)
     return categories
 
 @router.patch("/{category_id}", response_model=Category)

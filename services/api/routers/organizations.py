@@ -49,6 +49,8 @@ def create_organization(organization: Organization, session: SessionDep, user: U
 def list_my_organizations(session: SessionDep, user: UserDep):
     user_id = user["sub"]
     email = user.get("email")
+    if isinstance(email, str):
+        email = email.strip().lower() or None
     owned = session.exec(select(Organization).where(Organization.owner_id == user_id)).all()
     if not email:
         return owned
