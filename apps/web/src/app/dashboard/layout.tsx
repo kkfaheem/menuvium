@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -149,10 +149,18 @@ export default function DashboardLayout({
                         <Link
                             href="/dashboard/menus"
                             onClick={() => setNavOpen(false)}
-                            className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium ${pathname.startsWith('/dashboard/menus') ? 'bg-[var(--cms-pill)] text-[var(--cms-text)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]'}`}
+                            className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium ${pathname.startsWith('/dashboard/menus') && !pathname.includes('/themes') ? 'bg-[var(--cms-pill)] text-[var(--cms-text)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]'}`}
                         >
                             <UtensilsCrossed className="w-5 h-5" />
                             Menus
+                        </Link>
+                        <Link
+                            href="/dashboard/design-studio"
+                            onClick={() => setNavOpen(false)}
+                            className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium ${pathname.startsWith('/dashboard/design-studio') || pathname.includes('/themes') ? 'bg-[var(--cms-pill)] text-[var(--cms-text)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]'}`}
+                        >
+                            <Palette className="w-5 h-5" />
+                            Design Studio
                         </Link>
                         {!isManager && (
                             <Link

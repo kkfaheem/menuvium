@@ -64,6 +64,7 @@ export interface Menu {
     slug: string;
     is_active?: boolean;
     theme?: string;
+    show_item_images?: boolean;
     banner_url?: string | null;
     logo_url?: string | null;
     title_design_config?: TitleDesignConfig | null;
@@ -127,6 +128,7 @@ export interface MenuFormData {
     name: string;
     is_active?: boolean;
     theme?: string;
+    show_item_images?: boolean;
     banner_url?: string | null;
     logo_url?: string | null;
     title_design_config?: TitleDesignConfig | null;

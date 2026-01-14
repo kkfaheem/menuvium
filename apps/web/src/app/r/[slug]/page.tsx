@@ -175,6 +175,7 @@ export default function PublicMenuPage() {
     const activeTheme = MENU_THEME_BY_ID[themeId];
     const palette = activeTheme.palette;
     const themeLayout = activeTheme.layout;
+    const showImages = menu?.show_item_images !== false; // Default to true if not set
 
     // Dynamic font loading from theme configuration
     const themeFonts = activeTheme.fonts;
@@ -631,7 +632,7 @@ export default function PublicMenuPage() {
                                         </div>
                                     </div>
 
-                                    {(item.photo_url || item.photos?.[0]?.url) ? (
+                                    {showImages && (item.photo_url || item.photos?.[0]?.url) ? (
                                         <div
                                             className="w-28 shrink-0 flex flex-col items-end gap-2"
                                         >
@@ -763,7 +764,7 @@ export default function PublicMenuPage() {
                                 <button
                                     key={item.id}
                                     onClick={() => setSelectedItem(item)}
-                                    className={`w-full text-left px-5 py-4 flex items-start gap-3 transition-all duration-200 hover:bg-[var(--menu-surface-alt)] ${index > 0 ? 'border-t' : ''} ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
+                                    className={`w-full text-left px-5 py-4 flex items-start gap-4 transition-all duration-200 hover:bg-[var(--menu-surface-alt)] ${index > 0 ? 'border-t' : ''} ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
                                     style={{ borderColor: palette.border }}
                                 >
                                     <div className="flex-1 min-w-0">
@@ -777,6 +778,15 @@ export default function PublicMenuPage() {
                                             {item.description || "No description available."}
                                         </p>
                                     </div>
+                                    {showImages && (item.photo_url || item.photos?.[0]?.url) && (
+                                        <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: palette.surfaceAlt }}>
+                                            <img
+                                                src={item.photo_url || item.photos?.[0]?.url}
+                                                alt={item.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -872,15 +882,24 @@ export default function PublicMenuPage() {
                                     }}
                                 >
                                     <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
+                                        <div className="min-w-0 flex-1">
                                             <h3 className="font-bold text-base">{item.name}</h3>
                                             <p className="text-sm line-clamp-2 mt-1.5 leading-relaxed" style={{ color: palette.muted }}>
                                                 {item.description || "No description available."}
                                             </p>
+                                            <span className="inline-block mt-2 text-sm font-bold px-2.5 py-1 rounded-full" style={{ backgroundColor: `${palette.accent}15`, color: palette.accent }}>
+                                                ${item.price.toFixed(2)}
+                                            </span>
                                         </div>
-                                        <span className="text-sm font-bold shrink-0 px-2.5 py-1 rounded-full" style={{ backgroundColor: `${palette.accent}15`, color: palette.accent }}>
-                                            ${item.price.toFixed(2)}
-                                        </span>
+                                        {showImages && (item.photo_url || item.photos?.[0]?.url) && (
+                                            <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: palette.surfaceAlt }}>
+                                                <img
+                                                    src={item.photo_url || item.photos?.[0]?.url}
+                                                    alt={item.name}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -972,18 +991,29 @@ export default function PublicMenuPage() {
                                 <button
                                     key={item.id}
                                     onClick={() => setSelectedItem(item)}
-                                    className={`w-full text-left px-5 py-4 flex items-center justify-between gap-4 transition-all duration-200 hover:bg-[var(--menu-surface-alt)] ${index > 0 ? 'border-t' : ''} ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
+                                    className={`w-full text-left px-5 py-4 flex items-center gap-4 transition-all duration-200 hover:bg-[var(--menu-surface-alt)] ${index > 0 ? 'border-t' : ''} ${item.is_sold_out && soldOutDisplay === "dim" ? "opacity-60" : ""}`}
                                     style={{ borderColor: palette.border }}
                                 >
-                                    <div className="min-w-0">
-                                        <h3 className="font-semibold text-base">{item.name}</h3>
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <h3 className="font-semibold text-base">{item.name}</h3>
+                                            <span className="text-sm font-semibold shrink-0" style={{ color: palette.accent }}>
+                                                ${item.price.toFixed(2)}
+                                            </span>
+                                        </div>
                                         <p className="text-sm line-clamp-2 mt-1.5 leading-relaxed" style={{ color: palette.muted }}>
                                             {item.description || "No description available."}
                                         </p>
                                     </div>
-                                    <span className="text-sm font-semibold shrink-0" style={{ color: palette.accent }}>
-                                        ${item.price.toFixed(2)}
-                                    </span>
+                                    {showImages && (item.photo_url || item.photos?.[0]?.url) && (
+                                        <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0" style={{ backgroundColor: palette.surfaceAlt }}>
+                                            <img
+                                                src={item.photo_url || item.photos?.[0]?.url}
+                                                alt={item.name}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        </div>
+                                    )}
                                 </button>
                             ))}
                         </div>

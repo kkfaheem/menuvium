@@ -40,6 +40,7 @@ class MenuBase(SQLModel):
     slug: Optional[str] = Field(default=None, index=True) # Optional now, mostly for internal display
     is_active: bool = Field(default=True)
     theme: str = Field(default="noir")
+    show_item_images: bool = Field(default=True)  # Whether to show item images on public page
     banner_url: Optional[str] = None
     logo_url: Optional[str] = None
     title_design_config: Optional[dict] = Field(
@@ -158,6 +159,7 @@ class MenuUpdate(SQLModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None
     theme: Optional[str] = None
+    show_item_images: Optional[bool] = None
     banner_url: Optional[str] = None
     logo_url: Optional[str] = None
     title_design_config: Optional[dict] = None

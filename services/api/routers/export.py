@@ -74,15 +74,44 @@ class MenuExportManifest(BaseModel):
     menu_theme: str
     menu_is_active: bool
     menu_banner_url: Optional[str] = None
+    menu_banner_filename: Optional[str] = None  # Path in ZIP for banner image
     menu_logo_url: Optional[str] = None
+    menu_logo_filename: Optional[str] = None  # Path in ZIP for logo image
     categories: List[CategoryExport]
 
 
 def _download_image(url: str, timeout: float = 10.0) -> Optional[bytes]:
-    """Download image from URL. Returns None if download fails."""
+    """Download image from URL. Returns None if download fails.
+    
+    Handles special cases:
+    - Local uploads: Reads directly from filesystem
+    - localhost URLs: Rewrites to internal Docker service name
+    """
+    from pathlib import Path
+    
+    # Handle local uploads - read directly from filesystem
+    if "/uploads/" in url:
+        # Extract the relative path from the URL
+        # e.g. "http://localhost:3000/api/uploads/items/abc.png" -> "items/abc.png"
+        parts = url.split("/uploads/")
+        if len(parts) == 2:
+            relative_path = parts[1]
+            local_path = Path(__file__).resolve().parent.parent / "uploads" / relative_path
+            if local_path.exists():
+                try:
+                    return local_path.read_bytes()
+                except Exception:
+                    pass  # Fall through to HTTP download
+    
+    # Rewrite localhost URLs to use Docker internal network
+    modified_url = url
+    if "localhost:3000" in url or "127.0.0.1:3000" in url:
+        # Inside Docker, web service is accessible as "web:3000"
+        modified_url = url.replace("localhost:3000", "web:3000").replace("127.0.0.1:3000", "web:3000")
+    
     try:
         with httpx.Client(timeout=timeout, follow_redirects=True) as client:
-            response = client.get(url)
+            response = client.get(modified_url)
             response.raise_for_status()
             return response.content
     except Exception:
@@ -178,6 +207,28 @@ def export_menu(
             items=items_export
         ))
     
+    # Prepare banner/logo for export
+    banner_filename = None
+    logo_filename = None
+    
+    if menu.banner_url:
+        ext = ".jpg"
+        if "." in menu.banner_url.split("/")[-1]:
+            ext_part = menu.banner_url.split("/")[-1].split(".")[-1].split("?")[0]
+            if ext_part.lower() in ["jpg", "jpeg", "png", "gif", "webp"]:
+                ext = f".{ext_part.lower()}"
+        banner_filename = f"images/banner{ext}"
+        images_to_download.append((menu.banner_url, banner_filename, "banner"))
+    
+    if menu.logo_url:
+        ext = ".jpg"
+        if "." in menu.logo_url.split("/")[-1]:
+            ext_part = menu.logo_url.split("/")[-1].split(".")[-1].split("?")[0]
+            if ext_part.lower() in ["jpg", "jpeg", "png", "gif", "webp"]:
+                ext = f".{ext_part.lower()}"
+        logo_filename = f"images/logo{ext}"
+        images_to_download.append((menu.logo_url, logo_filename, "logo"))
+    
     # Create manifest
     manifest = MenuExportManifest(
         version="1.0",
@@ -187,7 +238,9 @@ def export_menu(
         menu_theme=menu.theme or "noir",
         menu_is_active=menu.is_active,
         menu_banner_url=menu.banner_url,
-        menu_logo_url=getattr(menu, "logo_url", None),
+        menu_banner_filename=banner_filename,
+        menu_logo_url=menu.logo_url,
+        menu_logo_filename=logo_filename,
         categories=categories_export
     )
     

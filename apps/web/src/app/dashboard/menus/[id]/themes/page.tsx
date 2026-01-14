@@ -45,6 +45,7 @@ interface Menu {
     id: string;
     name: string;
     theme?: string;
+    show_item_images?: boolean;
     banner_url?: string | null;
     logo_url?: string | null;
     title_design_config?: TitleDesignConfig | null;
@@ -373,6 +374,26 @@ export default function MenuThemesPage() {
         }
     };
 
+    const toggleItemImages = async (showImages: boolean) => {
+        if (!menu) return;
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${apiBase}/menus/${menu.id}`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ show_item_images: showImages })
+            });
+            if (!res.ok) throw new Error("Failed to update item images setting");
+            const updated = await res.json();
+            setMenu(updated);
+        } catch (e) {
+            console.error(e);
+            alert("Error updating item images setting");
+        }
+    };
 
     const applyTheme = async (themeId: MenuThemeId) => {
         if (!menu) return;
@@ -423,6 +444,14 @@ export default function MenuThemesPage() {
                             Customize your menu's branding and visual theme.
                         </p>
                     </div>
+                    <Link
+                        href={`/r/${menu?.id}`}
+                        target="_blank"
+                        className="h-9 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)] transition-colors"
+                    >
+                        <ExternalLink className="w-4 h-4" />
+                        View Public Page
+                    </Link>
                 </div>
             </header>
 
@@ -758,6 +787,30 @@ export default function MenuThemesPage() {
                                 />
                                 <p className="text-xs text-[var(--cms-muted)]">Recommended: 1600×900 or larger (16:9 aspect ratio).</p>
                             </div>
+                        </div>
+                    </section>
+
+                    {/* Item Images Toggle Section */}
+                    <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-6">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <h2 className="text-lg font-bold">Item Images</h2>
+                                <p className="text-sm text-[var(--cms-muted)]">
+                                    Show item photos on the public menu page.
+                                </p>
+                            </div>
+                            <label className="relative inline-flex items-center cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={menu?.show_item_images !== false}
+                                    onChange={(e) => toggleItemImages(e.target.checked)}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-[var(--cms-border)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500" />
+                                <span className="ms-2 text-xs font-medium text-[var(--cms-muted)] group-hover:text-[var(--cms-text)] transition-colors whitespace-nowrap">
+                                    {menu?.show_item_images !== false ? 'Visible' : 'Hidden'}
+                                </span>
+                            </label>
                         </div>
                     </section>
                 </>

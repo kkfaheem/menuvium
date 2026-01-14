@@ -1,0 +1,236 @@
+{
+    "version": "1.0",
+    "exported_at": "2026-01-10T20:35:00Z",
+    "menu_name": "The Gilded Fork",
+    "menu_slug": "gilded-fork",
+    "menu_theme": "noir",
+    "menu_is_active": true,
+    "menu_banner_url": null,
+    "menu_logo_url": null,
+    "categories": [
+        {
+            "name": "Starters",
+            "rank": 0,
+            "items": [
+                {
+                    "name": "Seared Ahi Tuna",
+                    "description": "Sesame-crusted ahi tuna, sliced thin and served with wasabi aioli, pickled ginger, and microgreens",
+                    "price": 18.95,
+                    "position": 0,
+                    "is_sold_out": false,
+                    "dietary_tags": [
+                        {
+                            "name": "Gluten-Free",
+                            "icon": "🌾"
+                        }
+                    ],
+                    "allergens": [
+                        {
+                            "name": "Fish"
+                        },
+                        {
+                            "name": "Sesame"
+                        }
+                    ],
+                    "photos": [
+                        {
+                            "original_url": "",
+                            "filename": "images/ahi_tuna.png"
+                        }
+                    ]
+                },
+                {
+                    "name": "Lobster Bisque",
+                    "description": "Creamy New England-style lobster bisque with fresh lobster claw meat, crème fraîche, and chives",
+                    "price": 14.95,
+                    "position": 1,
+                    "is_sold_out": false,
+                    "dietary_tags": [],
+                    "allergens": [
+                        {
+                            "name": "Shellfish"
+                        },
+                        {
+                            "name": "Dairy"
+                        }
+                    ],
+                    "photos": [
+                        {
+                            "original_url": "",
+                            "filename": "images/lobster_bisque.png"
+                        }
+                    ]
+                },
+                {
+                    "name": "Truffle Parmesan Fries",
+                    "description": "Hand-cut fries tossed in truffle oil, topped with shaved Parmigiano-Reggiano and fresh herbs",
+                    "price": 12.95,
+                    "position": 2,
+                    "is_sold_out": false,
+                    "dietary_tags": [
+                        {
+                            "name": "Vegetarian",
+                            "icon": "🥬"
+                        }
+                    ],
+                    "allergens": [
+                        {
+                            "name": "Dairy"
+                        }
+                    ],
+                    "photos": [
+                        {
+                            "original_url": "",
+                            "filename": "images/truffle_fries.png"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Mains",
+            "rank": 1,
+            "items": [
+                {
+                    "name": "Wagyu Burger",
+                    "description": "8oz A5 wagyu beef patty with aged cheddar, caramelized onions, arugula and truffle aioli on a brioche bun",
+                    "price": 28.95,
+                    "position": 0,
+                    "is_sold_out": false,
+                    "dietary_tags": [],
+                    "allergens": [
+                        {
+                            "name": "Dairy"
+                        },
+                        {
+                            "name": "Gluten"
+                        }
+                    ],
+                    "photos": [
+                        {
+                            "original_url": "",
+                            "filename": "images/wagyu_burger.png"
+                        }
+                    ]
+                },
+                {
+                    "name": "Filet Mignon",
+                    "description": "10oz center-cut filet, grilled to perfection with herb compound butter, served with seasonal vegetables",
+                    "price": 54.95,
+                    "position": 1,
+                    "is_sold_out": false,
+                    "dietary_tags": [
+                        {
+                            "name": "Gluten-Free",
+                            "icon": "🌾"
+                        }
+                    ],
+                    "allergens": [
+                        {
+                            "name": "Dairy"
+                        }
+                    ],
+                    "photos": [
+                        {
+                            "original_url": "",
+                            "filename": "images/filet_mignon.png"
+                        }
+                    ]
+                },
+                {
+                    "name": "Pan-Seared Atlantic Salmon",
+                    "description": "Fresh Atlantic salmon with crispy skin, served over asparagus with lemon beurre blanc",
+                    "price": 34.95,
+                    "position": 2,
+                    "is_sold_out": false,
+                    "dietary_tags": [
+                        {
+                            "name": "Gluten-Free",
+                            "icon": "🌾"
+                        }
+                    ],
+                    "allergens": [
+                        {
+                            "name": "Fish"
+                        },
+                        {
+                            "name": "Dairy"
+                        }
+                    ],
+                    "photos": [
+                        {
+                            "original_url": "",
+                            "filename": "images/pan_seared_salmon.png"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "Desserts",
+            "rank": 2,
+            "items": [
+                {
+                    "name": "Chocolate Lava Cake",
+                    "description": "Decadent warm chocolate cake with a molten center, served with vanilla bean ice cream and fresh berries",
+                    "price": 12.95,
+                    "position": 0,
+                    "is_sold_out": false,
+                    "dietary_tags": [
+                        {
+                            "name": "Vegetarian",
+                            "icon": "🥬"
+                        }
+                    ],
+                    "allergens": [
+                        {
+                            "name": "Dairy"
+                        },
+                        {
+                            "name": "Eggs"
+                        },
+                        {
+                            "name": "Gluten"
+                        }
+                    ],
+                    "photos": [
+                        {
+                            "original_url": "",
+                            "filename": "images/chocolate_lava_cake.png"
+                        }
+                    ]
+                },
+                {
+                    "name": "Classic Tiramisu",
+                    "description": "Espresso-soaked ladyfingers layered with mascarpone cream and dusted with premium cocoa",
+                    "price": 11.95,
+                    "position": 1,
+                    "is_sold_out": false,
+                    "dietary_tags": [
+                        {
+                            "name": "Vegetarian",
+                            "icon": "🥬"
+                        }
+                    ],
+                    "allergens": [
+                        {
+                            "name": "Dairy"
+                        },
+                        {
+                            "name": "Eggs"
+                        },
+                        {
+                            "name": "Gluten"
+                        }
+                    ],
+                    "photos": [
+                        {
+                            "original_url": "",
+                            "filename": "images/tiramisu.png"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

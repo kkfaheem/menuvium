@@ -435,15 +435,65 @@ def import_menu_from_zip(
             detail=f"Unsupported manifest version: {version}. Expected 1.x"
         )
     
+    # Apply manifest metadata to menu
+    menu_name = manifest.get("menu_name")
+    if menu_name:
+        menu.name = menu_name
+    menu_slug = manifest.get("menu_slug")
+    if menu_slug:
+        menu.slug = menu_slug
+    menu_theme = manifest.get("menu_theme")
+    if menu_theme:
+        menu.theme = menu_theme
+    
+    # Get list of files in ZIP for image lookup (needed for banner/logo import)
+    zip_files = set(zf.namelist())
+    
+    # Import banner image if present in ZIP
+    banner_filename = manifest.get("menu_banner_filename")
+    if banner_filename and banner_filename in zip_files:
+        try:
+            image_data = zf.read(banner_filename)
+            ext = banner_filename.split(".")[-1].lower() if "." in banner_filename else "jpg"
+            content_type_map = {
+                "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                "gif": "image/gif", "webp": "image/webp"
+            }
+            content_type = content_type_map.get(ext, "image/jpeg")
+            s3_key, public_url = _upload_image_to_storage(
+                image_data, f"banner_{uuid.uuid4()}.{ext}", content_type, public_prefix
+            )
+            menu.banner_url = public_url
+        except Exception as e:
+            print(f"Warning: Failed to import banner: {e}")
+    
+    # Import logo image if present in ZIP
+    logo_filename = manifest.get("menu_logo_filename")
+    if logo_filename and logo_filename in zip_files:
+        try:
+            image_data = zf.read(logo_filename)
+            ext = logo_filename.split(".")[-1].lower() if "." in logo_filename else "jpg"
+            content_type_map = {
+                "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                "gif": "image/gif", "webp": "image/webp"
+            }
+            content_type = content_type_map.get(ext, "image/jpeg")
+            s3_key, public_url = _upload_image_to_storage(
+                image_data, f"logo_{uuid.uuid4()}.{ext}", content_type, public_prefix
+            )
+            menu.logo_url = public_url
+        except Exception as e:
+            print(f"Warning: Failed to import logo: {e}")
+    
+    session.add(menu)
+    session.flush()
+    
     # Track statistics
     categories_created = 0
     items_created = 0
     photos_imported = 0
     tags_created_set = set()
     allergens_created_set = set()
-    
-    # Get list of files in ZIP for image lookup
-    zip_files = set(zf.namelist())
     
     # Process categories
     categories_data = manifest.get("categories", [])
