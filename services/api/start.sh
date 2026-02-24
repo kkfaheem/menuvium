@@ -45,7 +45,7 @@ if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
 fi
 
 if [ "${UVICORN_RELOAD:-0}" = "1" ]; then
-  exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+  exec uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*' --reload --reload-dir /app
 fi
 
-exec uvicorn main:app --host 0.0.0.0 --port 8000
+exec uvicorn main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'
