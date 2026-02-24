@@ -46,6 +46,11 @@ export default function MenuDetailPage() {
     const [dietaryTags, setDietaryTags] = useState<{ id: string, name: string }[]>([]);
     const [allergens, setAllergens] = useState<{ id: string, name: string }[]>([]);
     const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+    const [arVideoToUpload, setArVideoToUpload] = useState<File | null>(null);
+    const [arVideoPreviewUrl, setArVideoPreviewUrl] = useState<string | null>(null);
+    const [isUploadingArVideo, setIsUploadingArVideo] = useState(false);
+    const [isRetryingArGeneration, setIsRetryingArGeneration] = useState(false);
+    const [arVideoError, setArVideoError] = useState<string | null>(null);
     const [isAddingCategory, setIsAddingCategory] = useState(false);
     const [newCategoryName, setNewCategoryName] = useState("");
     const [editingItem, setEditingItem] = useState<Partial<Item> & { categoryId?: string } | null>(null);
@@ -63,11 +68,41 @@ export default function MenuDetailPage() {
     const [mode, setMode] = useState<"admin" | "manager" | null>(null);
     const [orgPermissions, setOrgPermissions] = useState<OrgPermissions | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const arVideoInputRef = useRef<HTMLInputElement | null>(null);
     const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
     const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
     const existingEditingItemPhotoUrl =
         editingItem?.photo_url || (editingItem ? (editingItem as any).photos?.[0]?.url : undefined);
     const editingItemDisplayPhotoUrl = filePreviewUrl || existingEditingItemPhotoUrl;
+    const editingItemArStatus = editingItem?.ar_status ?? "none";
+    const editingItemArStage = editingItem?.ar_stage || null;
+    const editingItemArStageDetail = editingItem?.ar_stage_detail || null;
+    const editingItemArProgress =
+        typeof editingItem?.ar_progress === "number"
+            ? Math.max(0, Math.min(1, editingItem.ar_progress))
+            : null;
+    const editingItemArProgressPercent =
+        editingItemArProgress === null ? null : Math.round(editingItemArProgress * 100);
+    const arStatusLabel =
+        editingItemArStatus === "ready"
+            ? "Ready"
+            : editingItemArStatus === "processing"
+                ? "Processing"
+                : editingItemArStatus === "pending"
+                    ? "Queued"
+                    : editingItemArStatus === "failed"
+                        ? "Failed"
+                        : "Not set";
+    const arStatusPillClassName =
+        editingItemArStatus === "ready"
+            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+            : editingItemArStatus === "processing"
+                ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                : editingItemArStatus === "pending"
+                    ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                    : editingItemArStatus === "failed"
+                        ? "bg-red-500/10 text-red-400 border-red-500/20"
+                        : "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] border-[var(--cms-border)]";
 
     useEffect(() => {
         if (!fileToUpload) {
@@ -78,6 +113,23 @@ export default function MenuDetailPage() {
         setFilePreviewUrl(url);
         return () => URL.revokeObjectURL(url);
     }, [fileToUpload]);
+
+    useEffect(() => {
+        if (!arVideoToUpload) {
+            setArVideoPreviewUrl(null);
+            return;
+        }
+        const url = URL.createObjectURL(arVideoToUpload);
+        setArVideoPreviewUrl(url);
+        return () => URL.revokeObjectURL(url);
+    }, [arVideoToUpload]);
+
+    useEffect(() => {
+        setArVideoToUpload(null);
+        setArVideoPreviewUrl(null);
+        setArVideoError(null);
+        if (arVideoInputRef.current) arVideoInputRef.current.value = "";
+    }, [editingItem?.id]);
 
     useEffect(() => {
         if (!isPhotoPreviewOpen) return;
@@ -490,6 +542,190 @@ export default function MenuDetailPage() {
 
         return { s3_key, public_url };
     };
+
+    const getVideoDurationSeconds = (file: File) =>
+        new Promise<number>((resolve, reject) => {
+            const video = document.createElement("video");
+            video.preload = "metadata";
+            const url = URL.createObjectURL(file);
+            video.onloadedmetadata = () => {
+                URL.revokeObjectURL(url);
+                if (!Number.isFinite(video.duration)) {
+                    reject(new Error("Could not read video duration"));
+                    return;
+                }
+                resolve(video.duration);
+            };
+            video.onerror = () => {
+                URL.revokeObjectURL(url);
+                reject(new Error("Could not read video metadata"));
+            };
+            video.src = url;
+        });
+
+    const handleUploadArVideo = async () => {
+        if (!editingItem) return;
+        if (!editingItem.id) {
+            alert("Save the item first, then upload an AR video.");
+            return;
+        }
+        const canEditItems = Boolean(orgPermissions?.can_edit_items);
+        if (!canEditItems) {
+            alert("Not authorized to edit items.");
+            return;
+        }
+        if (!arVideoToUpload) {
+            alert("Select a video first.");
+            return;
+        }
+
+        setIsUploadingArVideo(true);
+        setArVideoError(null);
+        try {
+            if (!arVideoToUpload.type.startsWith("video/")) {
+                throw new Error("Invalid file type. Please upload a video.");
+            }
+
+            const duration = await getVideoDurationSeconds(arVideoToUpload);
+            if (duration > 20) {
+                throw new Error("Please keep the rotation video under 20 seconds.");
+            }
+
+            const token = await getAuthToken();
+            const presignRes = await fetch(`${apiBase}/items/${editingItem.id}/ar/video-upload-url`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    filename: arVideoToUpload.name,
+                    content_type: arVideoToUpload.type
+                })
+            });
+            if (!presignRes.ok) {
+                const err = await presignRes.json().catch(() => ({}));
+                throw new Error(`AR video upload URL error: ${err.detail || presignRes.statusText || "Unknown error"}`);
+            }
+            const { upload_url, s3_key, public_url } = await presignRes.json();
+
+            const uploadRes = await fetch(upload_url, {
+                method: "PUT",
+                body: arVideoToUpload,
+                headers: { "Content-Type": arVideoToUpload.type }
+            });
+            if (!uploadRes.ok) throw new Error("Failed to upload video");
+
+            const attachRes = await fetch(`${apiBase}/items/${editingItem.id}/ar/video`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ s3_key, url: public_url })
+            });
+            if (!attachRes.ok) {
+                const err = await attachRes.json().catch(() => ({}));
+                throw new Error(`AR queue error: ${err.detail || attachRes.statusText || "Unknown error"}`);
+            }
+            const updated = await attachRes.json();
+            setEditingItem((prev) => (prev ? ({ ...prev, ...updated } as any) : prev));
+
+            setArVideoToUpload(null);
+            setArVideoPreviewUrl(null);
+            if (arVideoInputRef.current) arVideoInputRef.current.value = "";
+            setPageDirty(true);
+            if (menu) fetchMenu(menu.id);
+        } catch (e) {
+            console.error(e);
+            setArVideoError(e instanceof Error ? e.message : "Failed to upload AR video");
+        } finally {
+            setIsUploadingArVideo(false);
+        }
+    };
+
+    const handleRetryArGeneration = async () => {
+        if (!editingItem?.id) return;
+        const canEditItems = Boolean(orgPermissions?.can_edit_items);
+        if (!canEditItems) {
+            alert("Not authorized to edit items.");
+            return;
+        }
+
+        setIsRetryingArGeneration(true);
+        setArVideoError(null);
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${apiBase}/items/${editingItem.id}/ar/retry`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || res.statusText || "Unknown error");
+            }
+            const updated = await res.json();
+            setEditingItem((prev) => (prev ? ({ ...prev, ...updated } as any) : prev));
+            setPageDirty(true);
+            if (menu) fetchMenu(menu.id);
+        } catch (e) {
+            console.error(e);
+            setArVideoError(e instanceof Error ? e.message : "Failed to retry AR generation");
+        } finally {
+            setIsRetryingArGeneration(false);
+        }
+    };
+
+    const refreshEditingItemArStatus = async (itemId: string) => {
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${apiBase}/items/${itemId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!res.ok) return;
+            const data = await res.json();
+            setEditingItem((prev) => {
+                if (!prev) return prev;
+                if (String((prev as any).id || "") !== String(itemId)) return prev;
+                return {
+                    ...prev,
+                    ar_status: data.ar_status,
+                    ar_error_message: data.ar_error_message,
+                    ar_video_url: data.ar_video_url,
+                    ar_model_glb_url: data.ar_model_glb_url,
+                    ar_model_usdz_url: data.ar_model_usdz_url,
+                    ar_model_poster_url: data.ar_model_poster_url,
+                    ar_created_at: data.ar_created_at,
+                    ar_updated_at: data.ar_updated_at,
+                    ar_stage: data.ar_stage,
+                    ar_stage_detail: data.ar_stage_detail,
+                    ar_progress: data.ar_progress
+                } as any;
+            });
+        } catch {
+            // Best-effort polling; ignore errors.
+        }
+    };
+
+    useEffect(() => {
+        if (!editingItem?.id) return;
+        const status = (editingItem as any).ar_status;
+        if (status !== "pending" && status !== "processing") return;
+
+        let canceled = false;
+        const itemId = String(editingItem.id);
+        const tick = async () => {
+            if (canceled) return;
+            await refreshEditingItemArStatus(itemId);
+        };
+
+        tick();
+        const interval = window.setInterval(tick, 4000);
+        return () => {
+            canceled = true;
+            window.clearInterval(interval);
+        };
+    }, [editingItem?.id, (editingItem as any)?.ar_status]);
 
     const handleSaveItem = async () => {
         if (!editingItem) return;
@@ -1259,6 +1495,8 @@ export default function MenuDetailPage() {
                                 onClick={() => {
                                     setEditingItem(null);
                                     setFileToUpload(null);
+                                    setArVideoToUpload(null);
+                                    setArVideoError(null);
                                 }}
                                 className="p-2 hover:bg-[var(--cms-pill)] rounded-full transition-colors"
                             >
@@ -1423,6 +1661,137 @@ export default function MenuDetailPage() {
                                         </div>
                                     </div>
                                 )}
+                            </div>
+                            {/* AR Video / Model */}
+                            <div>
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">
+                                    AR Model
+                                </label>
+                                <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 space-y-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <div className="text-sm font-semibold text-[var(--cms-text)]">Photoreal AR (video → 3D)</div>
+                                            <div className="text-xs text-[var(--cms-muted)] mt-1">
+                                                Upload a ~10s rotating dish video. Processing can take a while, but AR opens instantly once ready.
+                                            </div>
+                                        </div>
+                                        <div className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold ${arStatusPillClassName}`}>
+                                            {arStatusLabel}
+                                        </div>
+                                    </div>
+
+                                    {(editingItemArStatus === "pending" || editingItemArStatus === "processing") && (
+                                        <div className="space-y-2">
+                                            <div className="text-xs text-[var(--cms-muted)]">
+                                                {editingItemArStage ? `Stage: ${editingItemArStage}` : "Stage: processing"}
+                                                {editingItemArProgressPercent !== null ? ` • ${editingItemArProgressPercent}%` : ""}
+                                            </div>
+                                            {editingItemArStageDetail && (
+                                                <div className="text-xs text-[var(--cms-muted)]">{editingItemArStageDetail}</div>
+                                            )}
+                                            {editingItemArProgressPercent !== null && (
+                                                <div className="h-2 rounded-full bg-[var(--cms-border)] overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-[var(--cms-text)]"
+                                                        style={{ width: `${editingItemArProgressPercent}%` }}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {editingItem.ar_error_message && (
+                                        <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300">
+                                            {editingItem.ar_error_message}
+                                        </div>
+                                    )}
+
+                                    {(editingItem.ar_model_poster_url || arVideoPreviewUrl) && (
+                                        <div className="rounded-2xl overflow-hidden border border-[var(--cms-border)] bg-[var(--cms-panel-strong)]">
+                                            {arVideoPreviewUrl ? (
+                                                <video
+                                                    src={arVideoPreviewUrl}
+                                                    className="w-full max-h-56 object-cover"
+                                                    muted
+                                                    playsInline
+                                                    controls
+                                                />
+                                            ) : (
+                                                <img
+                                                    src={editingItem.ar_model_poster_url || ""}
+                                                    alt=""
+                                                    className="w-full max-h-56 object-cover"
+                                                />
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+                                        <div className="text-xs text-[var(--cms-muted)]">
+                                            Tip: shoot 4K if possible, bright diffuse light, minimal blur, keep dish centered, add some background texture.
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                ref={arVideoInputRef}
+                                                type="file"
+                                                accept="video/*"
+                                                className="hidden"
+                                                onClick={(e) => {
+                                                    (e.currentTarget as HTMLInputElement).value = "";
+                                                }}
+                                                onChange={(e) => {
+                                                    if (!canEditItems) return;
+                                                    const file = e.target.files?.[0];
+                                                    if (!file) return;
+                                                    setArVideoToUpload(file);
+                                                    setPageDirty(true);
+                                                }}
+                                                disabled={!canEditItems}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => arVideoInputRef.current?.click()}
+                                                disabled={!canEditItems}
+                                                className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-panel-strong)] transition-colors disabled:opacity-60"
+                                            >
+                                                Choose video
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleUploadArVideo}
+                                                disabled={!canEditItems || !editingItem.id || !arVideoToUpload || isUploadingArVideo}
+                                                className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-text)] px-3 py-1 text-[11px] font-semibold text-[var(--cms-bg)] shadow-sm hover:opacity-90 transition-colors disabled:opacity-60"
+                                            >
+                                                {isUploadingArVideo ? "Uploading…" : "Upload & generate"}
+                                            </button>
+                                            {editingItemArStatus === "failed" && Boolean(editingItem.ar_video_url) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRetryArGeneration}
+                                                    disabled={!canEditItems || !editingItem.id || isRetryingArGeneration || isUploadingArVideo}
+                                                    className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-panel-strong)] transition-colors disabled:opacity-60"
+                                                >
+                                                    {isRetryingArGeneration ? "Retrying…" : "Retry"}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {arVideoToUpload && (
+                                        <div className="text-xs text-[var(--cms-muted)] truncate">
+                                            Selected: {arVideoToUpload.name}
+                                        </div>
+                                    )}
+                                    {arVideoError && (
+                                        <div className="text-xs text-red-300">{arVideoError}</div>
+                                    )}
+
+                                    {!editingItem.id && (
+                                        <div className="text-xs text-[var(--cms-muted)]">
+                                            Save the item first to enable AR processing.
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Name</label>

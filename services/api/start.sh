@@ -36,5 +36,8 @@ if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
   alembic upgrade head
 fi
 
-exec uvicorn main:app --host 0.0.0.0 --port 8000
+if [ "${UVICORN_RELOAD:-0}" = "1" ]; then
+  exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app
+fi
 
+exec uvicorn main:app --host 0.0.0.0 --port 8000

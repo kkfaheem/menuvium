@@ -24,6 +24,8 @@ services:
       DATABASE_URL: postgresql://postgres:password@db:5432/menuvium
       CORS_ORIGINS: http://localhost:3000,http://${HOST_IP:-localhost}:3000
       LOCAL_UPLOADS: "1"
+      AR_WORKER_TOKEN: "local-dev-worker-token"
+      UVICORN_RELOAD: "1"
     depends_on:
       - db
     volumes:

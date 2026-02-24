@@ -28,6 +28,36 @@ export default function PublicMenuPage() {
     const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
     useEffect(() => {
+        if (!selectedItem) return;
+        const status = selectedItem.ar_status;
+        if (status !== "pending" && status !== "processing") return;
+        const interval = window.setInterval(() => {
+            fetchMenu();
+        }, 5000);
+        return () => window.clearInterval(interval);
+    }, [selectedItem?.id, selectedItem?.ar_status, menuId]);
+
+    useEffect(() => {
+        if (!menu || !selectedItem) return;
+        const updated =
+            menu.categories
+                .flatMap((c) => c.items || [])
+                .find((i) => i.id === selectedItem.id) || null;
+        if (!updated) return;
+        if (
+            updated.ar_status !== selectedItem.ar_status ||
+            updated.ar_progress !== selectedItem.ar_progress ||
+            updated.ar_stage !== selectedItem.ar_stage ||
+            updated.ar_stage_detail !== selectedItem.ar_stage_detail ||
+            updated.ar_model_glb_url !== selectedItem.ar_model_glb_url ||
+            updated.ar_model_usdz_url !== selectedItem.ar_model_usdz_url ||
+            updated.ar_error_message !== selectedItem.ar_error_message
+        ) {
+            setSelectedItem(updated);
+        }
+    }, [menu, selectedItem]);
+
+    useEffect(() => {
         if (menuId) fetchMenu();
     }, [menuId]);
 
@@ -70,6 +100,69 @@ export default function PublicMenuPage() {
         const b = parseInt(clean.slice(4, 6), 16);
         const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
         return luminance > 0.72;
+    };
+
+    const isIOS = () => {
+        if (typeof navigator === "undefined") return false;
+        const ua = navigator.userAgent || "";
+        const platform = navigator.platform || "";
+        return /iPad|iPhone|iPod/.test(ua) || (platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    };
+
+    const isAndroid = () => {
+        if (typeof navigator === "undefined") return false;
+        return /Android/i.test(navigator.userAgent || "");
+    };
+
+    const openArExperience = (item: Item) => {
+        if (typeof window === "undefined") return;
+
+        const toAbsoluteUrl = (url: string) => {
+            if (!url) return "";
+            try {
+                return new URL(url, window.location.origin).toString();
+            } catch {
+                return url;
+            }
+        };
+
+        const usdzUrl = toAbsoluteUrl(item.ar_model_usdz_url || "");
+        const glbUrl = toAbsoluteUrl(item.ar_model_glb_url || "");
+        const posterUrl = item.ar_model_poster_url || item.photo_url || item.photos?.[0]?.url || "";
+        const transparentPixel =
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQH9p8vKZQAAAABJRU5ErkJggg==";
+
+        if (isIOS() && usdzUrl) {
+            const a = document.createElement("a");
+            a.setAttribute("rel", "ar");
+            a.href = usdzUrl.includes("#") ? usdzUrl : `${usdzUrl}#allowsContentScaling=0`;
+            const img = document.createElement("img");
+            img.src = posterUrl || transparentPixel;
+            a.appendChild(img);
+            a.style.display = "none";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            return;
+        }
+
+        if (isAndroid() && glbUrl) {
+            const file = encodeURIComponent(glbUrl);
+            const sceneViewerUrl = `https://arvr.google.com/scene-viewer/1.0?file=${file}&mode=ar_preferred`;
+            const intent =
+                `intent://arvr.google.com/scene-viewer/1.0?file=${file}&mode=ar_preferred` +
+                `#Intent;scheme=https;package=com.google.ar.core;action=android.intent.action.VIEW;S.browser_fallback_url=${encodeURIComponent(sceneViewerUrl)};end;`;
+            window.location.href = intent;
+            return;
+        }
+
+        if (glbUrl) {
+            window.open(glbUrl, "_blank", "noopener,noreferrer");
+            return;
+        }
+        if (usdzUrl) {
+            window.open(usdzUrl, "_blank", "noopener,noreferrer");
+        }
     };
 
     const normalize = (value: string) => value.trim().toLowerCase();
@@ -1057,6 +1150,11 @@ export default function PublicMenuPage() {
         backgroundColor: palette.accent,
         color: palette.bg
     };
+    const modalSecondaryButtonStyle = {
+        backgroundColor: palette.surfaceAlt,
+        color: palette.text,
+        borderColor: palette.border
+    };
 
     return (
         <div className="min-h-screen" style={{ colorScheme: menuColorScheme }}>
@@ -1155,13 +1253,78 @@ export default function PublicMenuPage() {
                                 )}
                             </div>
 
-                            <button
-                                className="w-full mt-8 py-4 rounded-2xl font-black text-lg transition-colors active:scale-[0.98]"
-                                style={modalCloseStyle}
-                                onClick={() => setSelectedItem(null)}
-                            >
-                                Close
-                            </button>
+                            <div className="mt-8 space-y-3">
+                                {selectedItem.ar_status === "ready" && (selectedItem.ar_model_glb_url || selectedItem.ar_model_usdz_url) && (
+                                    <button
+                                        className="w-full py-4 rounded-2xl font-black text-lg transition-colors active:scale-[0.98]"
+                                        style={modalCloseStyle}
+                                        onClick={() => openArExperience(selectedItem)}
+                                    >
+                                        View in AR
+                                    </button>
+                                )}
+
+                                {(selectedItem.ar_status === "pending" || selectedItem.ar_status === "processing") && (
+                                    <div
+                                        className="w-full py-3 px-4 rounded-2xl border text-sm font-semibold"
+                                        style={{
+                                            backgroundColor: palette.surfaceAlt,
+                                            borderColor: palette.border,
+                                            color: palette.muted
+                                        }}
+                                    >
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="min-w-0">AR model is processing</div>
+                                            {typeof selectedItem.ar_progress === "number" && (
+                                                <div className="shrink-0 tabular-nums">
+                                                    {Math.round(Math.max(0, Math.min(1, selectedItem.ar_progress)) * 100)}%
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="mt-2 text-xs font-semibold" style={{ color: palette.muted }}>
+                                            {selectedItem.ar_stage ? `Stage: ${selectedItem.ar_stage}` : "Stage: processing"}
+                                        </div>
+                                        {selectedItem.ar_stage_detail && (
+                                            <div className="mt-1 text-xs" style={{ color: palette.muted }}>
+                                                {selectedItem.ar_stage_detail}
+                                            </div>
+                                        )}
+                                        {typeof selectedItem.ar_progress === "number" && (
+                                            <div className="mt-2 h-2 rounded-full overflow-hidden" style={{ backgroundColor: palette.border }}>
+                                                <div
+                                                    className="h-full"
+                                                    style={{
+                                                        width: `${Math.round(Math.max(0, Math.min(1, selectedItem.ar_progress)) * 100)}%`,
+                                                        backgroundColor: palette.accent
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {selectedItem.ar_status === "failed" && selectedItem.ar_error_message && (
+                                    <div
+                                        className="w-full py-3 px-4 rounded-2xl border text-sm font-semibold"
+                                        style={{
+                                            backgroundColor: palette.surfaceAlt,
+                                            borderColor: palette.accent,
+                                            color: palette.accent
+                                        }}
+                                    >
+                                        {selectedItem.ar_error_message}
+                                    </div>
+                                )}
+
+                                <button
+                                    className={`w-full py-4 rounded-2xl font-black text-lg transition-colors active:scale-[0.98] ${selectedItem.ar_status === "ready" ? "border" : ""
+                                        }`}
+                                    style={selectedItem.ar_status === "ready" ? modalSecondaryButtonStyle : modalCloseStyle}
+                                    onClick={() => setSelectedItem(null)}
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

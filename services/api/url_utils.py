@@ -31,15 +31,12 @@ def normalize_upload_url(url: Optional[str], request: Request, default_prefix: s
     """
     Normalize local upload URLs so they work across devices.
 
-    - If `url` is already relative, return it.
-    - If `url` contains `/uploads/<key>`, return `/<prefix>/uploads/<key>` using forwarded prefix.
+    - If `url` contains `/uploads/<key>` (absolute or relative), return `/<prefix>/uploads/<key>` using forwarded prefix.
     """
     if not url:
         return url
-    if url.startswith("/"):
-        return url
 
-    path = urlparse(url).path or ""
+    path = url if url.startswith("/") else (urlparse(url).path or "")
     if "/uploads/" not in path:
         return url
 

@@ -2,6 +2,7 @@ import uuid
 import os
 import boto3
 from botocore.exceptions import ClientError
+from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
@@ -12,6 +13,8 @@ from dependencies import get_current_user
 from pathlib import Path
 from permissions import get_org_permissions
 from url_utils import forwarded_prefix
+from sqlalchemy.orm import selectinload
+from url_utils import normalize_upload_url
 
 router = APIRouter(prefix="/items", tags=["items"])
 SessionDep = Depends(get_session)
@@ -38,6 +41,41 @@ def _safe_local_path(key: str) -> Path:
     if not str(target).startswith(str(base) + os.sep):
         raise HTTPException(status_code=400, detail="Invalid upload key")
     return target
+
+def _item_org_permissions(session: Session, item: Item, user: dict):
+    category = session.get(Category, item.category_id)
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    menu = session.get(Menu, category.menu_id)
+    if not menu:
+        raise HTTPException(status_code=404, detail="Menu not found")
+    perms = get_org_permissions(session, menu.org_id, user)
+    return perms
+
+@router.get("/{item_id}", response_model=ItemRead)
+def get_item(item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep):
+    item = session.exec(
+        select(Item)
+        .where(Item.id == item_id)
+        .options(
+            selectinload(Item.photos),
+            selectinload(Item.dietary_tags),
+            selectinload(Item.allergens),
+        )
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_view:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    for photo in item.photos or []:
+        photo.url = normalize_upload_url(photo.url, request)
+    item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
+    item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
+    item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
+    item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+    return ItemRead.model_validate(item)
 
 @router.post("/upload-url", response_model=PresignedUrlResponse)
 def generate_upload_url(req: PresignedUrlRequest, request: Request, user: dict = UserDep):
@@ -75,6 +113,143 @@ def generate_upload_url(req: PresignedUrlRequest, request: Request, user: dict =
         "s3_key": key,
         "public_url": f"https://{bucket_name}.s3.amazonaws.com/{key}"
     }
+
+@router.post("/{item_id}/ar/video-upload-url", response_model=PresignedUrlResponse)
+def generate_ar_video_upload_url(
+    item_id: uuid.UUID, req: PresignedUrlRequest, request: Request, session: Session = SessionDep, user: dict = UserDep
+):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if not req.content_type.startswith("video/"):
+        raise HTTPException(status_code=400, detail="Invalid content type; expected video/*")
+
+    bucket_name = os.getenv("S3_BUCKET_NAME")
+    filename = os.path.basename(req.filename)
+    key = f"items/ar/{item_id}/video/{uuid.uuid4()}-{filename}"
+    if not bucket_name:
+        if _local_uploads_enabled():
+            prefix = forwarded_prefix(request)
+            base = prefix or ""
+            return {
+                "upload_url": f"{base}/items/local-upload/{key}",
+                "s3_key": key,
+                "public_url": f"{base}/uploads/{key}",
+            }
+        raise HTTPException(status_code=500, detail="S3 configuration missing")
+
+    s3_client = boto3.client("s3")
+    try:
+        response = s3_client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": bucket_name,
+                "Key": key,
+                "ContentType": req.content_type,
+            },
+            ExpiresIn=3600,
+        )
+    except ClientError as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Could not generate upload URL")
+
+    return {
+        "upload_url": response,
+        "s3_key": key,
+        "public_url": f"https://{bucket_name}.s3.amazonaws.com/{key}",
+    }
+
+
+class AttachArVideoRequest(BaseModel):
+    s3_key: str
+    url: str
+
+
+@router.post("/{item_id}/ar/video", response_model=ItemRead)
+def attach_ar_video(
+    item_id: uuid.UUID,
+    payload: AttachArVideoRequest,
+    request: Request,
+    session: Session = SessionDep,
+    user: dict = UserDep,
+):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    item.ar_video_s3_key = payload.s3_key
+    item.ar_video_url = payload.url
+    item.ar_status = "pending"
+    item.ar_error_message = None
+    item.ar_luma_capture_id = None
+    item.ar_stage = "queued"
+    item.ar_stage_detail = None
+    item.ar_progress = 0.0
+    item.ar_job_id = None
+    item.ar_model_glb_s3_key = None
+    item.ar_model_glb_url = None
+    item.ar_model_usdz_s3_key = None
+    item.ar_model_usdz_url = None
+    item.ar_model_poster_s3_key = None
+    item.ar_model_poster_url = None
+    item.ar_created_at = datetime.utcnow()
+    item.ar_updated_at = datetime.utcnow()
+
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+
+    # Normalize in case the video URL is a local upload stored with a different forwarded prefix.
+    item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
+    item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
+    item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
+    item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+    return ItemRead.model_validate(item)
+
+
+@router.post("/{item_id}/ar/retry", response_model=ItemRead)
+def retry_ar_generation(
+    item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep
+):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if not item.ar_video_s3_key:
+        raise HTTPException(status_code=400, detail="No AR video uploaded for this item")
+
+    item.ar_status = "pending"
+    item.ar_error_message = None
+    item.ar_stage = "queued"
+    item.ar_stage_detail = None
+    item.ar_progress = 0.0
+    item.ar_job_id = None
+    item.ar_model_glb_s3_key = None
+    item.ar_model_glb_url = None
+    item.ar_model_usdz_s3_key = None
+    item.ar_model_usdz_url = None
+    item.ar_model_poster_s3_key = None
+    item.ar_model_poster_url = None
+    item.ar_created_at = datetime.utcnow()
+    item.ar_updated_at = datetime.utcnow()
+
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+
+    item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
+    item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
+    item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
+    item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+    return ItemRead.model_validate(item)
 
 @router.put("/local-upload/{key:path}")
 async def local_upload(key: str, request: Request):

@@ -51,6 +51,10 @@ def list_categories(menu_id: uuid.UUID, request: Request, session: Session = Ses
         for item in category.items or []:
             for photo in item.photos or []:
                 photo.url = normalize_upload_url(photo.url, request)
+            item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
+            item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
+            item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
+            item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
     return categories
 
 @router.patch("/{category_id}", response_model=Category)

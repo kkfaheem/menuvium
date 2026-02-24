@@ -159,6 +159,7 @@ After deployment, you'll get these outputs:
 - **UserPoolClientId**: Cognito Client ID
 - **BucketName**: S3 bucket for uploads
 - **ApiRepoUri**: ECR repository URI
+- **ArWorkerTokenSecretArn**: Secrets Manager ARN for the AR worker token (used by the external macOS photogrammetry worker)
 - **CloudFrontUrl**: CDN URL (if enabled)
 - **AmplifyAppId**: Amplify app ID (if configured)
 

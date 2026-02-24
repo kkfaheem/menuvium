@@ -31,6 +31,17 @@ export interface Item {
     photos?: ItemPhoto[];
     dietary_tags?: DietaryTag[];
     allergens?: Allergen[];
+    ar_status?: "none" | "pending" | "processing" | "ready" | "failed";
+    ar_error_message?: string | null;
+    ar_video_url?: string | null;
+    ar_model_glb_url?: string | null;
+    ar_model_usdz_url?: string | null;
+    ar_model_poster_url?: string | null;
+    ar_created_at?: string;
+    ar_updated_at?: string;
+    ar_stage?: string | null;
+    ar_stage_detail?: string | null;
+    ar_progress?: number | null; // 0.0 - 1.0
 }
 
 export interface Category {

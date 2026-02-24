@@ -109,6 +109,23 @@ class Allergen(AllergenBase, table=True):
 class Item(ItemBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    ar_status: Optional[str] = Field(default=None, index=True)
+    ar_error_message: Optional[str] = None
+    ar_luma_capture_id: Optional[str] = None
+    ar_created_at: Optional[datetime] = None
+    ar_updated_at: Optional[datetime] = None
+    ar_stage: Optional[str] = None
+    ar_stage_detail: Optional[str] = None
+    ar_progress: Optional[float] = None
+    ar_job_id: Optional[uuid.UUID] = Field(default=None, index=True)
+    ar_video_s3_key: Optional[str] = None
+    ar_video_url: Optional[str] = None
+    ar_model_glb_s3_key: Optional[str] = None
+    ar_model_glb_url: Optional[str] = None
+    ar_model_usdz_s3_key: Optional[str] = None
+    ar_model_usdz_url: Optional[str] = None
+    ar_model_poster_s3_key: Optional[str] = None
+    ar_model_poster_url: Optional[str] = None
     
     category: Category = Relationship(back_populates="items")
     photos: List["ItemPhoto"] = Relationship(back_populates="item")
@@ -146,6 +163,17 @@ class ItemRead(ItemBase):
     dietary_tags: List[DietaryTagRead] = []
     allergens: List[AllergenRead] = []
     photos: List[ItemPhotoBase] = []
+    ar_status: Optional[str] = None
+    ar_error_message: Optional[str] = None
+    ar_video_url: Optional[str] = None
+    ar_model_glb_url: Optional[str] = None
+    ar_model_usdz_url: Optional[str] = None
+    ar_model_poster_url: Optional[str] = None
+    ar_created_at: Optional[datetime] = None
+    ar_updated_at: Optional[datetime] = None
+    ar_stage: Optional[str] = None
+    ar_stage_detail: Optional[str] = None
+    ar_progress: Optional[float] = None
 
 class CategoryRead(CategoryBase):
     id: uuid.UUID

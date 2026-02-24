@@ -35,11 +35,12 @@ if os.getenv("LOCAL_UPLOADS") == "1":
     upload_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
 
-from routers import organizations, menus, categories, items, metadata, imports, export
+from routers import organizations, menus, categories, items, metadata, imports, export, ar_jobs
 app.include_router(organizations.router)
 app.include_router(menus.router)
 app.include_router(categories.router)
 app.include_router(items.router)
+app.include_router(ar_jobs.router)
 app.include_router(metadata.router)
 app.include_router(imports.router)
 app.include_router(export.router)
