@@ -11,6 +11,7 @@ struct Config {
     let pollSeconds: UInt64
     let frameFps: Int
     let frameJpegQ: Int
+    let frameCrop: Double
     let photogrammetryDetail: String
     let photogrammetryMaxPolygons: Int
     let photogrammetryMaxTextureDimension: String
@@ -101,9 +102,18 @@ func parseConfig() throws -> Config {
     var pollSeconds: UInt64 = 5
     var frameFps = 6
     var frameJpegQ = 2
+    var frameCrop = 1.0
     var photogrammetryDetail = "full"
     var photogrammetryMaxPolygons = 500_000
     var photogrammetryMaxTextureDimension = "fourK"
+
+    func parseCrop(_ raw: String) -> Double? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "%", with: "")
+        guard let value = Double(trimmed) else { return nil }
+        let normalized = value > 1 ? value / 100.0 : value
+        guard normalized.isFinite else { return nil }
+        return min(1.0, max(0.5, normalized))
+    }
 
     func applyQualityPreset(_ preset: String) {
         switch preset.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
@@ -130,6 +140,10 @@ func parseConfig() throws -> Config {
         }
     }
 
+    if let cropEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_CROP"], let parsed = parseCrop(cropEnv) {
+        frameCrop = parsed
+    }
+
     var index = args.startIndex
     while index < args.endIndex {
         let arg = args[index]
@@ -153,6 +167,10 @@ func parseConfig() throws -> Config {
             frameFps = Int(try nextValue()) ?? frameFps
         case "--jpeg-q":
             frameJpegQ = Int(try nextValue()) ?? frameJpegQ
+        case "--crop":
+            if let parsed = parseCrop(try nextValue()) {
+                frameCrop = parsed
+            }
         case "--detail":
             photogrammetryDetail = try nextValue()
         case "--max-polygons":
@@ -179,6 +197,7 @@ func parseConfig() throws -> Config {
         pollSeconds: pollSeconds,
         frameFps: max(1, frameFps),
         frameJpegQ: max(1, min(31, frameJpegQ)),
+        frameCrop: frameCrop,
         photogrammetryDetail: photogrammetryDetail,
         photogrammetryMaxPolygons: max(1, photogrammetryMaxPolygons),
         photogrammetryMaxTextureDimension: photogrammetryMaxTextureDimension
@@ -261,6 +280,12 @@ func processJob(claim: WorkerClaimResponse, config: Config) async throws {
         config: config
     )
     let posterFile = tempDir.appendingPathComponent("poster.jpg")
+    let cropFactor = min(1.0, max(0.5, config.frameCrop))
+    let cropFactorString = String(format: "%.4f", cropFactor)
+    let cropFilter = cropFactor < 0.999
+        ? "crop=in_w*\(cropFactorString):in_h*\(cropFactorString):(in_w-out_w)/2:(in_h-out_h)/2"
+        : nil
+    let posterVf = ([ "select=eq(n\\,0)", cropFilter ].compactMap { $0 }).joined(separator: ",")
     try runProcess(
         "ffmpeg",
         args: [
@@ -269,13 +294,14 @@ func processJob(claim: WorkerClaimResponse, config: Config) async throws {
             "-i",
             videoFile.path,
             "-vf",
-            "select=eq(n\\,0)",
+            posterVf,
             "-q:v",
             String(config.frameJpegQ),
             posterFile.path,
         ]
     )
 
+    let framesVf = ([ "fps=\(config.frameFps)", cropFilter ].compactMap { $0 }).joined(separator: ",")
     try runProcess(
         "ffmpeg",
         args: [
@@ -284,7 +310,7 @@ func processJob(claim: WorkerClaimResponse, config: Config) async throws {
             "-i",
             videoFile.path,
             "-vf",
-            "fps=\(config.frameFps)",
+            framesVf,
             "-q:v",
             String(config.frameJpegQ),
             framesDir.appendingPathComponent("frame-%04d.jpg").path,
@@ -543,10 +569,32 @@ func runPhotogrammetry(
             let specLabel = useCustomSpec ? " \(customMaxTextureDimension) tex/\(customPolygonCount) poly" : ""
             attempts.append(
                 PhotogrammetryAttempt(
+                    label: "Photogrammetry HQ Masked (\(detailLabel(primaryDetail))\(specLabel))",
+                    sampleOrdering: .sequential,
+                    featureSensitivity: .high,
+                    objectMaskingEnabled: true,
+                    detail: primaryDetail,
+                    customMaxPolygons: useCustomSpec ? customPolygonCount : nil,
+                    customMaxTextureDimension: useCustomSpec ? customMaxTextureDimension : nil
+                )
+            )
+            attempts.append(
+                PhotogrammetryAttempt(
                     label: "Photogrammetry HQ (\(detailLabel(primaryDetail))\(specLabel))",
                     sampleOrdering: .sequential,
                     featureSensitivity: .high,
                     objectMaskingEnabled: false,
+                    detail: primaryDetail,
+                    customMaxPolygons: useCustomSpec ? customPolygonCount : nil,
+                    customMaxTextureDimension: useCustomSpec ? customMaxTextureDimension : nil
+                )
+            )
+            attempts.append(
+                PhotogrammetryAttempt(
+                    label: "Photogrammetry Safe Masked (\(detailLabel(primaryDetail))\(specLabel))",
+                    sampleOrdering: .unordered,
+                    featureSensitivity: .normal,
+                    objectMaskingEnabled: true,
                     detail: primaryDetail,
                     customMaxPolygons: useCustomSpec ? customPolygonCount : nil,
                     customMaxTextureDimension: useCustomSpec ? customMaxTextureDimension : nil
@@ -565,6 +613,17 @@ func runPhotogrammetry(
             )
         }
         for fallbackDetail in detailFallbackChain.dropFirst() {
+            attempts.append(
+                PhotogrammetryAttempt(
+                    label: "Photogrammetry Safe Masked (\(detailLabel(fallbackDetail)))",
+                    sampleOrdering: .unordered,
+                    featureSensitivity: .normal,
+                    objectMaskingEnabled: true,
+                    detail: fallbackDetail,
+                    customMaxPolygons: nil,
+                    customMaxTextureDimension: nil
+                )
+            )
             attempts.append(
                 PhotogrammetryAttempt(
                     label: "Photogrammetry Safe (\(detailLabel(fallbackDetail)))",

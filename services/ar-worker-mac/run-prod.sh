@@ -6,6 +6,7 @@ cd "$(dirname "$0")"
 API_BASE="${MENUVIUM_API_BASE:-}"
 WORKER_TOKEN="${MENUVIUM_WORKER_TOKEN:-}"
 QUALITY="${MENUVIUM_AR_QUALITY:-high}"
+CROP="${MENUVIUM_AR_CROP:-}"
 
 if [[ -z "${API_BASE}" || -z "${WORKER_TOKEN}" ]]; then
   cat >&2 <<'EOF'
@@ -33,7 +34,14 @@ done
 echo "Building worker (release)..."
 swift build -c release
 
-echo "Starting worker (quality: ${QUALITY})..."
+if [[ -n "${CROP}" ]]; then
+  echo "Starting worker (quality: ${QUALITY}, crop: ${CROP})..."
+else
+  echo "Starting worker (quality: ${QUALITY})..."
+fi
 echo "Tip: close this terminal to stop the worker."
-exec caffeinate -dimsu -- .build/release/menuvium-ar-worker --api-base "${API_BASE}" --token "${WORKER_TOKEN}" --quality "${QUALITY}"
-
+crop_args=()
+if [[ -n "${CROP}" ]]; then
+  crop_args=(--crop "${CROP}")
+fi
+exec caffeinate -dimsu -- .build/release/menuvium-ar-worker --api-base "${API_BASE}" --token "${WORKER_TOKEN}" --quality "${QUALITY}" "${crop_args[@]}"

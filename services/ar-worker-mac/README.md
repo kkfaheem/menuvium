@@ -54,6 +54,8 @@ From the repo root:
 - `cd services/ar-worker-mac`
 - `export MENUVIUM_API_BASE="https://api.menuvium.com"`
 - `export MENUVIUM_WORKER_TOKEN="<same value as Railway AR_WORKER_TOKEN>"`
+- (Optional) If you see turntable/background geometry, try cropping edges:
+  - `export MENUVIUM_AR_CROP="0.85"`  (keeps the center 85% of each frame)
 - `./run-prod.sh`
 
 To stop the worker, press `Ctrl+C` in the terminal where it’s running.
