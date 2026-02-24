@@ -13,7 +13,9 @@ function getBackendBaseUrl() {
 
 function toBackendUrl(request: NextRequest, pathParts: string[]) {
     const base = getBackendBaseUrl();
-    const path = pathParts.map(encodeURIComponent).join("/");
+    const needsTrailingSlash =
+        pathParts.length === 1 && ["organizations", "menus", "items", "categories"].includes(pathParts[0] || "");
+    const path = pathParts.map(encodeURIComponent).join("/") + (needsTrailingSlash ? "/" : "");
     const search = request.nextUrl.search;
     return `${base}/${path}${search}`;
 }
