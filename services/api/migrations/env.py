@@ -23,8 +23,21 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 target_metadata = SQLModel.metadata
 
-# Override URL from env
+# Override URL from env - use individual DB variables as fallback
 db_url = os.getenv("DATABASE_URL")
+if not db_url:
+    # Try to construct from individual variables
+    db_host = os.getenv("DB_HOST")
+    db_name = os.getenv("DB_NAME")
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("DB_PASSWORD")
+    db_port = os.getenv("DB_PORT", "5432")
+    
+    if all([db_host, db_name, db_user, db_password]):
+        from urllib.parse import quote_plus
+        password = quote_plus(db_password)
+        db_url = f"postgresql://{db_user}:{password}@{db_host}:{db_port}/{db_name}"
+
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
 
@@ -42,6 +55,12 @@ def run_migrations_offline() -> None:
 
     """
     url = config.get_main_option("sqlalchemy.url")
+    if not url or url == "driver://":
+        raise ValueError(
+            "DATABASE_URL not configured. "
+            "Set DATABASE_URL or DB_HOST, DB_NAME, DB_USER, DB_PASSWORD environment variables."
+        )
+    
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -60,6 +79,13 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    url = config.get_main_option("sqlalchemy.url")
+    if not url or url == "driver://":
+        raise ValueError(
+            "DATABASE_URL not configured. "
+            "Set DATABASE_URL or DB_HOST, DB_NAME, DB_USER, DB_PASSWORD environment variables."
+        )
+    
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

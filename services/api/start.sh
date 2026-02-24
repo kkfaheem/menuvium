@@ -1,5 +1,4 @@
 #!/usr/bin/env sh
-set -e
 
 wait_for_db() {
   if [ -z "${DATABASE_URL:-}" ]; then
@@ -33,7 +32,16 @@ wait_for_db
 
 if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
   echo "Running database migrations..."
-  alembic upgrade head
+  alembic upgrade head || {
+    MIGRATION_EXIT=$?
+    echo "Warning: Migrations exited with code $MIGRATION_EXIT"
+    if [ -z "${DATABASE_URL:-}" ]; then
+      echo "DATABASE_URL not configured - skipping migrations (optional)"
+    else
+      echo "DATABASE_URL is set but migrations failed. Check configuration."
+      exit $MIGRATION_EXIT
+    fi
+  }
 fi
 
 if [ "${UVICORN_RELOAD:-0}" = "1" ]; then
