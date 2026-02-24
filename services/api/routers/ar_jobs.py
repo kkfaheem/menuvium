@@ -45,6 +45,7 @@ def claim_job(request: Request, session: Session = SessionDep):
         .where(Item.ar_video_s3_key.is_not(None))
         .order_by(Item.ar_created_at)
         .limit(1)
+        .with_for_update(skip_locked=True)
     ).first()
     reclaimed = False
 
@@ -68,6 +69,7 @@ def claim_job(request: Request, session: Session = SessionDep):
             .where(stale_condition)
             .order_by(Item.ar_updated_at)
             .limit(1)
+            .with_for_update(skip_locked=True)
         ).first()
 
         if not item:
