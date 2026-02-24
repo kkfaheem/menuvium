@@ -41,6 +41,23 @@ Point the worker at your deployed API URL and use the same `AR_WORKER_TOKEN` sec
 
 - `swift run menuvium-ar-worker --api-base https://<your-domain>/api --token <AR_WORKER_TOKEN>`
 
+## Run (Production on your Mac)
+
+Menuvium queues AR work in the database (`pending` → `processing` → `ready`). If your Mac is asleep/offline, jobs are **not lost**; they will stay `pending` until the worker is running again.
+
+### Prereqs
+- Your API has S3 configured (`S3_BUCKET_NAME` + AWS creds) so uploads persist.
+- Your API has `AR_WORKER_TOKEN` set (random secret string).
+
+### Start
+From the repo root:
+- `cd services/ar-worker-mac`
+- `export MENUVIUM_API_BASE="https://api.menuvium.com"`
+- `export MENUVIUM_WORKER_TOKEN="<same value as Railway AR_WORKER_TOKEN>"`
+- `./run-prod.sh`
+
+To stop the worker, press `Ctrl+C` in the terminal where it’s running.
+
 ## Notes
 
 - This worker polls for jobs (`/ar-jobs/claim`) and processes one at a time.
