@@ -1,7 +1,6 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "framework": "nextjs",
   "env": [
     "NEXT_PUBLIC_USER_POOL_ID",
     "NEXT_PUBLIC_USER_POOL_CLIENT_ID",
@@ -11,6 +10,5 @@
     "NEXT_PUBLIC_API_URL",
     "NEXT_PUBLIC_S3_BUCKET",
     "API_INTERNAL_URL"
-  ],
-  "root": "apps/web"
+  ]
 }
