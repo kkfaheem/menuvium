@@ -2,14 +2,14 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from sqlmodel import SQLModel
-from database import engine
 
 # Simple lifecycle to create tables on startup (for dev simplicity)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # In production, use Alembic. 
     # This is just for local quickstart if needed, though we should prefer migrations.
-    # SQLModel.metadata.create_all(engine)
+    # from database import get_engine
+    # SQLModel.metadata.create_all(get_engine())
     yield
 
 from fastapi.middleware.cors import CORSMiddleware

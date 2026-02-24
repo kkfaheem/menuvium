@@ -32,8 +32,16 @@ def build_database_url(settings: Settings) -> str:
     )
 
 echo = os.getenv("SQL_ECHO") == "1"
-engine = create_engine(build_database_url(settings), echo=echo)
+
+# Lazy engine initialization to prevent import-time database errors
+_engine = None
+
+def get_engine():
+    global _engine
+    if _engine is None:
+        _engine = create_engine(build_database_url(settings), echo=echo)
+    return _engine
 
 def get_session():
-    with Session(engine) as session:
+    with Session(get_engine()) as session:
         yield session
