@@ -140,8 +140,29 @@ export default function OnboardingPage() {
                 }
                 setStep(2);
             } else {
-                const err = await res.json();
-                alert(`Failed to create org: ${err.detail || 'Unknown error'}`);
+                const contentType = res.headers.get("content-type") || "";
+                let detail = `HTTP ${res.status} ${res.statusText}`.trim();
+
+                if (contentType.includes("application/json")) {
+                    const err = await res
+                        .json()
+                        .catch(() => null);
+                    if (err && typeof err === "object" && "detail" in err) {
+                        const maybeDetail = (err as { detail?: unknown }).detail;
+                        if (typeof maybeDetail === "string" && maybeDetail.trim()) {
+                            detail = maybeDetail;
+                        } else if (maybeDetail != null) {
+                            detail = JSON.stringify(maybeDetail);
+                        }
+                    } else if (err != null) {
+                        detail = JSON.stringify(err);
+                    }
+                } else {
+                    const text = await res.text().catch(() => "");
+                    if (text.trim()) detail = text.trim();
+                }
+
+                alert(`Failed to create org: ${detail || "Unknown error"}`);
             }
         } catch (e) {
             console.error(e);
