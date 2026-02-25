@@ -17,7 +17,8 @@ export function Logo({ size = "md", className = "" }: LogoProps) {
     const pathname = usePathname();
 
     // Determine where logo should link based on current path
-    const isPublicPage = pathname === "/" || pathname === "/login" || pathname.startsWith("/r/");
+    const isPublicPage =
+        pathname === "/" || pathname === "/login" || pathname.startsWith("/r/") || pathname.startsWith("/contact");
     const href = isPublicPage ? "/" : "/dashboard/menus";
 
     const sizeClasses = {

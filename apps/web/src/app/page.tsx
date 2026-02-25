@@ -224,8 +224,8 @@ export default function Home() {
 
             <main>
                 {/* Hero */}
-                <section className="relative mx-auto w-full max-w-7xl px-4 pb-14 pt-12 sm:px-6 sm:pb-16 sm:pt-16">
-                    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+                <section className="relative pb-14 pt-12 sm:pb-16 sm:pt-16">
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -top-40 -bottom-40 overflow-hidden">
                         <div
                             className={cn(
                                 "absolute -top-40 -left-32 h-[28rem] w-[28rem] rounded-full bg-[var(--cms-accent-subtle)] blur-3xl",
@@ -245,7 +245,8 @@ export default function Home() {
                             )}
                         />
                     </div>
-                    <div className="relative grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+                    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
+                        <div className="relative grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
                         <motion.div
                             initial="hidden"
                             animate="visible"
@@ -336,6 +337,7 @@ export default function Home() {
                                 </div>
                             </div>
                         </motion.div>
+                    </div>
                     </div>
                 </section>
 
@@ -595,28 +597,41 @@ export default function Home() {
                                 priceAnnual: "$0",
                                 note: "Best for trying Menuvium",
                                 highlight: false,
+                                ctaLabel: "Get started",
+                                ctaHref: "/login",
                                 features: ["1 company", "1 menu", "QR link", "Basic themes"],
                             },
                             {
-                                name: "Growth",
+                                name: "Studio",
                                 priceMonthly: "$29",
                                 priceAnnual: "$290",
-                                note: "Best for active restaurants",
+                                note: "Best for restaurants that want AR",
                                 highlight: true,
-                                features: ["Multiple menus", "AI import", "Theme studio", "Team access"],
+                                ctaLabel: "Get started",
+                                ctaHref: "/login",
+                                features: [
+                                    "Multiple menus",
+                                    "AI import",
+                                    "Theme studio",
+                                    "Team access",
+                                    "Photoreal AR (video → 3D)",
+                                    "AR for iOS + Android",
+                                ],
                             },
                             {
                                 name: "Enterprise",
-                                priceMonthly: "Custom",
-                                priceAnnual: "Custom",
-                                note: "Best for multi‑brand groups",
+                                priceMonthly: "Contact us",
+                                priceAnnual: "Contact us",
+                                note: "Best for multi‑brand groups & custom needs",
                                 highlight: false,
+                                ctaLabel: "Contact us",
+                                ctaHref: "/contact?plan=enterprise",
                                 features: ["SSO options", "Advanced permissions", "Custom domains", "Priority support"],
                             },
                         ].map((tier) => {
                             const price = pricingPeriod === "annual" ? tier.priceAnnual : tier.priceMonthly;
                             const suffix =
-                                price === "Custom" || price === "$0"
+                                price === "Contact us" || price === "$0"
                                     ? ""
                                     : pricingPeriod === "annual"
                                         ? "/year"
@@ -648,7 +663,7 @@ export default function Home() {
                                         <p className="pb-1 text-sm text-muted">{suffix}</p>
                                     </div>
 
-                                    {pricingPeriod === "annual" && tier.name === "Growth" ? (
+                                    {pricingPeriod === "annual" && tier.name === "Studio" ? (
                                         <p className="mt-2 text-xs text-muted">
                                             Equivalent to <span className="font-semibold">$24.17</span>/month billed annually.
                                         </p>
@@ -664,7 +679,7 @@ export default function Home() {
                                     </ul>
 
                                     <Link
-                                        href="/login"
+                                        href={tier.ctaHref}
                                         className={cn(
                                             "mt-8 inline-flex h-12 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold shadow-sm transition-colors",
                                             tier.highlight
@@ -672,7 +687,7 @@ export default function Home() {
                                                 : "border border-border bg-panelStrong text-foreground hover:bg-pill"
                                         )}
                                     >
-                                        Get started <ArrowRight className="ml-2 h-4 w-4" />
+                                        {tier.ctaLabel} <ArrowRight className="ml-2 h-4 w-4" />
                                     </Link>
                                 </div>
                             );

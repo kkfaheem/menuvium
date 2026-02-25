@@ -1630,7 +1630,9 @@ export default function MenuDetailPage() {
                     >
                         <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex justify-between items-center border-b border-[var(--cms-border)] rounded-t-[28px]">
                             <div>
-                                <h2 className="text-xl font-bold">{editingItem.id ? "Edit Item" : "Add Item"}</h2>
+                                <h2 className="font-heading text-xl font-bold tracking-tight">
+                                    {editingItem.id ? "Edit item" : "Add item"}
+                                </h2>
                                 <p className="text-xs text-[var(--cms-muted)] mt-1">Keep it concise and scannable on mobile.</p>
                             </div>
                             <button
@@ -1646,9 +1648,9 @@ export default function MenuDetailPage() {
                             </button>
                         </div>
 
-                        <div className="p-6 pt-5 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+                        <div className="p-6 pt-5 flex flex-col gap-5 overflow-y-auto flex-1 custom-scrollbar">
                             {/* Photo Upload */}
-                            <div>
+                            <div className="order-13">
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Photo</label>
                                 <div
                                     role="button"
@@ -1805,7 +1807,7 @@ export default function MenuDetailPage() {
                                 )}
                             </div>
                             {/* AR Video / Model */}
-                            <div>
+                            <div className="order-14">
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">
                                     AR Model
                                 </label>
@@ -1935,7 +1937,7 @@ export default function MenuDetailPage() {
                                     )}
                                 </div>
                             </div>
-                            <div>
+                            <div className="order-10">
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Name</label>
                                 <input
                                     className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all text-sm"
@@ -1949,7 +1951,7 @@ export default function MenuDetailPage() {
                                     disabled={!canEditItems}
                                 />
                             </div>
-                            <div>
+                            <div className="order-11">
                                 <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Description</label>
                                 <textarea
                                     className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all min-h-[96px] text-sm"
@@ -1963,7 +1965,7 @@ export default function MenuDetailPage() {
                                     disabled={!canEditItems}
                                 />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="order-12 grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Price ($)</label>
                                     <input
@@ -1997,7 +1999,7 @@ export default function MenuDetailPage() {
                             </div>
                             {/* Tags */}
                             {canEditItems && (
-                                <div>
+                                <div className="order-15">
                                     <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-3">Tags</label>
                                     <div className="space-y-4">
                                         <div>
@@ -2048,7 +2050,7 @@ export default function MenuDetailPage() {
 
                             {/* Allergens */}
                             {canEditItems && (
-                                <div>
+                                <div className="order-16">
                                     <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">{tagLabels.allergens}</label>
                                     <div className="flex flex-wrap gap-2">
                                         {allergenTagList.map(alg => (
@@ -2100,7 +2102,7 @@ export default function MenuDetailPage() {
                                                 });
                                             }
                                         }}
-                                        className="px-4 py-3 rounded-xl font-semibold text-red-500 hover:bg-red-500/10 transition-colors flex items-center gap-2"
+                                        className="h-11 px-4 rounded-2xl border border-red-500/25 font-semibold text-red-500 hover:bg-red-500/10 transition-colors inline-flex items-center gap-2"
                                     >
                                         <Trash2 className="w-4 h-4" /> Delete
                                     </button>
@@ -2112,7 +2114,7 @@ export default function MenuDetailPage() {
                                         setEditingItem(null);
                                         setFileToUpload(null);
                                     }}
-                                    className="px-6 py-3 rounded-xl font-semibold bg-[var(--cms-panel-strong)] hover:bg-[var(--cms-pill)] transition-colors"
+                                    className="h-11 px-5 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-pill)] transition-colors"
                                 >
                                     Cancel
                                 </button>
@@ -2124,7 +2126,7 @@ export default function MenuDetailPage() {
                                             ? !editingItem.name || (!editingItem.price && editingItem.price !== 0)
                                             : !editingItem.id || !canManageAvailability)
                                     }
-                                    className="px-6 py-3 bg-[var(--cms-accent)] text-white rounded-xl font-semibold hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                                    className="h-11 px-5 bg-[linear-gradient(180deg,var(--cms-accent),var(--cms-accent-strong))] text-white rounded-2xl font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-2 shadow-sm hover:shadow-md"
                                 >
                                     {isSavingItem && <Loader2 className="w-4 h-4 animate-spin" />}
                                     {isSavingItem ? 'Saving...' : 'Save Item'}
