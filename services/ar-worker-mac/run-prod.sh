@@ -34,14 +34,12 @@ done
 echo "Building worker (release)..."
 swift build -c release
 
+echo "Tip: close this terminal to stop the worker."
+
 if [[ -n "${CROP}" ]]; then
   echo "Starting worker (quality: ${QUALITY}, crop: ${CROP})..."
-else
-  echo "Starting worker (quality: ${QUALITY})..."
+  exec caffeinate -dimsu -- .build/release/menuvium-ar-worker --api-base "${API_BASE}" --token "${WORKER_TOKEN}" --quality "${QUALITY}" --crop "${CROP}"
 fi
-echo "Tip: close this terminal to stop the worker."
-crop_args=()
-if [[ -n "${CROP}" ]]; then
-  crop_args=(--crop "${CROP}")
-fi
-exec caffeinate -dimsu -- .build/release/menuvium-ar-worker --api-base "${API_BASE}" --token "${WORKER_TOKEN}" --quality "${QUALITY}" "${crop_args[@]}"
+
+echo "Starting worker (quality: ${QUALITY})..."
+exec caffeinate -dimsu -- .build/release/menuvium-ar-worker --api-base "${API_BASE}" --token "${WORKER_TOKEN}" --quality "${QUALITY}"
