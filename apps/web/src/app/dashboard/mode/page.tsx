@@ -87,7 +87,7 @@ export default function ModeSelectPage() {
             <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <Badge variant="outline">Account</Badge>
-                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+                    <h1 className="font-heading text-3xl sm:text-4xl font-bold tracking-tight">
                         Welcome, <span className="text-[var(--cms-accent-strong)]">{displayName}</span>
                     </h1>
                     <p className="text-sm text-muted mt-2">{subtitle}</p>

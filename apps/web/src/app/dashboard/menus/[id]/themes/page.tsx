@@ -449,7 +449,7 @@ export default function MenuThemesPage() {
                 </Link>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div className="space-y-2">
-                        <h1 className="text-3xl font-bold tracking-tight">Design Studio</h1>
+                        <h1 className="font-heading text-3xl font-bold tracking-tight">Design Studio</h1>
                         <p className="text-sm text-[var(--cms-muted)]">
                             Customize your menu's branding and visual theme.
                         </p>
@@ -489,7 +489,7 @@ export default function MenuThemesPage() {
                     <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-6">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 className="text-lg font-bold">Restaurant Logo</h2>
+                                <h2 className="font-heading text-lg font-bold tracking-tight">Restaurant Logo</h2>
                                 <p className="text-sm text-[var(--cms-muted)]">Your logo will appear on public menus.</p>
                             </div>
                             {logoPreview && (
@@ -551,7 +551,7 @@ export default function MenuThemesPage() {
                                         <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
                                     </div>
                                     <div>
-                                        <h2 className="text-lg font-bold tracking-tight">AI Title Design</h2>
+                                        <h2 className="font-heading text-lg font-bold tracking-tight">AI Title Design</h2>
                                         <p className="text-sm text-[var(--cms-muted)] mt-0.5">
                                             Generate a stunning title area from your logo
                                         </p>
@@ -756,7 +756,7 @@ export default function MenuThemesPage() {
                     <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-6">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 className="text-lg font-bold">Menu Cover Banner</h2>
+                                <h2 className="font-heading text-lg font-bold tracking-tight">Menu Cover Banner</h2>
                                 <p className="text-sm text-[var(--cms-muted)]">Shown at the top of the public menu.</p>
                             </div>
                             {bannerPreview && (
@@ -804,7 +804,7 @@ export default function MenuThemesPage() {
                     <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-6">
                         <div className="flex items-center justify-between gap-4">
                             <div>
-                                <h2 className="text-lg font-bold">Item Images</h2>
+                                <h2 className="font-heading text-lg font-bold tracking-tight">Item Images</h2>
                                 <p className="text-sm text-[var(--cms-muted)]">
                                     Show item photos on the public menu page.
                                 </p>
@@ -923,7 +923,7 @@ export default function MenuThemesPage() {
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="min-w-0 flex-1">
-                                                <h2 className="text-lg font-bold">{theme.name}</h2>
+                                                <h2 className="font-heading text-lg font-bold tracking-tight">{theme.name}</h2>
                                                 <p className="text-sm text-[var(--cms-muted)] line-clamp-2 min-h-[2.5rem]">{theme.description}</p>
                                                 <div className="mt-3 flex gap-2 text-xs text-[var(--cms-muted)] overflow-hidden h-7">
                                                     {[theme.category, theme.layout, ...theme.cuisines.slice(0, 2)].map((tag, tagIndex) => (

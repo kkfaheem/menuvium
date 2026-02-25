@@ -1191,7 +1191,7 @@ export default function MenuDetailPage() {
                         {isEditingMenuName ? (
                             <div className="flex items-center gap-2">
                                 <input
-                                    className="text-3xl font-bold tracking-tight bg-transparent border-b border-[var(--cms-border)] focus:outline-none focus:border-[var(--cms-text)] transition-colors"
+                                    className="font-heading text-3xl font-bold tracking-tight bg-transparent border-b border-[var(--cms-border)] focus:outline-none focus:border-[var(--cms-text)] transition-colors"
                                     value={menuNameDraft}
                                     onChange={(e) => setMenuNameDraft(e.target.value)}
                                     onKeyDown={(e) => {
@@ -1240,7 +1240,7 @@ export default function MenuDetailPage() {
                                             setMenuNameDraft(menuName);
                                             setIsEditingMenuName(true);
                                         }}
-                                        className="group inline-flex items-center gap-2 text-3xl font-bold tracking-tight text-left hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent-strong)]/25"
+                                        className="group inline-flex items-center gap-2 font-heading text-3xl font-bold tracking-tight text-left hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent-strong)]/25"
                                         aria-label="Edit menu name"
                                         title="Edit menu name"
                                     >
@@ -1248,7 +1248,7 @@ export default function MenuDetailPage() {
                                         <PencilLine className="relative top-[1px] w-4 h-4 text-[var(--cms-muted)] transition-colors group-hover:text-[var(--cms-text)]" />
                                     </button>
                                 ) : (
-                                    <h1 className="text-3xl font-bold tracking-tight">{menuName}</h1>
+                                    <h1 className="font-heading text-3xl font-bold tracking-tight">{menuName}</h1>
                                 )}
                             </>
                         )}

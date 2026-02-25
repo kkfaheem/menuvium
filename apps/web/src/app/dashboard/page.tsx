@@ -108,7 +108,7 @@ export default function DashboardPage() {
         <div className="space-y-8">
             <header className="space-y-2">
                 <Badge variant="outline">Overview</Badge>
-                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                <h1 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
                     Welcome back, <span className="text-[var(--cms-accent-strong)]">{displayName}</span>
                 </h1>
                 <p className="text-muted">A quick snapshot of what’s happening across your menus.</p>

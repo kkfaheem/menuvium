@@ -132,7 +132,7 @@ export default function DesignStudioPage() {
                         <Palette className="h-5 w-5" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Design Studio</h1>
+                        <h1 className="font-heading text-3xl font-bold tracking-tight">Design Studio</h1>
                         <p className="text-sm text-muted">Customize your menu's branding and visual theme.</p>
                     </div>
                 </div>

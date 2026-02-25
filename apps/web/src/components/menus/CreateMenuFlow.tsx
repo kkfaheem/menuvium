@@ -555,7 +555,7 @@ export default function CreateMenuFlow({
                 <span className={`text-xs uppercase tracking-wide ${isActive || isComplete ? palette.text : palette.muted}`}>
                     Step {number}
                 </span>
-                <h3 className={`text-base font-bold ${palette.text}`}>{title}</h3>
+                <h3 className={`font-heading text-base font-semibold tracking-tight ${palette.text}`}>{title}</h3>
             </div>
         </div>
     );
@@ -566,7 +566,7 @@ export default function CreateMenuFlow({
             <div className={`relative overflow-hidden rounded-2xl border ${palette.border} ${palette.panel} p-6 md:p-8`}>
                 <div className="text-center max-w-xl mx-auto">
                     <p className={`text-xs uppercase tracking-[0.3em] ${palette.muted} mb-2`}>{heroLabel}</p>
-                    <h2 className={`text-3xl md:text-4xl font-bold tracking-tight ${palette.text} mb-2`}>
+                    <h2 className={`font-heading text-3xl md:text-4xl font-bold tracking-tight ${palette.text} mb-2`}>
                         {heroTitle}
                     </h2>
                     <p className={`text-sm ${palette.muted}`}>

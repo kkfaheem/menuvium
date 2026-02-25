@@ -35,11 +35,11 @@ export function Logo({ size = "md", className = "" }: LogoProps) {
     return (
         <Link
             href={href}
-            className={`inline-flex items-center gap-1 font-semibold tracking-tight transition-opacity hover:opacity-80 ${sizeClasses[size]} ${className}`}
+            className={`inline-flex items-center gap-1 font-heading font-semibold tracking-tight transition-opacity hover:opacity-80 ${sizeClasses[size]} ${className}`}
         >
-            <span className="text-[var(--cms-text)]">menu</span>
-            <span className="text-[var(--cms-accent)] font-bold">vium</span>
-            <span className={`${dotSizeClasses[size]} rounded-full bg-[var(--cms-accent)] animate-pulse`} />
+            <span className="text-foreground">menu</span>
+            <span className="text-[var(--cms-accent-strong)] font-bold">vium</span>
+            <span className={`${dotSizeClasses[size]} rounded-full bg-[var(--cms-accent)]`} aria-hidden="true" />
         </Link>
     );
 }

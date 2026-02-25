@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import AmplifyProvider from "@/components/AmplifyProvider";
 import ThemeProvider from "@/components/ThemeProvider";
@@ -9,6 +10,18 @@ export const metadata: Metadata = {
     title: "Menuvium",
     description: "Dynamic QR Menu SaaS",
 };
+
+const sans = Plus_Jakarta_Sans({
+    subsets: ["latin"],
+    variable: "--font-sans",
+    display: "swap",
+});
+
+const heading = Space_Grotesk({
+    subsets: ["latin"],
+    variable: "--font-heading",
+    display: "swap",
+});
 
 export default function RootLayout({
     children,
@@ -40,7 +53,7 @@ export default function RootLayout({
             <head>
                 <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
             </head>
-            <body suppressHydrationWarning>
+            <body className={`${sans.variable} ${heading.variable} antialiased`} suppressHydrationWarning>
                 <ThemeProvider defaultTheme="system">
                     <ToastProvider>
                         <ConfirmProvider>

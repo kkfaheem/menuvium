@@ -226,11 +226,11 @@ export default function OnboardingPage() {
 
     return (
         <div className="min-h-screen bg-background text-foreground">
-            <header className="sticky top-0 z-40 border-b border-border bg-panel">
+            <header className="sticky top-0 z-40 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
                 <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
                     <div className="min-w-0">
                         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Onboarding</p>
-                        <h1 className="mt-1 truncate text-2xl font-bold tracking-tight sm:text-3xl">
+                        <h1 className="mt-1 truncate font-heading text-2xl font-bold tracking-tight sm:text-3xl">
                             Welcome, <span className="text-[var(--cms-accent-strong)]">{displayName}</span>
                         </h1>
                     </div>

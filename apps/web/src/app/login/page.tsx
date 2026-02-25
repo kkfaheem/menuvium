@@ -24,22 +24,13 @@ export default function LoginPage() {
     const hasOAuth = Boolean(process.env.NEXT_PUBLIC_COGNITO_DOMAIN);
 
     const amplifyTheme = useMemo(() => {
-        const isDark = resolvedTheme === "dark";
-        const base = isDark
-            ? {
-                fontPrimary: "#e2e8f0",
-                fontSecondary: "rgba(226, 232, 240, 0.7)",
-                border: "rgba(226, 232, 240, 0.12)",
-                backgroundPrimary: "#0f172a",
-                backgroundSecondary: "#0b1020"
-            }
-            : {
-                fontPrimary: "#0f172a",
-                fontSecondary: "rgba(15, 23, 42, 0.64)",
-                border: "rgba(15, 23, 42, 0.12)",
-                backgroundPrimary: "#ffffff",
-                backgroundSecondary: "#f8fafc"
-            };
+        const base = {
+            fontPrimary: "var(--cms-text)",
+            fontSecondary: "var(--cms-muted)",
+            border: "var(--cms-border)",
+            backgroundPrimary: "var(--cms-panel)",
+            backgroundSecondary: "var(--cms-panel-strong)"
+        };
 
         return {
             name: "menuvium-auth",
@@ -61,18 +52,18 @@ export default function LoginPage() {
                 components: {
                     button: {
                         primary: {
-                            backgroundColor: "#F97316",
+                            backgroundColor: "var(--cms-accent)",
                             color: "#FFFFFF",
-                            _hover: { backgroundColor: "#EA580C" }
+                            _hover: { backgroundColor: "var(--cms-accent-strong)" }
                         },
                         link: {
-                            color: "#F97316"
+                            color: "var(--cms-accent)"
                         }
                     },
                     fieldcontrol: {
                         borderColor: base.border,
                         backgroundColor: base.backgroundPrimary,
-                        _focus: { borderColor: "#F97316", boxShadow: "0 0 0 2px rgba(249,115,22,0.2)" }
+                        _focus: { borderColor: "var(--cms-accent)", boxShadow: "0 0 0 2px var(--cms-accent-subtle)" }
                     }
                 }
             }
@@ -81,7 +72,7 @@ export default function LoginPage() {
 
     return (
         <div className="min-h-screen bg-background text-foreground transition-colors">
-            <header className="sticky top-0 z-40 border-b border-border bg-panel">
+            <header className="sticky top-0 z-40 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
                 <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
                     <div className="flex-1" />
                     <Logo size="lg" />
@@ -97,7 +88,7 @@ export default function LoginPage() {
                         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--cms-accent-strong)]">
                             Welcome back
                         </p>
-                        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
+                        <h1 className="font-heading text-4xl font-extrabold tracking-tight sm:text-5xl">
                             Sign in to your <span className="text-[var(--cms-accent-strong)]">menu studio</span>
                         </h1>
                         <p className="max-w-xl text-base leading-relaxed text-muted">

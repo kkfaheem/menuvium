@@ -327,7 +327,7 @@ export default function SettingsPage() {
             <header className="space-y-2">
                 <Badge variant="outline">Settings</Badge>
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+                    <h1 className="font-heading text-3xl font-bold tracking-tight">Settings</h1>
                     <p className="text-muted">Keep the control surface clean and fast.</p>
                 </div>
             </header>

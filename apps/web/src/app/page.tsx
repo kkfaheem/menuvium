@@ -3,29 +3,78 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
-    MoveRight,
     ArrowRight,
-    Play,
     Sparkles,
-    Zap,
-    Smartphone,
-    Layout
+    Check,
+    QrCode,
+    Palette,
+    Wand2,
+    Clock,
+    ShieldCheck,
+    Layers,
+    ArrowUpRight,
+    Minus,
+    Plus,
+    Menu,
+    X,
+    Sparkle
 } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
+import { cn } from "@/lib/cn";
+
+type TourTab = "editor" | "themes" | "publish";
+type PricingPeriod = "monthly" | "annual";
+
+const TOUR_TABS = [
+    {
+        id: "editor" as const,
+        label: "Editor",
+        icon: Wand2,
+        title: "A calm editor built for speed",
+        description:
+            "Create categories, items, photos, and availability in one flow — designed to feel obvious on day one.",
+        image: "/images/dashboard-mockup.png",
+    },
+    {
+        id: "themes" as const,
+        label: "Themes",
+        icon: Palette,
+        title: "Theme studio that feels premium",
+        description:
+            "Pick a layout, tune the vibe, and preview instantly. Guests get a clean, branded experience on any device.",
+        image: "/images/mobile-preview.png",
+    },
+    {
+        id: "publish" as const,
+        label: "Publish",
+        icon: QrCode,
+        title: "One QR. Infinite updates.",
+        description:
+            "Publish once and keep improving. Your QR link stays stable while the menu evolves behind the scenes.",
+        image: "/images/dashboard-mockup.png",
+    },
+] satisfies Array<{
+    id: TourTab;
+    label: string;
+    icon: typeof Wand2;
+    title: string;
+    description: string;
+    image: string;
+}>;
 
 export default function Home() {
     const { user, authStatus } = useAuthenticator(context => [context.user, context.authStatus]);
     const [mounted, setMounted] = useState(false);
     const router = useRouter();
-    const { scrollYProgress } = useScroll();
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const headerOpacity = useTransform(scrollYProgress, [0, 0.1], [0, 1]);
+    const reduceMotion = useReducedMotion();
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
+    const [tourTab, setTourTab] = useState<TourTab>("editor");
+    const [pricingPeriod, setPricingPeriod] = useState<PricingPeriod>("monthly");
 
     useEffect(() => {
         setMounted(true);
@@ -38,241 +87,659 @@ export default function Home() {
     }, [user, mounted, router]);
 
     if (!mounted) {
-        return <div className="min-h-screen bg-[var(--cms-bg)]" />;
+        return <div className="min-h-screen bg-background" />;
     }
 
-    // Animation variants
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.1,
-                delayChildren: 0.2
-            }
-        }
-    };
+    const fadeUp = reduceMotion
+        ? undefined
+        : {
+            hidden: { opacity: 0, y: 16 },
+            visible: { opacity: 1, y: 0 },
+        };
 
-    const itemVariants = {
-        hidden: { y: 20, opacity: 0 },
-        visible: {
-            y: 0,
-            opacity: 1,
-            transition: { type: "spring", stiffness: 100 }
-        }
-    };
+    const sectionReveal = reduceMotion
+        ? undefined
+        : {
+            hidden: { opacity: 0, y: 14 },
+            visible: { opacity: 1, y: 0 },
+        };
+
+    const activeTour = TOUR_TABS.find((t) => t.id === tourTab) ?? TOUR_TABS[0];
 
     return (
-        <div className="min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] selection:bg-[var(--cms-accent)]/20 transition-colors">
-            {/* Navigation */}
-            <motion.nav
-                initial={{ y: -100 }}
-                animate={{ y: 0 }}
-                className="fixed top-0 left-0 right-0 z-50 glass-subtle"
-            >
-                <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-                    {/* Left nav links */}
-                    <div className="hidden md:flex items-center gap-6 text-sm font-medium text-[var(--cms-muted)] flex-1">
-                        <Link href="#features" className="hover:text-[var(--cms-accent)] transition-colors">Features</Link>
-                        <Link href="#how-it-works" className="hover:text-[var(--cms-accent)] transition-colors">How it Works</Link>
-                        <Link href="#pricing" className="hover:text-[var(--cms-accent)] transition-colors">Pricing</Link>
-                    </div>
-
-                    {/* Centered logo */}
+        <div className="min-h-screen bg-background text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
+            {/* Top nav */}
+            <header className="sticky top-0 z-50 border-b border-border bg-panel/95 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
+                <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
                     <Logo size="lg" />
 
-                    {/* Right side actions */}
-                    <div className="flex items-center gap-3 flex-1 justify-end">
+                    <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-muted">
+                        <Link href="#features" className="hover:text-foreground transition-colors">Features</Link>
+                        <Link href="#how-it-works" className="hover:text-foreground transition-colors">How it works</Link>
+                        <Link href="#pricing" className="hover:text-foreground transition-colors">Pricing</Link>
+                        <Link href="#faq" className="hover:text-foreground transition-colors">FAQ</Link>
+                    </nav>
+
+                    <div className="flex items-center gap-3">
                         <ThemeToggle />
                         <Link
                             href="/login"
-                            className="hidden md:block text-sm font-medium text-[var(--cms-muted)] hover:text-[var(--cms-text)] transition-colors"
+                            className="hidden md:inline-flex h-11 items-center justify-center rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-pill"
                         >
                             Log in
                         </Link>
                         <Link
                             href="/login"
-                            className="px-5 py-2.5 bg-[var(--cms-accent)] hover:bg-[var(--cms-accent-strong)] text-white text-sm font-semibold rounded-full transition-all hover:shadow-lg hover:shadow-[var(--cms-accent)]/20 active:scale-95"
+                            className="inline-flex h-11 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                         >
-                            Get Started
+                            Get started <ArrowUpRight className="ml-1 h-4 w-4" />
                         </Link>
+                        <button
+                            type="button"
+                            className="md:hidden inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-panelStrong text-muted shadow-sm transition-colors hover:bg-pill hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                            aria-label="Open menu"
+                            onClick={() => setMobileNavOpen(true)}
+                        >
+                            <Menu className="h-5 w-5" />
+                        </button>
                     </div>
                 </div>
-            </motion.nav>
+            </header>
 
-            <main className="pt-32 pb-16 overflow-hidden">
-                {/* Hero Section */}
-                <section className="px-6 max-w-7xl mx-auto mb-24 md:mb-32 relative">
-                    {/* Abstract Shapes */}
-                    <div className="absolute top-0 right-0 -z-10 opacity-30 dark:opacity-20 pointer-events-none">
-                        <div className="absolute top-10 right-10 w-64 h-64 bg-[var(--cms-accent)] rounded-full blur-[100px] animate-pulse" />
-                        <div className="absolute top-40 right-60 w-72 h-72 bg-pink-400 rounded-full blur-[120px] animate-pulse delay-700" />
-                    </div>
-
+            <AnimatePresence>
+                {mobileNavOpen ? (
                     <motion.div
-                        variants={containerVariants}
-                        initial="hidden"
-                        animate="visible"
-                        className="flex flex-col items-center text-center max-w-4xl mx-auto"
+                        className="fixed inset-0 z-[60] md:hidden"
+                        initial={reduceMotion ? undefined : { opacity: 0 }}
+                        animate={reduceMotion ? undefined : { opacity: 1 }}
+                        exit={reduceMotion ? undefined : { opacity: 0 }}
                     >
-                        <motion.div variants={itemVariants} className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[var(--cms-accent-subtle)] text-[var(--cms-accent)] text-sm font-semibold mb-8 border border-[var(--cms-accent-light)]">
-                            <Sparkles size={14} />
-                            <span>Reimagined Menu Management</span>
-                        </motion.div>
+                        <button
+                            type="button"
+                            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                            aria-label="Close menu"
+                            onClick={() => setMobileNavOpen(false)}
+                        />
+                        <motion.div
+                            className="relative mx-4 mt-4 rounded-3xl border border-border bg-panel p-4 shadow-[var(--cms-shadow-lg)]"
+                            initial={reduceMotion ? undefined : { opacity: 0, y: -8, scale: 0.98 }}
+                            animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
+                            exit={reduceMotion ? undefined : { opacity: 0, y: -8, scale: 0.98 }}
+                            transition={{ duration: 0.18 }}
+                        >
+                            <div className="flex items-center justify-between">
+                                <Logo size="lg" />
+                                <div className="flex items-center gap-2">
+                                    <ThemeToggle />
+                                    <button
+                                        type="button"
+                                        className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-panelStrong text-muted shadow-sm transition-colors hover:bg-pill hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                                        aria-label="Close menu"
+                                        onClick={() => setMobileNavOpen(false)}
+                                    >
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
+                            </div>
 
-                        <motion.h1 variants={itemVariants} className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1] mb-8 text-[var(--cms-text)]">
-                            Your menu, <br />
-                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[var(--cms-accent)] to-[var(--cms-accent-light)]">
-                                perfectly synced.
-                            </span>
-                        </motion.h1>
+                            <div className="mt-4 space-y-1">
+                                {[
+                                    { href: "#features", label: "Features" },
+                                    { href: "#how-it-works", label: "How it works" },
+                                    { href: "#pricing", label: "Pricing" },
+                                    { href: "#faq", label: "FAQ" },
+                                ].map((item) => (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        onClick={() => setMobileNavOpen(false)}
+                                        className="flex h-11 items-center justify-between rounded-2xl px-3 text-sm font-semibold text-foreground transition-colors hover:bg-pill"
+                                    >
+                                        {item.label}
+                                        <ArrowRight className="h-4 w-4 text-muted" />
+                                    </Link>
+                                ))}
+                            </div>
 
-                        <motion.p variants={itemVariants} className="text-xl text-[var(--cms-muted)] mb-10 max-w-2xl leading-relaxed">
-                            Create, edit, and publish your digital menus instantly.
-                            Say goodbye to PDF uploads and outdated prices.
-                            One system to rule them all.
-                        </motion.p>
-
-                        <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-center gap-4 mb-16">
-                            <Link
-                                href="/login"
-                                className="px-8 py-4 bg-[var(--cms-accent)] hover:bg-[var(--cms-accent-strong)] text-white font-semibold rounded-full transition-all hover:scale-105 shadow-xl shadow-[var(--cms-accent)]/25 flex items-center gap-2 group"
-                            >
-                                Start Free Trial
-                                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                            </Link>
-                            <button className="px-8 py-4 bg-[var(--cms-panel)] border border-[var(--cms-border)] hover:bg-[var(--cms-panel-strong)] text-[var(--cms-text)] font-medium rounded-full transition-all flex items-center gap-2">
-                                <Play size={16} fill="currentColor" />
-                                Watch Demo
-                            </button>
+                            <div className="mt-4 grid grid-cols-2 gap-2">
+                                <Link
+                                    href="/login"
+                                    onClick={() => setMobileNavOpen(false)}
+                                    className="inline-flex h-11 items-center justify-center rounded-2xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-pill"
+                                >
+                                    Log in
+                                </Link>
+                                <Link
+                                    href="/login"
+                                    onClick={() => setMobileNavOpen(false)}
+                                    className="inline-flex h-11 items-center justify-center rounded-2xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                                >
+                                    Get started <ArrowUpRight className="ml-1 h-4 w-4" />
+                                </Link>
+                            </div>
                         </motion.div>
                     </motion.div>
+                ) : null}
+            </AnimatePresence>
 
-                    {/* Hero Assets */}
-                    <motion.div
-                        initial={{ opacity: 0, y: 40 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.6, duration: 0.8 }}
-                        className="relative max-w-6xl mx-auto"
-                    >
-                        <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] aspect-[16/9] lg:aspect-[2/1] group">
-                            {/* Main Dashboard Image */}
-                            <Image
-                                src="/images/dashboard-mockup.png"
-                                alt="Menuvium Dashboard"
-                                fill
-                                className="object-cover object-top transition-transform duration-700 group-hover:scale-[1.01]"
-                                priority
-                            />
+            <main>
+                {/* Hero */}
+                <section className="relative mx-auto w-full max-w-7xl px-4 pb-14 pt-12 sm:px-6 sm:pb-16 sm:pt-16">
+                    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+                        <div
+                            className={cn(
+                                "absolute -top-40 -left-32 h-[28rem] w-[28rem] rounded-full bg-[var(--cms-accent-subtle)] blur-3xl",
+                                !reduceMotion && "float-slow"
+                            )}
+                        />
+                        <div
+                            className={cn(
+                                "absolute top-0 -right-40 h-[30rem] w-[30rem] rounded-full bg-sky-500/10 blur-3xl",
+                                !reduceMotion && "float-medium"
+                            )}
+                        />
+                        <div
+                            className={cn(
+                                "absolute -bottom-56 left-[28%] h-[34rem] w-[34rem] rounded-full bg-emerald-500/10 blur-3xl",
+                                !reduceMotion && "float-slow"
+                            )}
+                        />
+                    </div>
+                    <div className="relative grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+                        <motion.div
+                            initial="hidden"
+                            animate="visible"
+                            variants={fadeUp ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
+                            className="space-y-7"
+                        >
+                            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 rounded-full border border-border bg-panelStrong px-3 py-1.5 text-xs font-semibold text-muted">
+                                <Sparkles className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
+                                Menu management, rebuilt for speed
+                            </motion.div>
 
-                            {/* Overlay Gradient for Dark Mode */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
-
-                            {/* Floating Helper UI */}
-                            <motion.div
-                                initial={{ y: 20, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 1, duration: 0.8 }}
-                                className="absolute -bottom-10 -right-10 md:bottom-[-20px] md:right-[-20px] w-48 md:w-64 aspect-[9/19] rounded-[2rem] shadow-2xl border-4 border-[var(--cms-panel)] overflow-hidden hidden sm:block ring-1 ring-[var(--cms-border)]"
+                            <motion.h1
+                                variants={fadeUp}
+                                className="font-heading text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl"
                             >
-                                <Image
-                                    src="/images/mobile-preview.png"
-                                    alt="Menuvium Mobile Preview"
-                                    fill
-                                    className="object-cover"
-                                />
+                                Build menus people scan.
+                                <span className="block text-[var(--cms-accent-strong)]">Update in seconds.</span>
+                            </motion.h1>
+
+                            <motion.p variants={fadeUp} className="max-w-xl text-base leading-relaxed text-muted sm:text-lg">
+                                Create, edit, and publish QR menus with a calm, modern workflow. Import fast, ship beautiful themes, and keep
+                                availability accurate — without reprinting.
+                            </motion.p>
+
+                            <motion.div variants={fadeUp} className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                <Link
+                                    href="/login"
+                                    className="inline-flex h-12 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                                >
+                                    Start free <ArrowRight className="ml-2 h-4 w-4" />
+                                </Link>
+                                <Link
+                                    href="#pricing"
+                                    className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-panelStrong px-5 text-base font-semibold text-foreground shadow-sm transition-colors hover:bg-pill"
+                                >
+                                    View pricing
+                                </Link>
+                            </motion.div>
+
+                            <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                {[
+                                    { label: "Instant updates", icon: Clock },
+                                    { label: "Theme studio", icon: Palette },
+                                    { label: "Dynamic QR", icon: QrCode },
+                                ].map(({ label, icon: Icon }) => (
+                                    <div
+                                        key={label}
+                                        className="flex items-center gap-2 rounded-2xl border border-border bg-panel px-3 py-2 text-sm shadow-[var(--cms-shadow-sm)]"
+                                    >
+                                        <Icon className="h-4 w-4 text-[var(--cms-accent-strong)]" />
+                                        <span className="font-semibold">{label}</span>
+                                    </div>
+                                ))}
+                            </motion.div>
+                        </motion.div>
+
+                        <motion.div
+                            initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}
+                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                            transition={{ duration: 0.45, delay: 0.1 }}
+                            className="relative"
+                        >
+                            <div className="relative overflow-hidden rounded-3xl border border-border bg-panel shadow-[var(--cms-shadow-lg)]">
+                                <div className="flex items-center justify-between border-b border-border bg-panelStrong px-4 py-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-2 w-2 rounded-full bg-emerald-500/80" />
+                                        <p className="text-xs font-semibold text-muted">Live preview</p>
+                                    </div>
+                                    <p className="text-xs font-semibold text-muted">Dashboard</p>
+                                </div>
+                                <div className="relative aspect-[16/10]">
+                                    <Image
+                                        src="/images/dashboard-mockup.png"
+                                        alt="Menuvium dashboard preview"
+                                        fill
+                                        className="object-cover object-top"
+                                        priority
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="pointer-events-none absolute -bottom-8 -left-6 hidden w-56 rounded-3xl border border-border bg-panel p-4 shadow-[var(--cms-shadow-md)] sm:block">
+                                <p className="text-xs font-semibold text-muted">Today</p>
+                                <p className="mt-2 text-sm font-semibold">Updated menu prices</p>
+                                <div className="mt-3 flex items-center gap-2 text-xs text-muted">
+                                    <Check className="h-4 w-4 text-emerald-500" />
+                                    Published instantly
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                </section>
+
+                {/* Social proof */}
+                <section className="border-y border-border bg-panelStrong">
+                    <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 md:grid-cols-2 md:items-center">
+                        <p className="text-sm font-semibold text-muted">
+                            Trusted by teams moving fast — from single locations to multi‑brand groups.
+                        </p>
+                        <div className="flex flex-wrap items-center justify-start gap-3 md:justify-end">
+                            {["Bistro V", "Urban Eatery", "The Golden Spoon", "Caffeine Fix", "Pizza & Co"].map((name) => (
+                                <span
+                                    key={name}
+                                    className="inline-flex items-center rounded-full border border-border bg-panel px-3 py-1.5 text-xs font-semibold text-muted"
+                                >
+                                    {name}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
+                {/* Features */}
+                <section id="features" className="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-20">
+                    <motion.div
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, margin: "-120px" }}
+                        variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
+                        className="grid gap-10 lg:grid-cols-[1fr,1.1fr] lg:items-end"
+                    >
+                        <motion.div variants={sectionReveal} className="space-y-3">
+                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Features</p>
+                            <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+                                Minimal UI. Maximum control.
+                            </h2>
+                            <p className="max-w-xl text-sm leading-relaxed text-muted sm:text-base">
+                                Everything you need to ship a beautiful QR menu — without dragging your team into spreadsheet chaos.
+                            </p>
+                        </motion.div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            {[
+                                { icon: Layers, title: "Menus, categories, items", desc: "A clean editor designed for fast change." },
+                                { icon: Wand2, title: "AI import", desc: "Drop a PDF or images — we extract the structure." },
+                                { icon: Palette, title: "Theme studio", desc: "Make it match your brand in minutes." },
+                                { icon: QrCode, title: "Dynamic QR", desc: "Change the menu forever. QR never changes." },
+                                { icon: Clock, title: "Availability", desc: "Sold out? Update instantly from any device." },
+                                { icon: ShieldCheck, title: "Permissions", desc: "Invite teammates with scoped access." },
+                            ].map(({ icon: Icon, title, desc }) => (
+                                <motion.div
+                                    key={title}
+                                    variants={sectionReveal}
+                                    whileHover={reduceMotion ? undefined : { y: -3 }}
+                                    className="rounded-2xl border border-border bg-panel p-5 shadow-sm transition-colors hover:bg-panelStrong"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-pill">
+                                            <Icon className="h-5 w-5 text-[var(--cms-accent-strong)]" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="font-semibold">{title}</p>
+                                            <p className="mt-1 text-sm text-muted">{desc}</p>
+                                        </div>
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </motion.div>
+                </section>
+
+                {/* Product tour */}
+                <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 sm:pb-20">
+                    <motion.div
+                        initial="hidden"
+                        whileInView="visible"
+                        viewport={{ once: true, margin: "-120px" }}
+                        variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
+                        className="rounded-[2rem] border border-border bg-panel p-6 shadow-[var(--cms-shadow-sm)] sm:p-10"
+                    >
+                        <motion.div variants={sectionReveal} className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                            <div className="space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Tour</p>
+                                <h2 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">
+                                    Everything flows together.
+                                </h2>
+                                <p className="text-sm text-muted">
+                                    Pick a lane — build, design, publish — and jump between them without losing context.
+                                </p>
+                            </div>
+                            <div className="inline-flex items-center gap-1 rounded-2xl border border-border bg-panelStrong p-1 text-xs font-semibold">
+                                {TOUR_TABS.map((tab) => {
+                                    const Icon = tab.icon;
+                                    const active = tab.id === tourTab;
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => setTourTab(tab.id)}
+                                            className={cn(
+                                                "inline-flex h-10 items-center gap-2 rounded-xl px-3 transition-colors",
+                                                active
+                                                    ? "bg-panel text-foreground shadow-[var(--cms-shadow-sm)]"
+                                                    : "text-muted hover:text-foreground hover:bg-pill"
+                                            )}
+                                            aria-pressed={active}
+                                        >
+                                            <Icon className="h-4 w-4" />
+                                            {tab.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </motion.div>
+
+                        <div className="mt-8 grid gap-8 lg:grid-cols-[0.9fr,1.1fr] lg:items-center">
+                            <motion.div variants={sectionReveal} className="space-y-4">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-panelStrong px-3 py-1.5 text-xs font-semibold text-muted">
+                                    <Sparkle className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
+                                    {activeTour.label}
+                                </div>
+                                <h3 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">{activeTour.title}</h3>
+                                <p className="text-sm leading-relaxed text-muted sm:text-base">{activeTour.description}</p>
+
+                                <ul className="grid gap-2 text-sm">
+                                    {[
+                                        "Keyboard-friendly editing",
+                                        "Mobile-first public menus",
+                                        "Instant publish with the same QR",
+                                    ].map((line) => (
+                                        <li key={line} className="flex items-start gap-2 text-muted">
+                                            <Check className="mt-0.5 h-4 w-4 text-emerald-500" />
+                                            <span>{line}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </motion.div>
+
+                            <motion.div variants={sectionReveal} className="relative">
+                                <div className="absolute -inset-6 rounded-[2.25rem] bg-[var(--cms-accent-subtle)] blur-2xl" aria-hidden="true" />
+                                <div className="relative overflow-hidden rounded-[2rem] border border-border bg-panel shadow-[var(--cms-shadow-md)]">
+                                    <AnimatePresence mode="wait" initial={false}>
+                                        <motion.div
+                                            key={activeTour.id}
+                                            initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
+                                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                                            exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+                                            transition={{ duration: 0.28 }}
+                                            className="relative"
+                                        >
+                                            <div className="flex items-center justify-between border-b border-border bg-panelStrong px-4 py-3">
+                                                <p className="text-xs font-semibold text-muted">{activeTour.label} preview</p>
+                                                <span className="text-xs font-semibold text-muted">Menuvium</span>
+                                            </div>
+                                            <div className={cn("relative", activeTour.id === "themes" ? "aspect-[10/8]" : "aspect-[16/10]")}>
+                                                <Image
+                                                    src={activeTour.image}
+                                                    alt={`${activeTour.label} preview`}
+                                                    fill
+                                                    className="object-cover object-top"
+                                                />
+                                            </div>
+                                        </motion.div>
+                                    </AnimatePresence>
+                                </div>
                             </motion.div>
                         </div>
                     </motion.div>
                 </section>
 
-                {/* Social Proof */}
-                <section className="py-12 border-y border-[var(--cms-border)] bg-[var(--cms-panel)]/40 mb-24 backdrop-blur-sm">
-                    <div className="max-w-7xl mx-auto px-6 text-center">
-                        <p className="text-sm font-semibold text-[var(--cms-muted)] uppercase tracking-wider mb-8">
-                            Powering Next-Gen Kitchens
-                        </p>
-                        <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
-                            {/* Placeholders for logos */}
-                            {['Bistro V', 'The Golden Spoon', 'Urban Eatery', 'Caffeine Fix', 'Pizza & Co'].map((name, i) => (
-                                <div key={i} className="text-xl font-bold font-serif text-[var(--cms-muted)] flex items-center gap-2">
-                                    <div className="w-8 h-8 bg-[var(--cms-pill)] rounded-full" />
-                                    <span className="hidden sm:inline">{name}</span>
+                {/* How it works */}
+                <section id="how-it-works" className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 sm:pb-20">
+                    <div className="rounded-3xl border border-border bg-panel p-6 shadow-sm sm:p-10">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                            <div className="space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">How it works</p>
+                                <h2 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">From idea to QR in minutes</h2>
+                                <p className="text-sm text-muted">A simple loop: create → publish → improve.</p>
+                            </div>
+                            <Link
+                                href="/login"
+                                className="inline-flex h-11 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[var(--cms-accent-strong)]"
+                            >
+                                Try it now <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </div>
+
+                        <div className="mt-8 grid gap-4 md:grid-cols-3">
+                            {[
+                                {
+                                    step: "01",
+                                    title: "Create a company",
+                                    desc: "Set up your brand and invite teammates.",
+                                },
+                                {
+                                    step: "02",
+                                    title: "Build or import a menu",
+                                    desc: "Start fresh or import from a PDF in seconds.",
+                                },
+                                {
+                                    step: "03",
+                                    title: "Publish and iterate",
+                                    desc: "Update items instantly — QR stays the same.",
+                                },
+                            ].map(({ step, title, desc }) => (
+                                <div key={step} className="rounded-2xl border border-border bg-panelStrong p-5">
+                                    <p className="text-xs font-semibold text-muted">{step}</p>
+                                    <p className="mt-2 font-semibold">{title}</p>
+                                    <p className="mt-1 text-sm text-muted">{desc}</p>
                                 </div>
                             ))}
                         </div>
                     </div>
                 </section>
 
-                {/* Features Grid */}
-                <section id="features" className="max-w-7xl mx-auto px-6 mb-32">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-5xl font-bold text-[var(--cms-text)] mb-6">
-                            Constructed for <br />
-                            <span className="text-[var(--cms-accent)]">Infinite Scalability</span>
-                        </h2>
-                        <p className="text-lg text-[var(--cms-muted)] max-w-2xl mx-auto">
-                            Whether you manage one menu or one hundred, the experience is identical.
-                            Menuvium abstracts the complexity so you can focus on the food.
-                        </p>
+                {/* Pricing */}
+                <section id="pricing" className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 sm:pb-20">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                        <div className="space-y-2">
+                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Pricing</p>
+                            <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+                                Simple plans to get started.
+                            </h2>
+                            <p className="max-w-xl text-sm leading-relaxed text-muted sm:text-base">
+                                Prices shown are placeholders — the structure is here so the landing page feels complete.
+                            </p>
+                        </div>
+
+                        <div className="inline-flex rounded-2xl border border-border bg-panelStrong p-1 text-xs font-semibold">
+                            {[
+                                { id: "monthly" as const, label: "Monthly" },
+                                { id: "annual" as const, label: "Annual (2 months free)" },
+                            ].map((opt) => {
+                                const active = opt.id === pricingPeriod;
+                                return (
+                                    <button
+                                        key={opt.id}
+                                        type="button"
+                                        onClick={() => setPricingPeriod(opt.id)}
+                                        className={cn(
+                                            "h-10 rounded-xl px-3 transition-colors",
+                                            active ? "bg-panel text-foreground shadow-[var(--cms-shadow-sm)]" : "text-muted hover:text-foreground hover:bg-pill"
+                                        )}
+                                        aria-pressed={active}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
 
-                    <div className="grid md:grid-cols-3 gap-8">
+                    <div className="mt-10 grid gap-4 lg:grid-cols-3">
                         {[
                             {
-                                icon: <Layout className="w-6 h-6 text-blue-500" />,
-                                title: "Unified Command Center",
-                                desc: "One dashboard to control every item, price, and description. Changes propagate instantly.",
-                                color: "bg-blue-500/10"
+                                name: "Starter",
+                                priceMonthly: "$0",
+                                priceAnnual: "$0",
+                                note: "Best for trying Menuvium",
+                                highlight: false,
+                                features: ["1 company", "1 menu", "QR link", "Basic themes"],
                             },
                             {
-                                icon: <Smartphone className="w-6 h-6 text-[var(--cms-accent)]" />,
-                                title: "Dynamic QR Menus",
-                                desc: "Beautiful, mobile-first menus that update in real-time. No more re-printing QR codes.",
-                                color: "bg-[var(--cms-accent-subtle)]"
+                                name: "Growth",
+                                priceMonthly: "$29",
+                                priceAnnual: "$290",
+                                note: "Best for active restaurants",
+                                highlight: true,
+                                features: ["Multiple menus", "AI import", "Theme studio", "Team access"],
                             },
                             {
-                                icon: <Zap className="w-6 h-6 text-purple-500" />,
-                                title: "Real-time Availability",
-                                desc: "Mark items as 'Sold Out' instantly. Keep your customers happy and your staff stress-free.",
-                                color: "bg-purple-500/10"
-                            }
-                        ].map((feature, i) => (
-                            <motion.div
-                                key={i}
-                                whileHover={{ y: -5 }}
-                                className="p-8 rounded-3xl bg-[var(--cms-panel)] border border-[var(--cms-border)] shadow-xl hover:shadow-2xl transition-all"
-                            >
-                                <div className={`w-12 h-12 ${feature.color} rounded-xl flex items-center justify-center mb-6`}>
-                                    {feature.icon}
+                                name: "Enterprise",
+                                priceMonthly: "Custom",
+                                priceAnnual: "Custom",
+                                note: "Best for multi‑brand groups",
+                                highlight: false,
+                                features: ["SSO options", "Advanced permissions", "Custom domains", "Priority support"],
+                            },
+                        ].map((tier) => {
+                            const price = pricingPeriod === "annual" ? tier.priceAnnual : tier.priceMonthly;
+                            const suffix =
+                                price === "Custom" || price === "$0"
+                                    ? ""
+                                    : pricingPeriod === "annual"
+                                        ? "/year"
+                                        : "/month";
+                            return (
+                                <div
+                                    key={tier.name}
+                                    className={cn(
+                                        "rounded-[2rem] border p-6 shadow-[var(--cms-shadow-sm)]",
+                                        tier.highlight
+                                            ? "border-[var(--cms-accent)] bg-[var(--cms-accent-subtle)]"
+                                            : "border-border bg-panel"
+                                    )}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-semibold">{tier.name}</p>
+                                            <p className="mt-1 text-sm text-muted">{tier.note}</p>
+                                        </div>
+                                        {tier.highlight ? (
+                                            <span className="rounded-full bg-[var(--cms-accent)] px-3 py-1 text-xs font-semibold text-white">
+                                                Popular
+                                            </span>
+                                        ) : null}
+                                    </div>
+
+                                    <div className="mt-6 flex items-end gap-2">
+                                        <p className="font-heading text-4xl font-bold tracking-tight">{price}</p>
+                                        <p className="pb-1 text-sm text-muted">{suffix}</p>
+                                    </div>
+
+                                    {pricingPeriod === "annual" && tier.name === "Growth" ? (
+                                        <p className="mt-2 text-xs text-muted">
+                                            Equivalent to <span className="font-semibold">$24.17</span>/month billed annually.
+                                        </p>
+                                    ) : null}
+
+                                    <ul className="mt-6 space-y-3 text-sm">
+                                        {tier.features.map((f) => (
+                                            <li key={f} className="flex items-start gap-2">
+                                                <Check className="mt-0.5 h-4 w-4 text-emerald-500" />
+                                                <span className="text-muted">{f}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+
+                                    <Link
+                                        href="/login"
+                                        className={cn(
+                                            "mt-8 inline-flex h-12 w-full items-center justify-center rounded-xl px-4 text-sm font-semibold shadow-sm transition-colors",
+                                            tier.highlight
+                                                ? "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"
+                                                : "border border-border bg-panelStrong text-foreground hover:bg-pill"
+                                        )}
+                                    >
+                                        Get started <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Link>
                                 </div>
-                                <h3 className="text-xl font-bold text-[var(--cms-text)] mb-3">{feature.title}</h3>
-                                <p className="text-[var(--cms-muted)] leading-relaxed">
-                                    {feature.desc}
-                                </p>
-                            </motion.div>
+                            );
+                        })}
+                    </div>
+                </section>
+
+                {/* FAQ */}
+                <section id="faq" className="mx-auto max-w-5xl px-4 pb-16 sm:px-6 sm:pb-24">
+                    <div className="text-center">
+                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">FAQ</p>
+                        <h2 className="mt-2 font-heading text-3xl font-bold tracking-tight sm:text-4xl">
+                            Questions, answered.
+                        </h2>
+                    </div>
+
+                    <div className="mt-10 divide-y divide-border rounded-3xl border border-border bg-panel shadow-sm">
+                        {[
+                            {
+                                q: "Will my QR code change when I edit the menu?",
+                                a: "No. The QR stays stable — edits publish instantly behind the same link.",
+                            },
+                            {
+                                q: "Can I import a PDF menu?",
+                                a: "Yes. Upload a PDF or images and Menuvium can parse the structure for you.",
+                            },
+                            {
+                                q: "Can teammates edit menus?",
+                                a: "Yes. Invite users and control permissions per company.",
+                            },
+                            {
+                                q: "Does this work on iPhone and Android?",
+                                a: "Yes. Your public menus are mobile‑first and load fast on any device.",
+                            },
+                        ].map(({ q, a }) => (
+                            <details key={q} className="group p-6">
+                                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left">
+                                    <span className="font-semibold">{q}</span>
+                                    <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-panelStrong text-muted transition-colors group-hover:bg-pill group-open:text-foreground">
+                                        <Plus className="h-4 w-4 group-open:hidden" />
+                                        <Minus className="h-4 w-4 hidden group-open:block" />
+                                    </span>
+                                </summary>
+                                <p className="mt-3 text-sm text-muted leading-relaxed">{a}</p>
+                            </details>
                         ))}
                     </div>
                 </section>
 
-                {/* CTA Section */}
-                <section className="max-w-4xl mx-auto px-6 text-center mb-24">
-                    <div className="relative p-12 rounded-[2.5rem] bg-[var(--cms-panel)] border border-[var(--cms-border)] overflow-hidden">
-                        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[var(--cms-accent)]/20 blur-[100px] rounded-full" />
-                        <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-pink-400/10 blur-[100px] rounded-full" />
-
-                        <div className="relative z-10">
-                            <h2 className="text-4xl font-bold text-[var(--cms-text)] mb-6">
-                                Ready to streamline your kitchen?
-                            </h2>
-                            <p className="text-[var(--cms-muted)] mb-10 text-lg max-w-xl mx-auto">
-                                Join the future of menu management. Simple, fast, and beautiful.
-                            </p>
+                {/* Final CTA */}
+                <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 sm:pb-24">
+                    <div className="rounded-3xl border border-border bg-panel p-8 shadow-sm sm:p-12">
+                        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                            <div className="space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Get started</p>
+                                <h3 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">
+                                    Launch your menu studio today.
+                                </h3>
+                                <p className="text-sm text-muted">
+                                    Build, publish, and iterate — with a workflow your team will actually enjoy.
+                                </p>
+                            </div>
                             <Link
                                 href="/login"
-                                className="inline-flex items-center justify-center px-10 py-5 bg-[var(--cms-accent)] hover:bg-[var(--cms-accent-strong)] text-white text-lg font-bold rounded-full transition-all hover:scale-105 shadow-xl shadow-[var(--cms-accent)]/30"
+                                className="inline-flex h-12 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-6 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[var(--cms-accent-strong)]"
                             >
-                                Get Started Now
+                                Create account <ArrowUpRight className="ml-2 h-4 w-4" />
                             </Link>
                         </div>
                     </div>
@@ -280,35 +747,37 @@ export default function Home() {
             </main>
 
             {/* Footer */}
-            <footer className="bg-[var(--cms-panel)]/50 py-16 border-t border-[var(--cms-border)]">
-                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-start gap-12">
-                    <div>
-                        <div className="mb-6">
-                            <Logo size="lg" />
-                        </div>
-                        <p className="text-[var(--cms-muted)] max-w-xs text-sm leading-relaxed">
-                            The modern operating system for digital menus. <br />
-                            Built for speed, designed for growth.
+            <footer className="border-t border-border bg-panelStrong">
+                <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 md:items-start">
+                    <div className="space-y-3">
+                        <Logo size="lg" />
+                        <p className="max-w-sm text-sm text-muted">
+                            Menuvium is a modern operating system for QR menus — built for speed, designed for calm.
                         </p>
                     </div>
-
-                    <div className="flex gap-16 text-sm">
-                        <div className="flex flex-col gap-4">
-                            <span className="font-bold text-[var(--cms-text)]">Product</span>
-                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">Features</a>
-                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">Integrations</a>
-                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">Pricing</a>
+                    <div className="grid gap-10 sm:grid-cols-3 text-sm">
+                        <div className="space-y-3">
+                            <p className="font-semibold">Product</p>
+                            <Link href="#features" className="block text-muted hover:text-foreground">Features</Link>
+                            <Link href="#pricing" className="block text-muted hover:text-foreground">Pricing</Link>
+                            <Link href="/login" className="block text-muted hover:text-foreground">Sign in</Link>
                         </div>
-                        <div className="flex flex-col gap-4">
-                            <span className="font-bold text-[var(--cms-text)]">Company</span>
-                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">About</a>
-                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">Blog</a>
-                            <a href="#" className="text-[var(--cms-muted)] hover:text-[var(--cms-accent)]">Careers</a>
+                        <div className="space-y-3">
+                            <p className="font-semibold">Resources</p>
+                            <Link href="#how-it-works" className="block text-muted hover:text-foreground">How it works</Link>
+                            <Link href="#faq" className="block text-muted hover:text-foreground">FAQ</Link>
+                            <Link href="/login" className="block text-muted hover:text-foreground">Create account</Link>
+                        </div>
+                        <div className="space-y-3">
+                            <p className="font-semibold">Contact</p>
+                            <a className="block text-muted hover:text-foreground" href="mailto:support@menuvium.com">Support</a>
+                            <a className="block text-muted hover:text-foreground" href="mailto:sales@menuvium.com">Sales</a>
+                            <a className="block text-muted hover:text-foreground" href="mailto:security@menuvium.com">Security</a>
                         </div>
                     </div>
                 </div>
-                <div className="max-w-7xl mx-auto px-6 mt-16 pt-8 border-t border-[var(--cms-border)] text-center text-[var(--cms-muted)] text-sm">
-                    &copy; 2025 Menuvium. All rights reserved.
+                <div className="mx-auto max-w-7xl px-4 pb-10 sm:px-6">
+                    <p className="text-xs text-muted">&copy; {new Date().getFullYear()} Menuvium. All rights reserved.</p>
                 </div>
             </footer>
         </div>

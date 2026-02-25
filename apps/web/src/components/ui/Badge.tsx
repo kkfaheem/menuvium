@@ -13,10 +13,10 @@ export function Badge({
     return (
         <span
             className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
-                variant === "default" && "bg-[var(--cms-pill)] text-[var(--cms-text)]",
-                variant === "outline" && "border border-[var(--cms-border)] text-[var(--cms-muted)] bg-transparent",
-                variant === "accent" && "bg-[var(--cms-accent-subtle)] text-[var(--cms-accent-strong)]",
+                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold tracking-tight",
+                variant === "default" && "border-border bg-panelStrong text-foreground",
+                variant === "outline" && "border-border text-muted bg-transparent",
+                variant === "accent" && "border-transparent bg-[var(--cms-accent-subtle)] text-[var(--cms-accent-strong)]",
                 variant === "success" && "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
                 variant === "warning" && "bg-amber-500/15 text-amber-700 dark:text-amber-300",
                 variant === "danger" && "bg-red-500/15 text-red-600 dark:text-red-300",
@@ -26,4 +26,3 @@ export function Badge({
         />
     );
 }
-

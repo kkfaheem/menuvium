@@ -62,7 +62,7 @@ export default function DashboardLayout({
     if (isModePage) {
         return (
             <div className="min-h-screen bg-background text-foreground">
-                <header className="sticky top-0 z-40 border-b border-border bg-panel">
+                <header className="sticky top-0 z-40 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
                     <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
                         <div className="flex-1" />
                         <Logo size="lg" />
@@ -81,12 +81,12 @@ export default function DashboardLayout({
 
     return (
         <div className="min-h-screen bg-background text-foreground">
-            <div className="flex min-h-screen flex-col md:flex-row">
-                <div className="md:hidden sticky top-0 z-40 border-b border-border bg-panel">
+            <div className="flex min-h-screen flex-col md:flex-row md:gap-6 md:px-6 md:py-6">
+                <div className="md:hidden sticky top-0 z-40 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
                     <div className="flex items-center justify-between px-4 py-3">
                         <button
                             onClick={() => setNavOpen(true)}
-                            className="h-10 w-10 rounded-xl border border-border bg-panel flex items-center justify-center hover:bg-pill transition-colors"
+                            className="h-11 w-11 rounded-2xl border border-border bg-panelStrong flex items-center justify-center shadow-sm hover:bg-pill transition-colors"
                             aria-label="Open navigation"
                         >
                             <Menu className="w-5 h-5" />
@@ -105,15 +105,15 @@ export default function DashboardLayout({
                 {/* Sidebar */}
                 <aside
                     className={cn(
-                        "fixed inset-y-0 left-0 z-50 w-72 border-r border-border bg-panel p-6 transition-transform duration-300 md:sticky md:top-0 md:z-10 md:h-screen md:w-64 md:translate-x-0",
+                        "fixed inset-y-0 left-0 z-50 w-72 rounded-r-[2rem] border-r border-border bg-panel p-5 shadow-[var(--cms-shadow-lg)] transition-transform duration-300 md:sticky md:top-6 md:z-10 md:h-[calc(100vh-3rem)] md:w-72 md:translate-x-0 md:rounded-[2rem] md:border md:border-border md:shadow-[var(--cms-shadow-md)]",
                         navOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
                     )}
                 >
-                    <div className="flex items-center justify-between mb-10">
+                    <div className="flex items-center justify-between px-1 py-1 mb-6">
                         <Logo size="lg" />
                         <button
                             onClick={() => setNavOpen(false)}
-                            className="md:hidden h-9 w-9 rounded-xl border border-border bg-panel flex items-center justify-center hover:bg-pill transition-colors"
+                            className="md:hidden h-10 w-10 rounded-2xl border border-border bg-panelStrong flex items-center justify-center shadow-sm hover:bg-pill transition-colors"
                             aria-label="Close navigation"
                         >
                             <X className="w-4 h-4" />
@@ -125,7 +125,7 @@ export default function DashboardLayout({
                                 href="/dashboard"
                                 onClick={() => setNavOpen(false)}
                                 className={cn(
-                                    "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                                    "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                     pathname === "/dashboard"
                                         ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                         : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -139,7 +139,7 @@ export default function DashboardLayout({
                             href="/dashboard/menus"
                             onClick={() => setNavOpen(false)}
                             className={cn(
-                                "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                                "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                 pathname.startsWith("/dashboard/menus") && !pathname.includes("/themes")
                                     ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                     : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -152,7 +152,7 @@ export default function DashboardLayout({
                             href="/dashboard/design-studio"
                             onClick={() => setNavOpen(false)}
                             className={cn(
-                                "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                                "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                 pathname.startsWith("/dashboard/design-studio") || pathname.includes("/themes")
                                     ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                     : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -166,7 +166,7 @@ export default function DashboardLayout({
                                 href="/dashboard/companies"
                                 onClick={() => setNavOpen(false)}
                                 className={cn(
-                                    "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                                    "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                     pathname.startsWith("/dashboard/companies")
                                         ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                         : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -181,7 +181,7 @@ export default function DashboardLayout({
                                 href="/dashboard/settings"
                                 onClick={() => setNavOpen(false)}
                                 className={cn(
-                                    "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                                    "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                     pathname === "/dashboard/settings"
                                         ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                         : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -195,7 +195,7 @@ export default function DashboardLayout({
                             href="/dashboard/mode"
                             onClick={() => setNavOpen(false)}
                             className={cn(
-                                "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                                "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                 pathname.startsWith("/dashboard/mode")
                                     ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                     : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -207,12 +207,12 @@ export default function DashboardLayout({
                     </nav>
 
                     <div className="mt-auto pt-4 border-t border-border">
-                        <div className="flex items-center gap-3 px-2 py-2">
+                        <div className="flex items-center gap-3 px-1 py-2">
                             <ThemeToggle />
                         </div>
                         <button
                             onClick={() => signOut()}
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-muted hover:text-[var(--cms-text)] hover:bg-pill transition-colors"
+                            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-muted hover:text-[var(--cms-text)] hover:bg-pill transition-colors"
                         >
                             <LogOut className="w-5 h-5" />
                             Sign Out
@@ -221,16 +221,18 @@ export default function DashboardLayout({
                 </aside>
 
                 {/* Main Content */}
-                <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-                    {mode ? (
-                        children
-                    ) : (
-                        <div className="w-full max-w-2xl space-y-3">
-                            <div className="h-6 w-48 rounded-lg bg-pill animate-pulse" />
-                            <div className="h-4 w-72 rounded-lg bg-pill animate-pulse" />
-                            <div className="h-4 w-64 rounded-lg bg-pill animate-pulse" />
-                        </div>
-                    )}
+                <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 md:px-0 md:py-0">
+                    <div className="mx-auto w-full max-w-7xl">
+                        {mode ? (
+                            children
+                        ) : (
+                            <div className="w-full max-w-2xl space-y-3">
+                                <div className="h-6 w-48 rounded-lg bg-pill animate-pulse" />
+                                <div className="h-4 w-72 rounded-lg bg-pill animate-pulse" />
+                                <div className="h-4 w-64 rounded-lg bg-pill animate-pulse" />
+                            </div>
+                        )}
+                    </div>
                 </main>
             </div>
         </div>
