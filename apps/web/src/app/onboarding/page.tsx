@@ -10,6 +10,7 @@ import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import { ThemeToggle } from "@/components/ThemeToggle"; // Import ThemeToggle
+import { useToast } from "@/components/ui/ToastProvider";
 
 const fraunces = Fraunces({ subsets: ["latin"], weight: ["600", "700"] });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", "600"] });
@@ -17,6 +18,7 @@ const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "500", 
 export default function OnboardingPage() {
     const { user, signOut } = useAuthenticator((context) => [context.user]);
     const router = useRouter();
+    const { toast } = useToast();
 
     const [mounted, setMounted] = useState(false);
     const [step, setStep] = useState(1);
@@ -162,11 +164,19 @@ export default function OnboardingPage() {
                     if (text.trim()) detail = text.trim();
                 }
 
-                alert(`Failed to create org: ${detail || "Unknown error"}`);
+                toast({
+                    variant: "error",
+                    title: "Failed to create company",
+                    description: detail || "Unknown error",
+                });
             }
         } catch (e) {
             console.error(e);
-            alert("Error connecting to API. Is the backend running?");
+            toast({
+                variant: "error",
+                title: "Could not reach the API",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setLoading(false);
         }

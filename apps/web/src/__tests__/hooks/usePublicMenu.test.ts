@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { usePublicMenu } from "@/hooks/usePublicMenu";
 import { createMockMenu, setupFetchMock } from "../utils/testUtils";
 
@@ -14,6 +14,8 @@ describe("usePublicMenu", () => {
     });
 
     it("should initialize with loading state", () => {
+        // Keep the initial fetch pending so we can assert the initial state without act warnings.
+        (global.fetch as jest.Mock).mockImplementationOnce(() => new Promise(() => { }));
         const { result } = renderHook(() => usePublicMenu({ menuId: "test-uuid" }));
 
         expect(result.current.loading).toBe(true);
@@ -75,7 +77,9 @@ describe("usePublicMenu", () => {
         expect(result.current.filteredCategories[0].items).toHaveLength(2);
 
         // Search for "Spring"
-        result.current.setSearchQuery("Spring");
+        act(() => {
+            result.current.setSearchQuery("Spring");
+        });
 
         await waitFor(() => {
             expect(result.current.filteredCategories[0].items).toHaveLength(1);
@@ -95,10 +99,18 @@ describe("usePublicMenu", () => {
 
         expect(result.current.selectedTagKeys).toEqual([]);
 
-        result.current.toggleTagKey("d:vegan");
-        expect(result.current.selectedTagKeys).toContain("d:vegan");
+        act(() => {
+            result.current.toggleTagKey("d:vegan");
+        });
+        await waitFor(() => {
+            expect(result.current.selectedTagKeys).toContain("d:vegan");
+        });
 
-        result.current.toggleTagKey("d:vegan");
-        expect(result.current.selectedTagKeys).not.toContain("d:vegan");
+        act(() => {
+            result.current.toggleTagKey("d:vegan");
+        });
+        await waitFor(() => {
+            expect(result.current.selectedTagKeys).not.toContain("d:vegan");
+        });
     });
 });

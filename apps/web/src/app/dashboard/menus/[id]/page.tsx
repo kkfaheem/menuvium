@@ -27,11 +27,15 @@ import type { Menu, Category, Item, DietaryTag, Allergen, OrgPermissions, ItemFo
 import { SortableCategoryCard } from "@/components/menus/SortableCategoryCard";
 import { SortableItemRow } from "@/components/menus/SortableItemRow";
 import { useMenuEditor } from "@/hooks/useMenuEditor";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export default function MenuDetailPage() {
     const params = useParams();
     const router = useRouter();
     const { user } = useAuthenticator((context) => [context.user]);
+    const confirm = useConfirm();
+    const { toast } = useToast();
     const apiBase = getApiBase();
     const [menu, setMenu] = useState<Menu | null>(null);
     const [menuName, setMenuName] = useState("");
@@ -299,7 +303,11 @@ export default function MenuDetailPage() {
     const handleAddCategory = async () => {
         if (!newCategoryName || !menu) return;
         if (!orgPermissions?.can_manage_menus) {
-            alert("Not authorized to manage menus.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to manage menus.",
+            });
             return;
         }
         try {
@@ -328,9 +336,19 @@ export default function MenuDetailPage() {
     };
 
     const handleDeleteCategory = async (categoryId: string) => {
-        if (!confirm("Delete this category?")) return;
+        const ok = await confirm({
+            title: "Delete category?",
+            description: "This will permanently delete the category and its items.",
+            confirmLabel: "Delete",
+            variant: "destructive",
+        });
+        if (!ok) return;
         if (!orgPermissions?.can_manage_menus) {
-            alert("Not authorized to manage menus.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to manage menus.",
+            });
             return;
         }
         try {
@@ -349,7 +367,11 @@ export default function MenuDetailPage() {
     const handleUpdateCategoryName = async (category: Category) => {
         if (!menu) return;
         if (!orgPermissions?.can_manage_menus) {
-            alert("Not authorized to manage menus.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to manage menus.",
+            });
             return;
         }
         const name = editingCategoryName.trim();
@@ -375,12 +397,22 @@ export default function MenuDetailPage() {
                 setPageDirty(true);
                 fetchMenu(menu.id);
             } else {
-                const err = await res.json();
-                alert(`Failed to update category: ${err.detail || "Unknown error"}`);
+                const err = await res.json().catch(() => ({}));
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to update category",
+                    description: typeof detail === "string" ? detail : "Unknown error",
+                });
             }
         } catch (e) {
             console.error(e);
-            alert("Failed to update category");
+            toast({
+                variant: "error",
+                title: "Failed to update category",
+                description: "Please try again in a moment.",
+            });
         }
     };
 
@@ -415,7 +447,11 @@ export default function MenuDetailPage() {
             setPageDirty(true);
         } catch (e) {
             console.error(e);
-            alert("Failed to reorder categories");
+            toast({
+                variant: "error",
+                title: "Failed to reorder categories",
+                description: "Please try again.",
+            });
         }
     };
 
@@ -437,7 +473,11 @@ export default function MenuDetailPage() {
             setPageDirty(true);
         } catch (e) {
             console.error(e);
-            alert("Failed to reorder items");
+            toast({
+                variant: "error",
+                title: "Failed to reorder items",
+                description: "Please try again.",
+            });
         }
     };
 
@@ -566,16 +606,28 @@ export default function MenuDetailPage() {
     const handleUploadArVideo = async () => {
         if (!editingItem) return;
         if (!editingItem.id) {
-            alert("Save the item first, then upload an AR video.");
+            toast({
+                variant: "warning",
+                title: "Save the item first",
+                description: "Create the item before uploading an AR video.",
+            });
             return;
         }
         const canEditItems = Boolean(orgPermissions?.can_edit_items);
         if (!canEditItems) {
-            alert("Not authorized to edit items.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to edit items.",
+            });
             return;
         }
         if (!arVideoToUpload) {
-            alert("Select a video first.");
+            toast({
+                variant: "warning",
+                title: "Select a video",
+                description: "Choose a rotation video to upload.",
+            });
             return;
         }
 
@@ -636,6 +688,7 @@ export default function MenuDetailPage() {
             if (arVideoInputRef.current) arVideoInputRef.current.value = "";
             setPageDirty(true);
             if (menu) fetchMenu(menu.id);
+            toast({ variant: "success", title: "AR video uploaded", description: "Generation has been queued." });
         } catch (e) {
             console.error(e);
             setArVideoError(e instanceof Error ? e.message : "Failed to upload AR video");
@@ -648,7 +701,11 @@ export default function MenuDetailPage() {
         if (!editingItem?.id) return;
         const canEditItems = Boolean(orgPermissions?.can_edit_items);
         if (!canEditItems) {
-            alert("Not authorized to edit items.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to edit items.",
+            });
             return;
         }
 
@@ -735,7 +792,11 @@ export default function MenuDetailPage() {
 
         if (editingItem.id && !canEditItems) {
             if (!canManageAvailability) {
-                alert("Not authorized to update availability.");
+                toast({
+                    variant: "warning",
+                    title: "Not authorized",
+                    description: "You don’t have permission to update availability.",
+                });
                 return;
             }
             setIsSavingItem(true);
@@ -755,11 +816,21 @@ export default function MenuDetailPage() {
                     if (menu) fetchMenu(menu.id);
                 } else {
                     const err = await res.json().catch(() => ({}));
-                    alert(`Failed to update item: ${err.detail || "Unknown error"}`);
+                    const detail =
+                        typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                    toast({
+                        variant: "error",
+                        title: "Failed to update item",
+                        description: typeof detail === "string" ? detail : "Unknown error",
+                    });
                 }
             } catch (e) {
                 console.error(e);
-                alert("Error updating item");
+                toast({
+                    variant: "error",
+                    title: "Error updating item",
+                    description: "Please try again in a moment.",
+                });
             } finally {
                 setIsSavingItem(false);
             }
@@ -767,7 +838,11 @@ export default function MenuDetailPage() {
         }
 
         if (!canEditItems) {
-            alert("Not authorized to edit items.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to edit items.",
+            });
             return;
         }
 
@@ -847,13 +922,24 @@ export default function MenuDetailPage() {
                 setFileToUpload(null);
                 setPageDirty(true);
                 if (menu) fetchMenu(menu.id);
+                toast({ variant: "success", title: "Item saved" });
             } else {
-                const err = await res.json();
-                alert(`Failed to save item: ${err.detail || 'Unknown error'}`);
+                const err = await res.json().catch(() => ({}));
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to save item",
+                    description: typeof detail === "string" ? detail : "Unknown error",
+                });
             }
         } catch (e) {
             console.error(e);
-            alert("Error saving item");
+            toast({
+                variant: "error",
+                title: "Error saving item",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setIsSavingItem(false);
         }
@@ -890,7 +976,13 @@ export default function MenuDetailPage() {
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || "Failed to remove photo");
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to remove photo",
+                    description: typeof detail === "string" ? detail : "Please try again.",
+                });
                 return;
             }
             setEditingItem((prev) => (prev ? ({ ...(prev as any), photo_url: undefined, photos: [] }) : prev));
@@ -899,9 +991,14 @@ export default function MenuDetailPage() {
             setIsPhotoPreviewOpen(false);
             setPageDirty(true);
             if (menu) fetchMenu(menu.id);
+            toast({ variant: "success", title: "Photo removed" });
         } catch (e) {
             console.error(e);
-            alert("Failed to remove photo");
+            toast({
+                variant: "error",
+                title: "Failed to remove photo",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setIsRemovingItemPhoto(false);
         }
@@ -921,11 +1018,19 @@ export default function MenuDetailPage() {
     const handleSaveMenu = async () => {
         if (!menu) return;
         if (!orgPermissions?.can_manage_menus) {
-            alert("Not authorized to manage menus.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to manage menus.",
+            });
             return;
         }
         if (!menuName.trim()) {
-            alert("Menu name is required");
+            toast({
+                variant: "warning",
+                title: "Menu name required",
+                description: "Please enter a name for this menu.",
+            });
             return;
         }
         setIsSavingMenu(true);
@@ -943,8 +1048,14 @@ export default function MenuDetailPage() {
                 })
             });
             if (!res.ok) {
-                const err = await res.json();
-                alert(`Failed to save menu: ${err.detail || "Unknown error"}`);
+                const err = await res.json().catch(() => ({}));
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to save menu",
+                    description: typeof detail === "string" ? detail : "Unknown error",
+                });
                 return;
             }
             const data = await res.json();
@@ -953,9 +1064,14 @@ export default function MenuDetailPage() {
             setMenuActive(Boolean(data.is_active));
             setMenuBaseline({ name: data.name || menuName, is_active: Boolean(data.is_active) });
             setPageDirty(false);
+            toast({ variant: "success", title: "Menu saved" });
         } catch (e) {
             console.error(e);
-            alert("Error saving menu");
+            toast({
+                variant: "error",
+                title: "Error saving menu",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setIsSavingMenu(false);
         }
@@ -964,15 +1080,22 @@ export default function MenuDetailPage() {
     const handleDeleteMenu = async () => {
         if (!menu) return;
         if (!orgPermissions?.can_manage_menus) {
-            alert("Not authorized to manage menus.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to manage menus.",
+            });
             return;
         }
-        if (!confirm("This will permanently delete the menu and its items. Continue?")) return;
-        const confirmation = prompt(`Type "${menu.name}" to confirm deletion.`);
-        if (confirmation !== menu.name) {
-            alert("Menu name did not match. Delete cancelled.");
-            return;
-        }
+        const ok = await confirm({
+            title: "Delete menu?",
+            description: "This permanently deletes the menu and all categories/items inside it.",
+            confirmLabel: "Delete",
+            variant: "destructive",
+            requireTextMatch: menu.name,
+            requireTextLabel: `Type "${menu.name}" to confirm.`,
+        });
+        if (!ok) return;
         setIsDeletingMenu(true);
         try {
             const token = await getAuthToken();
@@ -981,13 +1104,22 @@ export default function MenuDetailPage() {
                 headers: { "Authorization": `Bearer ${token}` }
             });
             if (res.ok) {
+                toast({ variant: "success", title: "Menu deleted" });
                 router.push("/dashboard/menus");
             } else {
-                alert("Failed to delete menu");
+                toast({
+                    variant: "error",
+                    title: "Failed to delete menu",
+                    description: "Please try again.",
+                });
             }
         } catch (e) {
             console.error(e);
-            alert("Error deleting menu");
+            toast({
+                variant: "error",
+                title: "Error deleting menu",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setIsDeletingMenu(false);
         }
@@ -1003,7 +1135,13 @@ export default function MenuDetailPage() {
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(`Export failed: ${err.detail || "Unknown error"}`);
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Export failed",
+                    description: typeof detail === "string" ? detail : "Unknown error",
+                });
                 return;
             }
             const blob = await res.blob();
@@ -1024,7 +1162,11 @@ export default function MenuDetailPage() {
             URL.revokeObjectURL(url);
         } catch (e) {
             console.error(e);
-            alert("Error exporting menu");
+            toast({
+                variant: "error",
+                title: "Error exporting menu",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setIsExporting(false);
         }
@@ -1404,7 +1546,7 @@ export default function MenuDetailPage() {
                     <>
                         {/* Add Category Section */}
                         {isAddingCategory ? (
-                            <div className="bg-[var(--cms-panel)] border border-[var(--cms-border)] p-6 rounded-2xl animate-in fade-in slide-in-from-bottom-2">
+                            <div className="bg-[var(--cms-panel)] border border-[var(--cms-border)] p-6 rounded-2xl animate-fade-in-up">
                                 <h3 className="font-bold mb-4">New Category</h3>
                                 <div className="flex gap-4">
                                     <input
@@ -1474,9 +1616,9 @@ export default function MenuDetailPage() {
 
             {/* Item Editor Modal */}
             {editingItem && (
-                <div className="fixed inset-0 cms-modal-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                <div className="fixed inset-0 cms-modal-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
                     <div
-                        className="cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-lg rounded-[28px] scale-100 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col backdrop-blur-xl"
+                        className="cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-lg rounded-[28px] max-h-[90vh] flex flex-col backdrop-blur-xl animate-fade-in-scale"
                         onKeyDown={(e) => {
                             const target = e.target as HTMLElement;
                             const isTextarea = target.tagName === "TEXTAREA";
@@ -1928,7 +2070,13 @@ export default function MenuDetailPage() {
                                 {canEditItems && editingItem.id && (
                                     <button
                                         onClick={async () => {
-                                            if (!confirm("Delete this item?")) return;
+                                            const ok = await confirm({
+                                                title: "Delete item?",
+                                                description: "This will permanently delete the item.",
+                                                confirmLabel: "Delete",
+                                                variant: "destructive",
+                                            });
+                                            if (!ok) return;
                                             try {
                                                 const token = await getAuthToken();
                                                 const res = await fetch(`${apiBase}/items/${editingItem.id}`, {
@@ -1939,9 +2087,17 @@ export default function MenuDetailPage() {
                                                     setEditingItem(null);
                                                     setPageDirty(true);
                                                     if (menu) fetchMenu(menu.id);
+                                                    toast({ variant: "success", title: "Item deleted" });
+                                                    return;
                                                 }
+                                                toast({ variant: "error", title: "Failed to delete item" });
                                             } catch (e) {
                                                 console.error(e);
+                                                toast({
+                                                    variant: "error",
+                                                    title: "Failed to delete item",
+                                                    description: "Please try again in a moment.",
+                                                });
                                             }
                                         }}
                                         className="px-4 py-3 rounded-xl font-semibold text-red-500 hover:bg-red-500/10 transition-colors flex items-center gap-2"

@@ -10,6 +10,7 @@ import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
 import { ImageCropperModal } from "@/components/menus/ImageCropperModal";
+import { useToast } from "@/components/ui/ToastProvider";
 
 interface Item {
     id: string;
@@ -56,6 +57,7 @@ export default function MenuThemesPage() {
     const params = useParams();
     const router = useRouter();
     const { user } = useAuthenticator((context) => [context.user]);
+    const { toast } = useToast();
     const [menu, setMenu] = useState<Menu | null>(null);
     const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
@@ -215,7 +217,7 @@ export default function MenuThemesPage() {
             return updated;
         } catch (e) {
             console.error(e);
-            alert("Error uploading banner");
+            toast({ variant: "error", title: "Error uploading banner" });
             return null;
         } finally {
             setBannerUploading(false);
@@ -242,7 +244,7 @@ export default function MenuThemesPage() {
             setMenu(updated);
         } catch (e) {
             console.error(e);
-            alert("Error removing banner");
+            toast({ variant: "error", title: "Error removing banner" });
         } finally {
             setBannerUploading(false);
         }
@@ -291,7 +293,7 @@ export default function MenuThemesPage() {
             setMenu(updated);
         } catch (e) {
             console.error(e);
-            alert("Error uploading logo");
+            toast({ variant: "error", title: "Error uploading logo" });
         } finally {
             setLogoUploading(false);
         }
@@ -317,7 +319,7 @@ export default function MenuThemesPage() {
             setMenu(updated);
         } catch (e) {
             console.error(e);
-            alert("Error removing logo");
+            toast({ variant: "error", title: "Error removing logo" });
         } finally {
             setLogoUploading(false);
         }
@@ -345,7 +347,11 @@ export default function MenuThemesPage() {
             setMenu({ ...menu, title_design_config: data.config });
         } catch (e) {
             console.error(e);
-            alert(e instanceof Error ? e.message : "Error generating title design");
+            toast({
+                variant: "error",
+                title: "Error generating title design",
+                description: e instanceof Error ? e.message : undefined,
+            });
         } finally {
             setGeneratingTitle(false);
         }
@@ -370,7 +376,7 @@ export default function MenuThemesPage() {
             setTitleConfig(updatedConfig);
         } catch (e) {
             console.error(e);
-            alert("Error updating title design");
+            toast({ variant: "error", title: "Error updating title design" });
         }
     };
 
@@ -391,7 +397,7 @@ export default function MenuThemesPage() {
             setMenu(updated);
         } catch (e) {
             console.error(e);
-            alert("Error updating item images setting");
+            toast({ variant: "error", title: "Error updating item images setting" });
         }
     };
 
@@ -413,11 +419,15 @@ export default function MenuThemesPage() {
                 setMenu({ ...menu, theme: data.theme ?? themeId });
             } else {
                 const err = await res.json();
-                alert(`Failed to update theme: ${err.detail || "Unknown error"}`);
+                toast({
+                    variant: "error",
+                    title: "Failed to update theme",
+                    description: err.detail || "Unknown error",
+                });
             }
         } catch (e) {
             console.error(e);
-            alert("Error updating theme");
+            toast({ variant: "error", title: "Error updating theme" });
         } finally {
             setSavingThemeId(null);
         }

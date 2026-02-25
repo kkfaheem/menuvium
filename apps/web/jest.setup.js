@@ -17,7 +17,7 @@ jest.mock('next/navigation', () => ({
 
 // Mock next/link
 jest.mock('next/link', () => {
-    return ({ children, href }: { children: React.ReactNode; href: string }) => {
+    return ({ children, href }) => {
         return <a href={href}>{children}</a>;
     };
 });
@@ -37,12 +37,12 @@ global.fetch = jest.fn(() =>
         ok: true,
         json: () => Promise.resolve({}),
     })
-) as jest.Mock;
+);
 
 // Suppress console errors in tests
 const originalError = console.error;
 beforeAll(() => {
-    console.error = (...args: unknown[]) => {
+    console.error = (...args) => {
         if (
             typeof args[0] === 'string' &&
             args[0].includes('Warning: ReactDOM.render is no longer supported')

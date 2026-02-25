@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Sun, Moon, Plus, X } from "lucide-react";
+import { Monitor, Moon, Plus, Sun, X } from "lucide-react";
 import { ALLERGEN_TAGS, DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
 import { getApiBase } from "@/lib/apiBase";
 import type { DietaryTag, Allergen } from "@/types";
-
-type Theme = "dark" | "light";
+import { useTheme } from "@/components/ThemeProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type TagLabels = {
     diet: string;
@@ -19,7 +19,8 @@ type SoldOutDisplay = "dim" | "hide";
 
 export default function SettingsPage() {
     const apiBase = getApiBase();
-    const [theme, setTheme] = useState<Theme>("dark");
+    const { theme, resolvedTheme, setTheme } = useTheme();
+    const { toast } = useToast();
     const [soldOutDisplay, setSoldOutDisplay] = useState<SoldOutDisplay>("dim");
     const [tags, setTags] = useState<DietaryTag[]>([]);
     const [allergens, setAllergens] = useState<Allergen[]>([]);
@@ -38,9 +39,6 @@ export default function SettingsPage() {
 
     useEffect(() => {
         if (typeof window !== "undefined") {
-            const savedTheme = (localStorage.getItem("menuvium_cms_theme") as Theme) || "dark";
-            setTheme(savedTheme);
-            document.documentElement.dataset.cmsTheme = savedTheme;
             const savedSoldOut = (localStorage.getItem("menuvium_sold_out_display") as SoldOutDisplay) || "dim";
             setSoldOutDisplay(savedSoldOut);
             const storedLabels = localStorage.getItem("menuvium_tag_labels");
@@ -116,14 +114,6 @@ export default function SettingsPage() {
             }
         } catch (e) {
             console.error("Failed to fetch allergens", e);
-        }
-    };
-
-    const setThemeAndPersist = (nextTheme: Theme) => {
-        setTheme(nextTheme);
-        if (typeof window !== "undefined") {
-            localStorage.setItem("menuvium_cms_theme", nextTheme);
-            document.documentElement.dataset.cmsTheme = nextTheme;
         }
     };
 
@@ -213,11 +203,19 @@ export default function SettingsPage() {
                 fetchDietaryTags();
             } else {
                 const err = await res.json();
-                alert(err.detail || "Failed to delete tag");
+                toast({
+                    variant: "error",
+                    title: "Failed to delete tag",
+                    description: err.detail || "Please try again.",
+                });
             }
         } catch (e) {
             console.error(e);
-            alert("Failed to delete tag");
+            toast({
+                variant: "error",
+                title: "Failed to delete tag",
+                description: "Please try again in a moment.",
+            });
         }
     };
 
@@ -230,11 +228,19 @@ export default function SettingsPage() {
                 fetchAllergens();
             } else {
                 const err = await res.json();
-                alert(err.detail || "Failed to delete allergen");
+                toast({
+                    variant: "error",
+                    title: "Failed to delete allergen",
+                    description: err.detail || "Please try again.",
+                });
             }
         } catch (e) {
             console.error(e);
-            alert("Failed to delete allergen");
+            toast({
+                variant: "error",
+                title: "Failed to delete allergen",
+                description: "Please try again in a moment.",
+            });
         }
     };
 
@@ -250,7 +256,11 @@ export default function SettingsPage() {
             fetchDietaryTags();
         } catch (e: any) {
             console.error(e);
-            alert(e?.message || "Failed to add tag");
+            toast({
+                variant: "error",
+                title: "Failed to add tag",
+                description: e?.message || "Please try again.",
+            });
         } finally {
             setSavingTag(false);
         }
@@ -265,7 +275,11 @@ export default function SettingsPage() {
             fetchAllergens();
         } catch (e: any) {
             console.error(e);
-            alert(e?.message || "Failed to add allergen");
+            toast({
+                variant: "error",
+                title: "Failed to add allergen",
+                description: e?.message || "Please try again.",
+            });
         } finally {
             setSavingAllergen(false);
         }
@@ -329,6 +343,51 @@ export default function SettingsPage() {
 
             {activeTab === "general" && (
                 <>
+                    <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
+                        <h2 className="text-lg font-bold mb-1">Appearance</h2>
+                        <p className="text-sm text-[var(--cms-muted)] mb-4">
+                            Choose a theme for the dashboard.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setTheme("light")}
+                                className={`h-10 px-4 rounded-xl text-sm font-bold transition-colors border inline-flex items-center gap-2 ${theme === "light"
+                                    ? "bg-[var(--cms-pill)] border-[var(--cms-border)]"
+                                    : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
+                                    }`}
+                            >
+                                <Sun className="h-4 w-4" />
+                                Light
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTheme("dark")}
+                                className={`h-10 px-4 rounded-xl text-sm font-bold transition-colors border inline-flex items-center gap-2 ${theme === "dark"
+                                    ? "bg-[var(--cms-pill)] border-[var(--cms-border)]"
+                                    : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
+                                    }`}
+                            >
+                                <Moon className="h-4 w-4" />
+                                Dark
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setTheme("system")}
+                                className={`h-10 px-4 rounded-xl text-sm font-bold transition-colors border inline-flex items-center gap-2 ${theme === "system"
+                                    ? "bg-[var(--cms-pill)] border-[var(--cms-border)]"
+                                    : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
+                                    }`}
+                            >
+                                <Monitor className="h-4 w-4" />
+                                System
+                            </button>
+                        </div>
+                        <p className="mt-3 text-xs text-[var(--cms-muted)]">
+                            Active: <span className="font-semibold text-[var(--cms-text)]">{resolvedTheme}</span>
+                        </p>
+                    </section>
+
                     <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
                         <h2 className="text-lg font-bold mb-1">Sold-out items</h2>
                         <p className="text-sm text-[var(--cms-muted)] mb-4">Choose how sold-out items appear on menus.</p>

@@ -8,6 +8,8 @@ import { useAuthenticator } from "@aws-amplify/ui-react";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Company = { id: string; name: string };
 
@@ -53,6 +55,8 @@ export default function CompanyDetailPage() {
     const params = useParams();
     const router = useRouter();
     const { user } = useAuthenticator((context) => [context.user]);
+    const confirm = useConfirm();
+    const { toast } = useToast();
 
     const orgId = params.id as string;
     const apiBase = getApiBase();
@@ -133,15 +137,26 @@ export default function CompanyDetailPage() {
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || "Failed to add user");
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to add user",
+                    description: typeof detail === "string" ? detail : "Please try again.",
+                });
                 return;
             }
             const created = await res.json();
             setMembers((prev) => [created, ...prev]);
             setInviteEmail("");
+            toast({ variant: "success", title: "User added" });
         } catch (e) {
             console.error(e);
-            alert("Failed to add user");
+            toast({
+                variant: "error",
+                title: "Failed to add user",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setSaving(false);
         }
@@ -161,21 +176,37 @@ export default function CompanyDetailPage() {
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || "Failed to update permissions");
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to update permissions",
+                    description: typeof detail === "string" ? detail : "Please try again.",
+                });
                 return;
             }
             const updated = await res.json();
             setMembers((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+            toast({ variant: "success", title: "Permissions updated" });
         } catch (e) {
             console.error(e);
-            alert("Failed to update permissions");
+            toast({
+                variant: "error",
+                title: "Failed to update permissions",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setSaving(false);
         }
     };
 
     const removeMember = async (member: Member) => {
-        const ok = confirm(`Remove ${member.email} from this company?`);
+        const ok = await confirm({
+            title: "Remove team member?",
+            description: `Remove ${member.email} from this company.`,
+            confirmLabel: "Remove",
+            variant: "destructive",
+        });
         if (!ok) return;
         setSaving(true);
         try {
@@ -186,13 +217,24 @@ export default function CompanyDetailPage() {
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || "Failed to remove user");
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to remove user",
+                    description: typeof detail === "string" ? detail : "Please try again.",
+                });
                 return;
             }
             setMembers((prev) => prev.filter((m) => m.id !== member.id));
+            toast({ variant: "success", title: "User removed" });
         } catch (e) {
             console.error(e);
-            alert("Failed to remove user");
+            toast({
+                variant: "error",
+                title: "Failed to remove user",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setSaving(false);
         }

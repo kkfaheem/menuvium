@@ -7,6 +7,8 @@ import { useAuthenticator } from "@aws-amplify/ui-react";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Company = {
     id: string;
@@ -17,6 +19,8 @@ type Company = {
 
 export default function CompaniesPage() {
     const { user } = useAuthenticator((context) => [context.user]);
+    const confirm = useConfirm();
+    const { toast } = useToast();
     const [companies, setCompanies] = useState<Company[]>([]);
     const [loading, setLoading] = useState(true);
     const [newCompanyName, setNewCompanyName] = useState("");
@@ -81,8 +85,14 @@ export default function CompaniesPage() {
                 body: JSON.stringify(payload)
             });
             if (!res.ok) {
-                const err = await res.json();
-                alert(err.detail || "Failed to create company");
+                const err = await res.json().catch(() => ({}));
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to create company",
+                    description: typeof detail === "string" ? detail : "Please try again.",
+                });
                 return;
             }
             const created = await res.json();
@@ -93,17 +103,26 @@ export default function CompaniesPage() {
             }
         } catch (e) {
             console.error(e);
-            alert("Failed to create company");
+            toast({
+                variant: "error",
+                title: "Failed to create company",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setSaving(false);
         }
     };
 
     const handleDelete = async (company: Company) => {
-        const confirmDelete = confirm("Delete this company and all its menus?");
-        if (!confirmDelete) return;
-        const typed = prompt(`Type "${company.name}" to confirm deletion.`);
-        if (typed !== company.name) return;
+        const ok = await confirm({
+            title: "Delete company?",
+            description: "This permanently deletes the company and all its menus.",
+            confirmLabel: "Delete",
+            variant: "destructive",
+            requireTextMatch: company.name,
+            requireTextLabel: `Type "${company.name}" to confirm.`,
+        });
+        if (!ok) return;
 
         setSaving(true);
         try {
@@ -115,13 +134,27 @@ export default function CompaniesPage() {
             });
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || "Failed to delete company");
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to delete company",
+                    description: typeof detail === "string" ? detail : "Please try again.",
+                });
                 return;
             }
             setCompanies((prev) => prev.filter((org) => org.id !== company.id));
+            toast({
+                variant: "success",
+                title: "Company deleted",
+            });
         } catch (e) {
             console.error(e);
-            alert("Failed to delete company");
+            toast({
+                variant: "error",
+                title: "Failed to delete company",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setSaving(false);
         }

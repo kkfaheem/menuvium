@@ -9,6 +9,7 @@ import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
 import { useTheme } from "@/components/ThemeProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 
 interface ParsedItem {
     name: string;
@@ -55,6 +56,7 @@ export default function CreateMenuFlow({
     const { user } = useAuthenticator((context) => [context.user]);
     const router = useRouter();
     const { resolvedTheme } = useTheme();
+    const { toast } = useToast();
     const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>(providedOrganizations || []);
     const [selectedOrg, setSelectedOrg] = useState<string>(initialOrgId || "");
     const [menuName, setMenuName] = useState(initialMenuName || "");
@@ -199,7 +201,11 @@ export default function CreateMenuFlow({
     const ensureDraftMenu = async () => {
         if (!selectedOrg) return;
         if (orgPermissions && !orgPermissions.can_manage_menus) {
-            alert("Not authorized to create menus for this company.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to create menus for this company.",
+            });
             return;
         }
         if (draftMenuId) return draftMenuId;
@@ -220,8 +226,14 @@ export default function CreateMenuFlow({
                 })
             });
             if (!res.ok) {
-                const err = await res.json();
-                alert(`Failed to create menu: ${err.detail || "Unknown error"}`);
+                const err = await res.json().catch(() => ({}));
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to create menu",
+                    description: typeof detail === "string" ? detail : "Unknown error",
+                });
                 return;
             }
             const data = await res.json();
@@ -237,7 +249,11 @@ export default function CreateMenuFlow({
     const createManualMenu = async () => {
         if (!menuName.trim() || !selectedOrg) return;
         if (orgPermissions && !orgPermissions.can_manage_menus) {
-            alert("Not authorized to create menus for this company.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to create menus for this company.",
+            });
             return;
         }
         setCreating(true);
@@ -256,8 +272,14 @@ export default function CreateMenuFlow({
                 })
             });
             if (!res.ok) {
-                const err = await res.json();
-                alert(`Failed to create menu: ${err.detail || "Unknown error"}`);
+                const err = await res.json().catch(() => ({}));
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Failed to create menu",
+                    description: typeof detail === "string" ? detail : "Unknown error",
+                });
                 return;
             }
             const data = await res.json();
@@ -277,7 +299,11 @@ export default function CreateMenuFlow({
         if (importTab === "files" && importFiles.length === 0) return;
         if (importTab === "url" && !importUrl.trim()) return;
         if (orgPermissions && !orgPermissions.can_manage_menus) {
-            alert("Not authorized to create menus for this company.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to create menus for this company.",
+            });
             return;
         }
         const menuId = await ensureDraftMenu();
@@ -317,14 +343,24 @@ export default function CreateMenuFlow({
             }
 
             if (!res.ok) {
-                const err = await res.json();
-                alert(err.detail || "Failed to parse menu");
+                const err = await res.json().catch(() => ({}));
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Couldn’t parse menu",
+                    description: typeof detail === "string" ? detail : "Please try a different file.",
+                });
                 return;
             }
             setParsedMenu(await res.json());
         } catch (e) {
             console.error(e);
-            alert("Failed to parse menu");
+            toast({
+                variant: "error",
+                title: "Couldn’t parse menu",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setIsParsing(false);
         }
@@ -333,7 +369,11 @@ export default function CreateMenuFlow({
     const handleApplyImport = async () => {
         if (!parsedMenu) return;
         if (orgPermissions && !orgPermissions.can_manage_menus) {
-            alert("Not authorized to create menus for this company.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to create menus for this company.",
+            });
             return;
         }
         const menuId = draftMenuId ?? (await ensureDraftMenu());
@@ -351,8 +391,14 @@ export default function CreateMenuFlow({
                 body: JSON.stringify(parsedMenu)
             });
             if (!res.ok) {
-                const err = await res.json();
-                alert(err.detail || "Failed to import menu");
+                const err = await res.json().catch(() => ({}));
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Import failed",
+                    description: typeof detail === "string" ? detail : "Please try again.",
+                });
                 return;
             }
             if (onCreated) {
@@ -362,7 +408,11 @@ export default function CreateMenuFlow({
             }
         } catch (e) {
             console.error(e);
-            alert("Failed to import menu");
+            toast({
+                variant: "error",
+                title: "Import failed",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setIsImporting(false);
         }
@@ -389,7 +439,13 @@ export default function CreateMenuFlow({
 
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || "Failed to preview ZIP file");
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "Couldn’t preview ZIP",
+                    description: typeof detail === "string" ? detail : "Please try again.",
+                });
                 setZipFile(null);
                 return;
             }
@@ -397,7 +453,11 @@ export default function CreateMenuFlow({
             setZipPreview(await res.json());
         } catch (e) {
             console.error(e);
-            alert("Failed to preview ZIP file");
+            toast({
+                variant: "error",
+                title: "Couldn’t preview ZIP",
+                description: "Please try again in a moment.",
+            });
             setZipFile(null);
         } finally {
             setIsPreviewingZip(false);
@@ -408,7 +468,11 @@ export default function CreateMenuFlow({
     const handleImportFromZip = async () => {
         if (!zipFile || !zipPreview) return;
         if (orgPermissions && !orgPermissions.can_manage_menus) {
-            alert("Not authorized to create menus for this company.");
+            toast({
+                variant: "warning",
+                title: "Not authorized",
+                description: "You don’t have permission to create menus for this company.",
+            });
             return;
         }
 
@@ -430,7 +494,13 @@ export default function CreateMenuFlow({
 
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.detail || "Failed to import from ZIP");
+                const detail =
+                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                toast({
+                    variant: "error",
+                    title: "ZIP import failed",
+                    description: typeof detail === "string" ? detail : "Please try again.",
+                });
                 return;
             }
 
@@ -444,7 +514,11 @@ export default function CreateMenuFlow({
             }
         } catch (e) {
             console.error(e);
-            alert("Failed to import from ZIP");
+            toast({
+                variant: "error",
+                title: "ZIP import failed",
+                description: "Please try again in a moment.",
+            });
         } finally {
             setIsImportingZip(false);
         }

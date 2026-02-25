@@ -10,6 +10,7 @@ html {
 }
 
 :root {
+  color-scheme: light;
   /* Light Theme - Cool gray with prominent glassmorphism */
   --background: #f3f5fb;
   --foreground: #1a1a1a;
@@ -45,6 +46,7 @@ html {
 }
 
 .dark {
+  color-scheme: dark;
   /* Dark Theme - Deep black with visible glassmorphism */
   --background: #07070a;
   --foreground: #fafafa;
