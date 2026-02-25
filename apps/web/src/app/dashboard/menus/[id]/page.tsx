@@ -1649,9 +1649,84 @@ export default function MenuDetailPage() {
                         </div>
 
                         <div className="p-6 pt-5 flex flex-col gap-5 overflow-y-auto flex-1 custom-scrollbar">
+                            <div className="space-y-2">
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
+                                    Name
+                                </label>
+                                <input
+                                    className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all text-sm"
+                                    placeholder="e.g. Margherita Pizza"
+                                    value={editingItem.name || ""}
+                                    onChange={(e) => {
+                                        if (!canEditItems) return;
+                                        setEditingItem({ ...editingItem, name: e.target.value });
+                                        setPageDirty(true);
+                                    }}
+                                    disabled={!canEditItems}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
+                                    Description
+                                </label>
+                                <textarea
+                                    className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all min-h-[96px] text-sm"
+                                    placeholder="e.g. Tomato sauce, mozzarella, and fresh basil."
+                                    value={editingItem.description || ""}
+                                    onChange={(e) => {
+                                        if (!canEditItems) return;
+                                        setEditingItem({ ...editingItem, description: e.target.value });
+                                        setPageDirty(true);
+                                    }}
+                                    disabled={!canEditItems}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
+                                        Price
+                                    </label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all text-sm"
+                                        placeholder="0.00"
+                                        value={editingItem.price ?? ""}
+                                        onChange={(e) => {
+                                            if (!canEditItems) return;
+                                            const raw = e.target.value;
+                                            const nextPrice = raw === "" ? undefined : parseFloat(raw);
+                                            setEditingItem({ ...editingItem, price: nextPrice });
+                                            setPageDirty(true);
+                                        }}
+                                        disabled={!canEditItems}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
+                                        Status
+                                    </label>
+                                    <button
+                                        onClick={() => {
+                                            setEditingItem({ ...editingItem, is_sold_out: !editingItem.is_sold_out });
+                                            setPageDirty(true);
+                                        }}
+                                        disabled={!canManageAvailability && !canEditItems}
+                                        className={`w-full px-4 py-3 rounded-2xl border font-semibold text-sm transition-all inline-flex items-center justify-between ${editingItem.is_sold_out ? "bg-red-500/10 border-red-500/30 text-red-500" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-text)]"} hover:shadow-[0_0_0_1px_rgba(255,255,255,0.06)]`}
+                                    >
+                                        <span>{editingItem.is_sold_out ? "Sold Out" : "Available"}</span>
+                                        <span
+                                            className={`h-2 w-2 rounded-full ${editingItem.is_sold_out ? "bg-red-500" : "bg-emerald-400"}`}
+                                        />
+                                    </button>
+                                </div>
+                            </div>
+
                             {/* Photo Upload */}
-                            <div className="order-13">
-                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Photo</label>
+                            <div className="space-y-2">
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">Photo</label>
                                 <div
                                     role="button"
                                     tabIndex={editingItemDisplayPhotoUrl || canEditItems ? 0 : -1}
@@ -1807,8 +1882,8 @@ export default function MenuDetailPage() {
                                 )}
                             </div>
                             {/* AR Video / Model */}
-                            <div className="order-14">
-                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">
+                            <div className="space-y-2">
+                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
                                     AR Model
                                 </label>
                                 <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 space-y-3">
@@ -1937,70 +2012,10 @@ export default function MenuDetailPage() {
                                     )}
                                 </div>
                             </div>
-                            <div className="order-10">
-                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Name</label>
-                                <input
-                                    className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all text-sm"
-                                    placeholder="e.g. Margherita Pizza"
-                                    value={editingItem.name || ""}
-                                    onChange={e => {
-                                        if (!canEditItems) return;
-                                        setEditingItem({ ...editingItem, name: e.target.value });
-                                        setPageDirty(true);
-                                    }}
-                                    disabled={!canEditItems}
-                                />
-                            </div>
-                            <div className="order-11">
-                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Description</label>
-                                <textarea
-                                    className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all min-h-[96px] text-sm"
-                                    placeholder="e.g. Tomato sauce, mozzarella, and fresh basil."
-                                    value={editingItem.description || ""}
-                                    onChange={e => {
-                                        if (!canEditItems) return;
-                                        setEditingItem({ ...editingItem, description: e.target.value });
-                                        setPageDirty(true);
-                                    }}
-                                    disabled={!canEditItems}
-                                />
-                            </div>
-                            <div className="order-12 grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Price ($)</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all text-sm"
-                                        placeholder="0.00"
-                                        value={editingItem.price || ""}
-                                        onChange={e => {
-                                            if (!canEditItems) return;
-                                            setEditingItem({ ...editingItem, price: parseFloat(e.target.value) });
-                                            setPageDirty(true);
-                                        }}
-                                        disabled={!canEditItems}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">Status</label>
-                                    <button
-                                        onClick={() => {
-                                            setEditingItem({ ...editingItem, is_sold_out: !editingItem.is_sold_out });
-                                            setPageDirty(true);
-                                        }}
-                                        disabled={!canManageAvailability && !canEditItems}
-                                        className={`w-full px-4 py-3 rounded-2xl border font-semibold text-sm transition-all inline-flex items-center justify-between ${editingItem.is_sold_out ? "bg-red-500/10 border-red-500/30 text-red-500" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-text)]"} hover:shadow-[0_0_0_1px_rgba(255,255,255,0.06)]`}
-                                    >
-                                        <span>{editingItem.is_sold_out ? "Sold Out" : "Available"}</span>
-                                        <span className={`h-2 w-2 rounded-full ${editingItem.is_sold_out ? "bg-red-500" : "bg-emerald-400"}`} />
-                                    </button>
-                                </div>
-                            </div>
                             {/* Tags */}
                             {canEditItems && (
-                                <div className="order-15">
-                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-3">Tags</label>
+                                <div className="space-y-3">
+                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">Tags</label>
                                     <div className="space-y-4">
                                         <div>
                                             <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">{tagLabels.diet}</div>
@@ -2050,8 +2065,8 @@ export default function MenuDetailPage() {
 
                             {/* Allergens */}
                             {canEditItems && (
-                                <div className="order-16">
-                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">{tagLabels.allergens}</label>
+                                <div className="space-y-2">
+                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">{tagLabels.allergens}</label>
                                     <div className="flex flex-wrap gap-2">
                                         {allergenTagList.map(alg => (
                                             <button

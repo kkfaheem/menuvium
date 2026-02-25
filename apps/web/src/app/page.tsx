@@ -10,7 +10,6 @@ import {
     Palette,
     Wand2,
     Clock,
-    ShieldCheck,
     Layers,
     ArrowUpRight,
     Minus,
@@ -27,7 +26,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/cn";
 
-type TourTab = "editor" | "themes" | "publish";
+type TourTab = "editor" | "themes" | "ar" | "publish";
 type PricingPeriod = "monthly" | "annual";
 
 const TOUR_TABS = [
@@ -38,7 +37,8 @@ const TOUR_TABS = [
         title: "A calm editor built for speed",
         description:
             "Create categories, items, photos, and availability in one flow — designed to feel obvious on day one.",
-        image: "/images/dashboard-mockup.png",
+        highlights: ["Keyboard-friendly editing", "Bulk updates in seconds", "Live availability + pricing"],
+        image: "/images/tour-editor.svg",
     },
     {
         id: "themes" as const,
@@ -47,7 +47,18 @@ const TOUR_TABS = [
         title: "Theme studio that feels premium",
         description:
             "Pick a layout, tune the vibe, and preview instantly. Guests get a clean, branded experience on any device.",
-        image: "/images/mobile-preview.png",
+        highlights: ["Modern layouts", "Brand colors + typography", "Mobile-first guest preview"],
+        image: "/images/tour-themes.svg",
+    },
+    {
+        id: "ar" as const,
+        label: "AR",
+        icon: Layers,
+        title: "Photoreal AR dishes from a video",
+        description:
+            "Upload a short rotating dish video. We generate a photoreal 3D model guests can view in their room — iOS + Android.",
+        highlights: ["Video → 3D model pipeline", "View in your room (iOS + Android)", "Fast previews + posters"],
+        image: "/images/tour-ar.svg",
     },
     {
         id: "publish" as const,
@@ -56,7 +67,8 @@ const TOUR_TABS = [
         title: "One QR. Infinite updates.",
         description:
             "Publish once and keep improving. Your QR link stays stable while the menu evolves behind the scenes.",
-        image: "/images/dashboard-mockup.png",
+        highlights: ["Stable QR link", "Custom domains", "Instant publish"],
+        image: "/images/tour-publish.svg",
     },
 ] satisfies Array<{
     id: TourTab;
@@ -64,6 +76,7 @@ const TOUR_TABS = [
     icon: typeof Wand2;
     title: string;
     description: string;
+    highlights: string[];
     image: string;
 }>;
 
@@ -268,7 +281,7 @@ export default function Home() {
 
                             <motion.p variants={fadeUp} className="max-w-xl text-base leading-relaxed text-muted sm:text-lg">
                                 Create, edit, and publish QR menus with a calm, modern workflow. Import fast, ship beautiful themes, and keep
-                                availability accurate — without reprinting.
+                                availability accurate. Add photoreal AR dishes from a quick video — without reprinting.
                             </motion.p>
 
                             <motion.div variants={fadeUp} className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -289,7 +302,7 @@ export default function Home() {
                             <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                                 {[
                                     { label: "Instant updates", icon: Clock },
-                                    { label: "Theme studio", icon: Palette },
+                                    { label: "Photoreal AR", icon: Layers },
                                     { label: "Dynamic QR", icon: QrCode },
                                 ].map(({ label, icon: Icon }) => (
                                     <div
@@ -319,8 +332,8 @@ export default function Home() {
                                 </div>
                                 <div className="relative aspect-[16/10]">
                                     <Image
-                                        src="/images/dashboard-mockup.png"
-                                        alt="Menuvium dashboard preview"
+                                        src="/images/hero-studio.svg"
+                                        alt="Menuvium studio preview"
                                         fill
                                         className="object-cover object-top"
                                         priority
@@ -385,7 +398,7 @@ export default function Home() {
                                 { icon: Palette, title: "Theme studio", desc: "Make it match your brand in minutes." },
                                 { icon: QrCode, title: "Dynamic QR", desc: "Change the menu forever. QR never changes." },
                                 { icon: Clock, title: "Availability", desc: "Sold out? Update instantly from any device." },
-                                { icon: ShieldCheck, title: "Permissions", desc: "Invite teammates with scoped access." },
+                                { icon: Sparkles, title: "Photoreal AR dishes", desc: "Upload a rotating dish video — we generate the 3D model." },
                             ].map(({ icon: Icon, title, desc }) => (
                                 <motion.div
                                     key={title}
@@ -424,7 +437,7 @@ export default function Home() {
                                     Everything flows together.
                                 </h2>
                                 <p className="text-sm text-muted">
-                                    Pick a lane — build, design, publish — and jump between them without losing context.
+                                    Pick a lane — build, design, publish, or add AR — and jump between them without losing context.
                                 </p>
                             </div>
                             <div className="inline-flex items-center gap-1 rounded-2xl border border-border bg-panelStrong p-1 text-xs font-semibold">
@@ -462,11 +475,7 @@ export default function Home() {
                                 <p className="text-sm leading-relaxed text-muted sm:text-base">{activeTour.description}</p>
 
                                 <ul className="grid gap-2 text-sm">
-                                    {[
-                                        "Keyboard-friendly editing",
-                                        "Mobile-first public menus",
-                                        "Instant publish with the same QR",
-                                    ].map((line) => (
+                                    {activeTour.highlights.map((line) => (
                                         <li key={line} className="flex items-start gap-2 text-muted">
                                             <Check className="mt-0.5 h-4 w-4 text-emerald-500" />
                                             <span>{line}</span>
@@ -491,7 +500,7 @@ export default function Home() {
                                                 <p className="text-xs font-semibold text-muted">{activeTour.label} preview</p>
                                                 <span className="text-xs font-semibold text-muted">Menuvium</span>
                                             </div>
-                                            <div className={cn("relative", activeTour.id === "themes" ? "aspect-[10/8]" : "aspect-[16/10]")}>
+                                            <div className="relative aspect-[16/10]">
                                                 <Image
                                                     src={activeTour.image}
                                                     alt={`${activeTour.label} preview`}

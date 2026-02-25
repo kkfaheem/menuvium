@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
-import { ArrowLeft, Mail, Clipboard, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -42,7 +42,6 @@ export default function ContactClient({ plan }: { plan?: string }) {
         interests: normalizedPlan === "enterprise" ? ["Multi-brand / franchise"] : [],
         message: "",
     });
-    const [copied, setCopied] = useState(false);
 
     const subject = useMemo(() => {
         const base = normalizedPlan === "enterprise" ? "Enterprise inquiry" : "Contact inquiry";
@@ -84,8 +83,8 @@ export default function ContactClient({ plan }: { plan?: string }) {
         const mailto = `mailto:menuvium@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
         toast({
             variant: "success",
-            title: "Opening email draft…",
-            description: "If nothing opens, use “Copy message” below.",
+            title: "Opening your email app…",
+            description: "Hit send to submit your message.",
         });
         window.location.href = mailto;
     };
@@ -97,21 +96,6 @@ export default function ContactClient({ plan }: { plan?: string }) {
                 : [...prev.interests, value];
             return { ...prev, interests: next };
         });
-    };
-
-    const copyMessage = async () => {
-        try {
-            await navigator.clipboard.writeText(emailBody);
-            setCopied(true);
-            toast({ variant: "success", title: "Copied message" });
-            window.setTimeout(() => setCopied(false), 1600);
-        } catch {
-            toast({
-                variant: "error",
-                title: "Could not copy",
-                description: "Please copy manually from the preview box.",
-            });
-        }
     };
 
     return (
@@ -152,8 +136,8 @@ export default function ContactClient({ plan }: { plan?: string }) {
                             <Mail className="h-5 w-5" />
                         </span>
                         <div>
-                            <p className="font-semibold text-foreground">menuvium@gmail.com</p>
-                            <p className="text-xs">We usually reply within 1–2 business days.</p>
+                            <p className="font-semibold text-foreground">We usually reply within 1–2 business days.</p>
+                            <p className="text-xs">Share details and we’ll follow up.</p>
                         </div>
                     </div>
                 </section>
@@ -163,7 +147,7 @@ export default function ContactClient({ plan }: { plan?: string }) {
                         <Card>
                             <CardHeader>
                                 <CardTitle>Contact form</CardTitle>
-                                <CardDescription>We’ll open an email draft to `menuvium@gmail.com` with your answers.</CardDescription>
+                                <CardDescription>Tell us what you need and we’ll reach out.</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <form className="space-y-4" onSubmit={handleSubmit}>
@@ -265,35 +249,9 @@ export default function ContactClient({ plan }: { plan?: string }) {
                                         />
                                     </div>
 
-                                    <div className="grid gap-2 sm:grid-cols-2">
-                                        <Button size="lg" type="submit" className="w-full">
-                                            Open email draft
-                                        </Button>
-                                        <Button
-                                            size="lg"
-                                            type="button"
-                                            variant="secondary"
-                                            className="w-full"
-                                            onClick={copyMessage}
-                                        >
-                                            {copied ? (
-                                                <>
-                                                    <CheckCircle2 className="h-4 w-4" /> Copied
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Clipboard className="h-4 w-4" /> Copy message
-                                                </>
-                                            )}
-                                        </Button>
-                                    </div>
-
-                                    <div className="rounded-2xl border border-border bg-panelStrong p-4">
-                                        <p className="text-xs font-semibold text-muted">Preview</p>
-                                        <p className="mt-2 whitespace-pre-wrap text-xs text-muted leading-relaxed">
-                                            {emailBody}
-                                        </p>
-                                    </div>
+                                    <Button size="lg" type="submit" className="w-full">
+                                        Submit
+                                    </Button>
                                 </form>
                             </CardContent>
                         </Card>
@@ -303,4 +261,3 @@ export default function ContactClient({ plan }: { plan?: string }) {
         </div>
     );
 }
-
