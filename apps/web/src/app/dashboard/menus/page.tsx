@@ -10,6 +10,8 @@ import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import type { Menu, Organization, OrgPermissions } from "@/types";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
 export default function MenusPage() {
     const router = useRouter();
@@ -131,7 +133,7 @@ export default function MenusPage() {
         }
     };
 
-    if (loading && !menus.length && !selectedOrg) return <div className="text-[var(--cms-muted)]">Loading context...</div>;
+    if (loading && !menus.length && !selectedOrg) return <div className="text-muted">Loading context...</div>;
 
     const isManager = mode === "manager";
     const canCreateMenu = mode === "admin" && Boolean(orgPermissions?.can_manage_menus);
@@ -141,7 +143,7 @@ export default function MenusPage() {
             <div className="max-w-2xl space-y-6">
                 <header>
                     <h1 className="text-3xl font-bold tracking-tight mb-2">Menus</h1>
-                    <p className="text-[var(--cms-muted)]">
+                    <p className="text-muted">
                         {orgError
                             ? orgError
                             : orgsHiddenByMode
@@ -152,65 +154,67 @@ export default function MenusPage() {
                     </p>
                 </header>
 
-                <div className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-6">
-                    <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-2">
-                            <p className="text-sm text-[var(--cms-muted)]">
+                <Card>
+                    <CardHeader className="flex flex-row items-start justify-between gap-4">
+                        <div>
+                            <CardTitle>No companies available</CardTitle>
+                            <CardDescription>
                                 {orgError
-                                    ? "If you’re running locally, confirm `docker-compose up --build` is running and you’re logged in."
+                                    ? "If you’re running locally, confirm the backend is running and you’re logged in."
                                     : orgsHiddenByMode
                                         ? "Switch to Manager mode to see companies you’ve been invited to."
                                         : isManager
-                                            ? "Ask an admin to invite your email under Team & permissions. Once invited, you’ll see your assigned menus here."
+                                            ? "Ask an admin to invite your email under Team & permissions."
                                             : "Finish onboarding to create a company and your first menu."}
-                            </p>
+                            </CardDescription>
                         </div>
                         <button
                             onClick={() => router.push("/dashboard/mode")}
-                            className="shrink-0 text-sm text-[var(--cms-muted)] hover:text-[var(--cms-text)] underline underline-offset-4"
+                            className="shrink-0 text-sm font-semibold text-muted hover:text-foreground underline underline-offset-4"
                         >
                             Switch mode
                         </button>
-                    </div>
-
-                    {!isManager && (
-                        <button
-                            onClick={() => router.push("/onboarding")}
-                            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-[var(--cms-text)] px-5 py-3 font-semibold text-[var(--cms-bg)] hover:opacity-90"
-                        >
-                            Continue onboarding <ArrowRight className="h-4 w-4" />
-                        </button>
-                    )}
-                </div>
+                    </CardHeader>
+                    {!isManager ? (
+                        <CardContent className="pt-0">
+                            <button
+                                onClick={() => router.push("/onboarding")}
+                                className="inline-flex items-center gap-2 rounded-xl bg-[var(--cms-accent)] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                            >
+                                Continue onboarding <ArrowRight className="h-4 w-4" />
+                            </button>
+                        </CardContent>
+                    ) : null}
+                </Card>
             </div>
         );
     }
 
     return (
-        <div>
+        <div className="space-y-6">
             <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight mb-1">Menus</h1>
-                    <p className="text-[var(--cms-muted)]">Manage your restaurant's menus.</p>
+                    <p className="text-muted">Manage your restaurant's menus.</p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     {organizations.length > 0 && (
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
-                            <span className="text-sm text-[var(--cms-muted)]">Company</span>
+                            <span className="text-sm font-semibold text-muted">Company</span>
                             <div className="relative w-full sm:w-auto">
-                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--cms-muted)]">
+                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted">
                                     <Building2 className="w-4 h-4" />
                                 </div>
                                 <select
                                     value={selectedOrg}
                                     onChange={(e) => setSelectedOrg(e.target.value)}
-                                    className="w-full appearance-none bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-full pl-10 pr-10 py-2 text-sm text-[var(--cms-text)] focus:outline-none focus:border-[var(--cms-text)] transition-colors sm:min-w-[220px]"
+                                    className="h-10 w-full appearance-none rounded-xl border border-border bg-panel pl-10 pr-10 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/25 focus:border-[var(--cms-accent)] sm:min-w-[240px]"
                                 >
                                     {organizations.map(org => (
                                         <option key={org.id} value={org.id}>{org.name}</option>
                                     ))}
                                 </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[var(--cms-muted)]">
+                                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted">
                                     <ChevronDown className="w-4 h-4" />
                                 </div>
                             </div>
@@ -219,7 +223,7 @@ export default function MenusPage() {
                     {canCreateMenu && (
                         <Link
                             href={`/dashboard/menus/new?org_id=${encodeURIComponent(selectedOrg)}`}
-                            className="bg-[var(--cms-text)] text-[var(--cms-bg)] px-4 py-2 rounded-lg font-bold hover:opacity-90 inline-flex items-center justify-center gap-2 w-full sm:w-auto"
+                            className="inline-flex h-10 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30 w-full sm:w-auto"
                         >
                             Create Menu
                         </Link>
@@ -228,28 +232,28 @@ export default function MenusPage() {
             </header>
 
             {!loading && menus.length === 0 && selectedOrg && (
-                <div className="mb-6 rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-6">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-1">
-                            <p className="text-lg font-semibold">No menus yet</p>
-                            <p className="text-sm text-[var(--cms-muted)]">
+                <Card>
+                    <CardHeader className="flex flex-row items-start justify-between gap-4">
+                        <div>
+                            <CardTitle>No menus yet</CardTitle>
+                            <CardDescription>
                                 {menusError
                                     ? menusError
                                     : isManager
                                         ? "This company doesn’t have any menus assigned to you yet."
                                         : "Create your first menu for this company."}
-                            </p>
+                            </CardDescription>
                         </div>
-                        {canCreateMenu && (
+                        {canCreateMenu ? (
                             <Link
                                 href={`/dashboard/menus/new?org_id=${encodeURIComponent(selectedOrg)}`}
-                                className="inline-flex items-center justify-center rounded-2xl bg-[var(--cms-text)] px-5 py-3 text-sm font-semibold text-[var(--cms-bg)] hover:opacity-90"
+                                className="inline-flex h-10 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                             >
-                                Create a menu
+                                Create menu
                             </Link>
-                        )}
-                    </div>
-                </div>
+                        ) : null}
+                    </CardHeader>
+                </Card>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
@@ -257,20 +261,20 @@ export default function MenusPage() {
                     <Link
                         key={menu.id}
                         href={`/dashboard/menus/${menu.id}`}
-                        className={`group block bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6 transition-all hover:scale-[1.02] ${menu.is_active ? 'hover:bg-[var(--cms-panel-strong)]' : 'opacity-70 hover:opacity-90'}`}
+                        className="group block rounded-2xl border border-border bg-panel p-6 shadow-sm transition-colors hover:bg-panelStrong"
                     >
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="w-12 h-12 rounded-full bg-[var(--cms-pill)] flex items-center justify-center text-[var(--cms-text)] font-bold text-xl">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-pill text-lg font-bold text-foreground">
                                 {menu.name[0]}
                             </div>
-                            <div className="flex items-center gap-2">
-                                <div className={`px-2 py-1 rounded text-xs font-bold ${menu.is_active ? 'bg-[var(--cms-pill)] text-[var(--cms-text)]' : 'bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]'}`}>
-                                    {menu.is_active ? 'ACTIVE' : 'INACTIVE'}
-                                </div>
-                            </div>
+                            <Badge variant={menu.is_active ? "success" : "outline"}>
+                                {menu.is_active ? "Active" : "Inactive"}
+                            </Badge>
                         </div>
-                        <h3 className="text-xl font-bold mb-1 group-hover:text-[var(--cms-text)] transition-colors">{menu.name}</h3>
-
+                        <h3 className="mt-4 text-lg font-semibold tracking-tight group-hover:text-foreground">
+                            {menu.name}
+                        </h3>
+                        <p className="mt-1 text-sm text-muted">Open editor</p>
                     </Link>
                 ))}
             </div>

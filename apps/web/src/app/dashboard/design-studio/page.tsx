@@ -8,6 +8,8 @@ import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import type { Menu, Organization } from "@/types";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
 export default function DesignStudioPage() {
     const router = useRouter();
@@ -112,7 +114,7 @@ export default function DesignStudioPage() {
 
     if (loading && !organizations.length) {
         return (
-            <div className="text-[var(--cms-muted)] flex items-center gap-2">
+            <div className="text-muted flex items-center gap-2">
                 <Loader2 className="animate-spin w-5 h-5" /> Loading...
             </div>
         );
@@ -124,44 +126,41 @@ export default function DesignStudioPage() {
     return (
         <div className="max-w-3xl space-y-8">
             <header className="space-y-2">
-                <div className="inline-flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                        <Palette className="w-6 h-6 text-purple-400" />
+                <Badge variant="outline">Design</Badge>
+                <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pill">
+                        <Palette className="h-5 w-5" />
                     </div>
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">Design Studio</h1>
-                        <p className="text-sm text-[var(--cms-muted)]">
-                            Customize your menu's branding and visual theme.
-                        </p>
+                        <p className="text-sm text-muted">Customize your menu's branding and visual theme.</p>
                     </div>
                 </div>
             </header>
 
             {hasNoOrgs ? (
-                <div className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-8 text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--cms-pill)] flex items-center justify-center">
-                        <Building2 className="w-8 h-8 text-[var(--cms-muted)]" />
-                    </div>
-                    <p className="text-lg font-semibold mb-2">No companies found</p>
-                    <p className="text-sm text-[var(--cms-muted)]">
-                        Create a company first to start designing your menus.
-                    </p>
-                </div>
+                <Card className="text-center">
+                    <CardHeader>
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-pill">
+                            <Building2 className="h-7 w-7 text-muted" />
+                        </div>
+                        <CardTitle className="mt-2">No companies found</CardTitle>
+                        <CardDescription>Create a company first to start designing your menus.</CardDescription>
+                    </CardHeader>
+                </Card>
             ) : (
-                <div className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-6 space-y-6">
-                    <div className="space-y-4">
-                        <h2 className="text-lg font-bold">Select a Menu to Customize</h2>
-                        <p className="text-sm text-[var(--cms-muted)]">
-                            Choose the menu you want to customize with branding and themes.
-                        </p>
-                    </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Select a menu</CardTitle>
+                        <CardDescription>Choose the menu you want to customize with branding and themes.</CardDescription>
+                    </CardHeader>
 
                     {/* Organization Selector */}
                     {organizations.length > 1 && (
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-[var(--cms-muted)]">Company</label>
+                        <CardContent className="pt-0 space-y-2">
+                            <label className="text-sm font-semibold text-muted">Company</label>
                             <div className="relative">
-                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--cms-muted)]">
+                                <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-muted">
                                     <Building2 className="w-4 h-4" />
                                 </div>
                                 <select
@@ -170,58 +169,56 @@ export default function DesignStudioPage() {
                                         setSelectedOrg(e.target.value);
                                         setSelectedMenu("");
                                     }}
-                                    className="w-full appearance-none bg-[var(--cms-bg)] border border-[var(--cms-border)] rounded-xl pl-10 pr-10 py-3 text-sm text-[var(--cms-text)] focus:outline-none focus:border-[var(--cms-text)] transition-colors"
+                                    className="h-11 w-full appearance-none rounded-xl border border-border bg-panel pl-10 pr-10 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/25 focus:border-[var(--cms-accent)]"
                                 >
                                     {organizations.map(org => (
                                         <option key={org.id} value={org.id}>{org.name}</option>
                                     ))}
                                 </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[var(--cms-muted)]">
+                                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted">
                                     <ChevronDown className="w-4 h-4" />
                                 </div>
                             </div>
-                        </div>
+                        </CardContent>
                     )}
 
                     {/* Menu Selector */}
-                    {hasNoMenus ? (
-                        <div className="rounded-2xl border border-dashed border-[var(--cms-border)] bg-[var(--cms-bg)] p-6 text-center">
-                            <p className="text-sm text-[var(--cms-muted)]">
-                                No menus found for this company. Create a menu first.
-                            </p>
-                            <button
-                                onClick={() => router.push(`/dashboard/menus/new?org_id=${encodeURIComponent(selectedOrg)}`)}
-                                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[var(--cms-text)] px-5 py-2.5 text-sm font-semibold text-[var(--cms-bg)] hover:opacity-90"
-                            >
-                                Create Menu <ArrowRight className="w-4 h-4" />
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="space-y-2">
-                            <label className="text-sm font-semibold text-[var(--cms-muted)]">Menu</label>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                {menus.map(menu => (
-                                    <button
-                                        key={menu.id}
-                                        onClick={() => setSelectedMenu(menu.id)}
-                                        className="group flex items-center gap-4 p-4 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-bg)] hover:border-[var(--cms-text)] hover:bg-[var(--cms-pill)] transition-all text-left"
-                                    >
-                                        <div className="w-10 h-10 rounded-xl bg-[var(--cms-pill)] flex items-center justify-center text-[var(--cms-text)] font-bold text-lg group-hover:bg-[var(--cms-panel)]">
-                                            {menu.name[0]}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-semibold truncate">{menu.name}</p>
-                                            <p className="text-xs text-[var(--cms-muted)]">
-                                                {menu.is_active ? 'Active' : 'Inactive'}
-                                            </p>
-                                        </div>
-                                        <ArrowRight className="w-4 h-4 text-[var(--cms-muted)] group-hover:text-[var(--cms-text)] group-hover:translate-x-1 transition-all" />
-                                    </button>
-                                ))}
+                    <CardContent className="pt-0">
+                        {hasNoMenus ? (
+                            <div className="rounded-2xl border border-dashed border-border bg-panelStrong p-6 text-center">
+                                <p className="text-sm text-muted">No menus found for this company. Create a menu first.</p>
+                                <button
+                                    onClick={() => router.push(`/dashboard/menus/new?org_id=${encodeURIComponent(selectedOrg)}`)}
+                                    className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[var(--cms-accent)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                                >
+                                    Create menu <ArrowRight className="h-4 w-4" />
+                                </button>
                             </div>
-                        </div>
-                    )}
-                </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <label className="text-sm font-semibold text-muted">Menu</label>
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    {menus.map(menu => (
+                                        <button
+                                            key={menu.id}
+                                            onClick={() => setSelectedMenu(menu.id)}
+                                            className="group flex w-full items-center gap-4 rounded-2xl border border-border bg-panelStrong p-4 text-left transition-colors hover:bg-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/25"
+                                        >
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pill text-base font-bold">
+                                                {menu.name[0]}
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate font-semibold">{menu.name}</p>
+                                                <p className="mt-0.5 text-xs text-muted">{menu.is_active ? "Active" : "Inactive"}</p>
+                                            </div>
+                                            <ArrowRight className="h-4 w-4 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
             )}
         </div>
     );

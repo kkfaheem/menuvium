@@ -9,6 +9,10 @@ import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
 type Company = {
     id: string;
@@ -163,36 +167,36 @@ export default function CompaniesPage() {
     const displayCompanies = useMemo(() => companies, [companies]);
 
     return (
-        <div className="w-full max-w-6xl mr-auto space-y-8">
-            <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="w-full max-w-6xl mr-auto space-y-6">
+            <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Companies</h1>
-                    <p className="text-[var(--cms-muted)]">Invite teammates and manage access.</p>
+                    <p className="text-muted">Invite teammates and manage access.</p>
                 </div>
             </header>
 
-            {loading && <div className="text-sm text-[var(--cms-muted)]">Loading companies...</div>}
+            {loading && <div className="text-sm text-muted">Loading companies...</div>}
 
             <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                <div className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl p-5 flex flex-col gap-4">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-[var(--cms-pill)] flex items-center justify-center">
-                            <Plus className="w-5 h-5 text-[var(--cms-text)]" />
+                <Card>
+                    <CardHeader className="flex flex-row items-start justify-between gap-4">
+                        <div className="flex items-start gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pill">
+                                <Plus className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <CardTitle>Create a company</CardTitle>
+                                <CardDescription>Add another restaurant or brand.</CardDescription>
+                            </div>
                         </div>
-                        <span className="text-xs font-semibold px-3 py-1 rounded-full border border-[var(--cms-border)] text-[var(--cms-muted)]">
-                            New
-                        </span>
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-bold">Create a company</h2>
-                        <p className="text-sm text-[var(--cms-muted)] mt-1">Add another restaurant or brand.</p>
-                    </div>
-                    <div className="space-y-3">
-                        <input
+                        <Badge variant="outline">New</Badge>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        <Input
+                            className="h-11 px-4"
                             value={newCompanyName}
                             onChange={(e) => setNewCompanyName(e.target.value)}
                             placeholder="Company name"
-                            className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)]"
                             onKeyDown={(e) => {
                                 if (e.key === "Enter") {
                                     e.preventDefault();
@@ -200,35 +204,32 @@ export default function CompaniesPage() {
                                 }
                             }}
                         />
-                        <button
+                        <Button
+                            className="w-full"
+                            size="lg"
+                            loading={saving}
+                            disabled={!newCompanyName.trim()}
                             onClick={handleCreate}
-                            disabled={saving || !newCompanyName.trim()}
-                            className="w-full px-5 py-3 rounded-2xl font-semibold bg-[var(--cms-text)] text-[var(--cms-bg)] disabled:opacity-50"
                         >
                             Create
-                        </button>
-                    </div>
-                </div>
+                        </Button>
+                    </CardContent>
+                </Card>
 
                 {displayCompanies.map((company) => {
                     return (
-                        <div
-                            key={company.id}
-                            className="group relative bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl p-5 transition-colors hover:bg-[var(--cms-panel-strong)]"
-                        >
-                            <div className="flex items-start justify-between gap-4">
+                        <Card key={company.id} className="group transition-colors hover:bg-panelStrong">
+                            <CardHeader className="flex flex-row items-start justify-between gap-4">
                                 <Link
                                     href={`/dashboard/companies/${company.id}`}
-                                    className="flex items-start gap-3 min-w-0 flex-1 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[var(--cms-text)]/20"
+                                    className="flex min-w-0 flex-1 items-start gap-3 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/25"
                                 >
-                                    <div className="w-11 h-11 rounded-2xl bg-[var(--cms-pill)] flex items-center justify-center">
-                                        <Building2 className="w-5 h-5 text-[var(--cms-text)]" />
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pill">
+                                        <Building2 className="h-5 w-5" />
                                     </div>
                                     <div className="min-w-0 pt-0.5">
-                                        <div className="text-lg font-bold truncate">{company.name}</div>
-                                        <div className="mt-1 text-sm text-[var(--cms-muted)]">
-                                            Manage staff access and permissions
-                                        </div>
+                                        <CardTitle className="truncate">{company.name}</CardTitle>
+                                        <CardDescription>Manage staff access and permissions.</CardDescription>
                                     </div>
                                 </Link>
 
@@ -236,48 +237,48 @@ export default function CompaniesPage() {
                                     <button
                                         onClick={() => handleDelete(company)}
                                         disabled={saving}
-                                        className="h-9 w-9 rounded-full border border-[var(--cms-border)] text-red-400 hover:text-red-300 hover:bg-red-500/10 inline-flex items-center justify-center disabled:opacity-50 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50 opacity-100 md:opacity-0 md:group-hover:opacity-100"
                                         title="Delete"
                                     >
-                                        <Trash2 className="w-4 h-4" />
+                                        <Trash2 className="h-4 w-4" />
                                     </button>
                                     <Link
                                         href={`/dashboard/companies/${company.id}`}
-                                        className="h-9 w-9 rounded-full border border-[var(--cms-border)] hover:bg-[var(--cms-pill)] inline-flex items-center justify-center text-[var(--cms-muted)] hover:text-[var(--cms-text)] transition-colors"
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted transition-colors hover:bg-pill hover:text-foreground"
                                         title="Open"
                                         aria-label={`Open ${company.name}`}
                                     >
-                                        <ChevronRight className="w-4 h-4" />
+                                        <ChevronRight className="h-4 w-4" />
                                     </Link>
                                 </div>
-                            </div>
+                            </CardHeader>
 
-                            <div className="mt-5 flex flex-wrap items-center gap-2">
+                            <CardContent className="flex flex-wrap items-center gap-2 pt-0">
                                 <Link
                                     href={`/dashboard/companies/${company.id}`}
-                                    className="inline-flex items-center gap-2 rounded-full bg-[var(--cms-text)] px-4 py-2 text-sm font-semibold text-[var(--cms-bg)] hover:opacity-90"
+                                    className="inline-flex h-10 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                                 >
-                                    <Users className="w-4 h-4" />
+                                    <Users className="mr-2 h-4 w-4" />
                                     Team & permissions
                                 </Link>
 
                                 <button
                                     type="button"
                                     disabled
-                                    className="inline-flex items-center gap-2 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-4 py-2 text-sm font-semibold text-[var(--cms-muted)] opacity-60 cursor-not-allowed"
+                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-panel px-4 text-sm font-semibold text-muted opacity-60 cursor-not-allowed"
                                     title="More company tools coming soon"
                                 >
-                                    <MoreHorizontal className="w-4 h-4" />
+                                    <MoreHorizontal className="mr-2 h-4 w-4" />
                                     More
                                 </button>
-                            </div>
-                        </div>
+                            </CardContent>
+                        </Card>
                     );
                 })}
             </div>
 
             {!loading && !displayCompanies.length && (
-                <div className="text-sm text-[var(--cms-muted)]">No companies yet.</div>
+                <div className="text-sm text-muted">No companies yet.</div>
             )}
         </div>
     );

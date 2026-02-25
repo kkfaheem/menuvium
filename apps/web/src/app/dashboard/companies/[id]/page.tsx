@@ -327,7 +327,7 @@ export default function CompanyDetailPage() {
                     <button
                         onClick={createInvite}
                         disabled={saving || !inviteEmail.trim()}
-                        className="px-5 py-3 rounded-2xl font-semibold bg-[var(--cms-text)] text-[var(--cms-bg)] disabled:opacity-50 inline-flex items-center justify-center gap-2 w-full sm:w-auto"
+                        className="px-5 py-3 rounded-2xl font-semibold bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2 w-full sm:w-auto"
                     >
                         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                         Invite
@@ -348,7 +348,7 @@ export default function CompanyDetailPage() {
                                     <div className="text-xs text-[var(--cms-muted)]">{row.description}</div>
                                 </div>
                                 <span
-                                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${invitePermissions[row.key] ? "bg-[var(--cms-text)]" : "bg-[var(--cms-border)]"}`}
+                                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${invitePermissions[row.key] ? "bg-[var(--cms-accent)]" : "bg-[var(--cms-border)]"}`}
                                 >
                                     <span
                                         className={`inline-block h-4 w-4 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${invitePermissions[row.key] ? "translate-x-5" : "translate-x-1"}`}
@@ -407,7 +407,7 @@ export default function CompanyDetailPage() {
                                                         <div className="text-xs text-[var(--cms-muted)]">{row.description}</div>
                                                     </div>
                                                     <span
-                                                        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${enabled ? "bg-[var(--cms-text)]" : "bg-[var(--cms-border)]"}`}
+                                                        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${enabled ? "bg-[var(--cms-accent)]" : "bg-[var(--cms-border)]"}`}
                                                     >
                                                         <span
                                                             className={`inline-block h-4 w-4 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${enabled ? "translate-x-5" : "translate-x-1"}`}

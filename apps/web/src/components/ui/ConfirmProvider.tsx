@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Info, X } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 export type ConfirmOptions = {
     title: string;
@@ -141,11 +143,11 @@ export default function ConfirmProvider({ children }: { children: React.ReactNod
                                         {options.requireTextLabel ??
                                             `Type "${options.requireTextMatch}" to confirm.`}
                                     </p>
-                                    <input
+                                    <Input
                                         value={textValue}
                                         onChange={(e) => setTextValue(e.target.value)}
                                         placeholder={options.requireTextPlaceholder ?? "Type to confirm"}
-                                        className="w-full h-11 bg-transparent border border-[var(--cms-border)] rounded-xl px-4 text-sm focus:outline-none focus:border-[var(--cms-text)]"
+                                        className="h-11"
                                         autoFocus
                                     />
                                 </div>
@@ -153,24 +155,18 @@ export default function ConfirmProvider({ children }: { children: React.ReactNod
                         </div>
 
                         <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex justify-end gap-3 flex-shrink-0 rounded-b-[28px]">
-                            <button
-                                type="button"
-                                onClick={() => close(false)}
-                                className="h-11 px-4 rounded-xl font-semibold text-sm border border-[var(--cms-border)] bg-[var(--cms-panel)] hover:bg-[var(--cms-pill)] transition-colors"
-                            >
+                            <Button type="button" variant="secondary" size="lg" onClick={() => close(false)}>
                                 {cancelLabel}
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 type="button"
                                 onClick={() => close(true)}
                                 disabled={confirmDisabled}
-                                className={`h-11 px-4 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50 ${variant === "destructive"
-                                    ? "bg-red-500 text-white hover:bg-red-600"
-                                    : "bg-[var(--cms-text)] text-[var(--cms-bg)] hover:opacity-90"
-                                    }`}
+                                variant={isDestructive ? "destructive" : "primary"}
+                                size="lg"
                             >
                                 {confirmLabel}
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </div>

@@ -7,6 +7,11 @@ import { getApiBase } from "@/lib/apiBase";
 import type { DietaryTag, Allergen } from "@/types";
 import { useTheme } from "@/components/ThemeProvider";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { cn } from "@/lib/cn";
 
 type TagLabels = {
     diet: string;
@@ -319,23 +324,32 @@ export default function SettingsPage() {
 
     return (
         <div className="max-w-4xl space-y-8">
-            <header className="flex items-center justify-between">
+            <header className="space-y-2">
+                <Badge variant="outline">Settings</Badge>
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-                    <p className="text-[var(--cms-muted)]">Keep the control surface clean and fast.</p>
+                    <p className="text-muted">Keep the control surface clean and fast.</p>
                 </div>
             </header>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex w-fit rounded-xl border border-border bg-panelStrong p-1">
                 <button
+                    type="button"
                     onClick={() => setActiveTab("general")}
-                    className={`h-9 px-4 rounded-full text-xs font-semibold border transition-colors ${activeTab === "general" ? "bg-[var(--cms-text)] text-[var(--cms-bg)] border-[var(--cms-text)]" : "border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                    className={cn(
+                        "h-9 rounded-lg px-4 text-xs font-semibold transition-colors",
+                        activeTab === "general" ? "bg-panel text-foreground shadow-sm" : "text-muted hover:text-foreground"
+                    )}
                 >
                     General
                 </button>
                 <button
+                    type="button"
                     onClick={() => setActiveTab("tags")}
-                    className={`h-9 px-4 rounded-full text-xs font-semibold border transition-colors ${activeTab === "tags" ? "bg-[var(--cms-text)] text-[var(--cms-bg)] border-[var(--cms-text)]" : "border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
+                    className={cn(
+                        "h-9 rounded-lg px-4 text-xs font-semibold transition-colors",
+                        activeTab === "tags" ? "bg-panel text-foreground shadow-sm" : "text-muted hover:text-foreground"
+                    )}
                 >
                     Tags
                 </button>
@@ -343,185 +357,201 @@ export default function SettingsPage() {
 
             {activeTab === "general" && (
                 <>
-                    <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
-                        <h2 className="text-lg font-bold mb-1">Appearance</h2>
-                        <p className="text-sm text-[var(--cms-muted)] mb-4">
-                            Choose a theme for the dashboard.
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setTheme("light")}
-                                className={`h-10 px-4 rounded-xl text-sm font-bold transition-colors border inline-flex items-center gap-2 ${theme === "light"
-                                    ? "bg-[var(--cms-pill)] border-[var(--cms-border)]"
-                                    : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
-                                    }`}
-                            >
-                                <Sun className="h-4 w-4" />
-                                Light
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setTheme("dark")}
-                                className={`h-10 px-4 rounded-xl text-sm font-bold transition-colors border inline-flex items-center gap-2 ${theme === "dark"
-                                    ? "bg-[var(--cms-pill)] border-[var(--cms-border)]"
-                                    : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
-                                    }`}
-                            >
-                                <Moon className="h-4 w-4" />
-                                Dark
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setTheme("system")}
-                                className={`h-10 px-4 rounded-xl text-sm font-bold transition-colors border inline-flex items-center gap-2 ${theme === "system"
-                                    ? "bg-[var(--cms-pill)] border-[var(--cms-border)]"
-                                    : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
-                                    }`}
-                            >
-                                <Monitor className="h-4 w-4" />
-                                System
-                            </button>
-                        </div>
-                        <p className="mt-3 text-xs text-[var(--cms-muted)]">
-                            Active: <span className="font-semibold text-[var(--cms-text)]">{resolvedTheme}</span>
-                        </p>
-                    </section>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Appearance</CardTitle>
+                            <CardDescription>Choose a theme for the dashboard.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    type="button"
+                                    variant={theme === "light" ? "secondary" : "outline"}
+                                    onClick={() => setTheme("light")}
+                                >
+                                    <Sun className="h-4 w-4" />
+                                    Light
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant={theme === "dark" ? "secondary" : "outline"}
+                                    onClick={() => setTheme("dark")}
+                                >
+                                    <Moon className="h-4 w-4" />
+                                    Dark
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant={theme === "system" ? "secondary" : "outline"}
+                                    onClick={() => setTheme("system")}
+                                >
+                                    <Monitor className="h-4 w-4" />
+                                    System
+                                </Button>
+                            </div>
+                            <p className="text-xs text-muted">
+                                Active: <span className="font-semibold text-foreground">{resolvedTheme}</span>
+                            </p>
+                        </CardContent>
+                    </Card>
 
-                    <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
-                        <h2 className="text-lg font-bold mb-1">Sold-out items</h2>
-                        <p className="text-sm text-[var(--cms-muted)] mb-4">Choose how sold-out items appear on menus.</p>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setSoldOutDisplayAndPersist("dim")}
-                                className={`h-10 px-4 rounded-xl text-sm font-bold transition-colors border ${soldOutDisplay === "dim" ? "bg-[var(--cms-pill)] border-[var(--cms-border)]" : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
-                            >
-                                Dim items
-                            </button>
-                            <button
-                                onClick={() => setSoldOutDisplayAndPersist("hide")}
-                                className={`h-10 px-4 rounded-xl text-sm font-bold transition-colors border ${soldOutDisplay === "hide" ? "bg-[var(--cms-pill)] border-[var(--cms-border)]" : "bg-transparent border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}
-                            >
-                                Hide items
-                            </button>
-                        </div>
-                    </section>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Sold-out items</CardTitle>
+                            <CardDescription>Choose how sold-out items appear on menus.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    type="button"
+                                    variant={soldOutDisplay === "dim" ? "secondary" : "outline"}
+                                    onClick={() => setSoldOutDisplayAndPersist("dim")}
+                                >
+                                    Dim items
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant={soldOutDisplay === "hide" ? "secondary" : "outline"}
+                                    onClick={() => setSoldOutDisplayAndPersist("hide")}
+                                >
+                                    Hide items
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
 
                 </>
             )}
 
             {activeTab === "tags" && (
                 <>
-                    <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
-                        <div className="flex items-start justify-between gap-4">
+                    <Card>
+                        <CardHeader className="flex flex-row items-start justify-between gap-4">
                             <div>
-                                <h2 className="text-lg font-bold mb-1">{tagLabels.diet}</h2>
-                                <p className="text-sm text-[var(--cms-muted)] mb-4">Dietary markers shown on items.</p>
+                                <CardTitle>{tagLabels.diet}</CardTitle>
+                                <CardDescription>Dietary markers shown on items.</CardDescription>
                             </div>
-                            <input
+                            <Input
                                 value={tagLabels.diet}
                                 onChange={(e) => updateTagLabel("diet", e.target.value)}
-                                className="h-9 px-3 text-xs rounded-full bg-transparent border border-[var(--cms-border)] text-[var(--cms-muted)] focus:outline-none focus:border-[var(--cms-text)]"
+                                className="h-9 w-[160px] rounded-full px-3 text-xs"
                                 aria-label="Diet category name"
                             />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {orderByDefaults(groupedTags.diet, DIET_TAGS).map((tag) => (
-                                <span key={tag.id} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[var(--cms-pill)] inline-flex items-center gap-2">
-                                    {tag.name}
-                                    <button
-                                        onClick={() => handleDeleteTag(tag.id)}
-                                        className="text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
-                                        aria-label={`Delete ${tag.name}`}
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex flex-wrap gap-2">
+                                {orderByDefaults(groupedTags.diet, DIET_TAGS).map((tag) => (
+                                    <span
+                                        key={tag.id}
+                                        className="inline-flex items-center gap-2 rounded-full bg-pill px-3 py-1.5 text-xs font-semibold"
                                     >
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-3 items-center">
-                            <input
-                                value={newDietTag}
-                                onChange={(e) => setNewDietTag(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                        e.preventDefault();
+                                        {tag.name}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteTag(tag.id)}
+                                            className="text-muted hover:text-foreground"
+                                            aria-label={`Delete ${tag.name}`}
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <Input
+                                    value={newDietTag}
+                                    onChange={(e) => setNewDietTag(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            addDietaryTag("diet", newDietTag);
+                                            setNewDietTag("");
+                                        }
+                                    }}
+                                    placeholder="Add a diet tag"
+                                    className="h-9 min-w-[180px] flex-1 rounded-full px-4"
+                                />
+                                <Button
+                                    size="sm"
+                                    loading={savingTag}
+                                    disabled={!newDietTag.trim()}
+                                    className="h-9 rounded-full px-4 text-xs"
+                                    onClick={() => {
                                         addDietaryTag("diet", newDietTag);
                                         setNewDietTag("");
-                                    }
-                                }}
-                                placeholder="Add a diet tag"
-                                className="flex-1 min-w-[180px] h-9 bg-transparent border border-[var(--cms-border)] rounded-full px-4 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                            />
-                            <button
-                                onClick={() => {
-                                    addDietaryTag("diet", newDietTag);
-                                    setNewDietTag("");
-                                }}
-                                disabled={savingTag || !newDietTag.trim()}
-                                className="h-9 px-4 rounded-full font-semibold text-xs inline-flex items-center gap-2 bg-[var(--cms-text)] text-[var(--cms-bg)] disabled:opacity-50"
-                            >
-                                <Plus className="w-3 h-3" />
-                                Add
-                            </button>
-                        </div>
-                        {savingTag && <p className="text-xs text-[var(--cms-muted)] mt-3">Syncing defaults...</p>}
-                    </section>
-
-                    <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <h2 className="text-lg font-bold mb-1">{tagLabels.spice}</h2>
-                                <p className="text-sm text-[var(--cms-muted)] mb-4">Quick heat indicators for items.</p>
+                                    }}
+                                >
+                                    <Plus className="h-3 w-3" />
+                                    Add
+                                </Button>
                             </div>
-                            <input
+                            {savingTag ? <p className="text-xs text-muted">Syncing defaults...</p> : null}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="flex flex-row items-start justify-between gap-4">
+                            <div>
+                                <CardTitle>{tagLabels.spice}</CardTitle>
+                                <CardDescription>Quick heat indicators for items.</CardDescription>
+                            </div>
+                            <Input
                                 value={tagLabels.spice}
                                 onChange={(e) => updateTagLabel("spice", e.target.value)}
-                                className="h-9 px-3 text-xs rounded-full bg-transparent border border-[var(--cms-border)] text-[var(--cms-muted)] focus:outline-none focus:border-[var(--cms-text)]"
+                                className="h-9 w-[160px] rounded-full px-3 text-xs"
                                 aria-label="Spice category name"
                             />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {orderByDefaults(groupedTags.spice, SPICE_TAGS).map((tag) => (
-                                <span key={tag.id} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[var(--cms-pill)] inline-flex items-center gap-2">
-                                    {tag.name}
-                                    <button
-                                        onClick={() => handleDeleteTag(tag.id)}
-                                        className="text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
-                                        aria-label={`Delete ${tag.name}`}
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex flex-wrap gap-2">
+                                {orderByDefaults(groupedTags.spice, SPICE_TAGS).map((tag) => (
+                                    <span
+                                        key={tag.id}
+                                        className="inline-flex items-center gap-2 rounded-full bg-pill px-3 py-1.5 text-xs font-semibold"
                                     >
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-3 items-center">
-                            <input
-                                value={newSpiceTag}
-                                onChange={(e) => setNewSpiceTag(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                        e.preventDefault();
+                                        {tag.name}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteTag(tag.id)}
+                                            className="text-muted hover:text-foreground"
+                                            aria-label={`Delete ${tag.name}`}
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <Input
+                                    value={newSpiceTag}
+                                    onChange={(e) => setNewSpiceTag(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            addDietaryTag("spice", newSpiceTag);
+                                            setNewSpiceTag("");
+                                        }
+                                    }}
+                                    placeholder="Add a spice tag"
+                                    className="h-9 min-w-[180px] flex-1 rounded-full px-4"
+                                />
+                                <Button
+                                    size="sm"
+                                    loading={savingTag}
+                                    disabled={!newSpiceTag.trim()}
+                                    className="h-9 rounded-full px-4 text-xs"
+                                    onClick={() => {
                                         addDietaryTag("spice", newSpiceTag);
                                         setNewSpiceTag("");
-                                    }
-                                }}
-                                placeholder="Add a spice tag"
-                                className="flex-1 min-w-[180px] h-9 bg-transparent border border-[var(--cms-border)] rounded-full px-4 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                            />
-                            <button
-                                onClick={() => {
-                                    addDietaryTag("spice", newSpiceTag);
-                                    setNewSpiceTag("");
-                                }}
-                                disabled={savingTag || !newSpiceTag.trim()}
-                                className="h-9 px-4 rounded-full font-semibold text-xs inline-flex items-center gap-2 bg-[var(--cms-text)] text-[var(--cms-bg)] disabled:opacity-50"
-                            >
-                                <Plus className="w-3 h-3" />
-                                Add
-                            </button>
-                        </div>
-                    </section>
+                                    }}
+                                >
+                                    <Plus className="h-3 w-3" />
+                                    Add
+                                </Button>
+                            </div>
+                            {savingTag ? <p className="text-xs text-muted">Syncing defaults...</p> : null}
+                        </CardContent>
+                    </Card>
 
                     <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
                         <div className="flex items-start justify-between gap-4">

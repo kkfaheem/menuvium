@@ -469,14 +469,14 @@ export default function MenuThemesPage() {
             <div className="flex gap-1 p-1 rounded-2xl bg-[var(--cms-panel)] border border-[var(--cms-border)] w-fit">
                 <button
                     onClick={() => setActiveTab('branding')}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all inline-flex items-center gap-2 ${activeTab === 'branding' ? 'bg-[var(--cms-text)] text-[var(--cms-bg)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)]'}`}
+                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors inline-flex items-center gap-2 ${activeTab === 'branding' ? 'bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]'}`}
                 >
                     <Image className="w-4 h-4" />
                     Branding
                 </button>
                 <button
                     onClick={() => setActiveTab('theme')}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all inline-flex items-center gap-2 ${activeTab === 'theme' ? 'bg-[var(--cms-text)] text-[var(--cms-bg)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)]'}`}
+                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors inline-flex items-center gap-2 ${activeTab === 'theme' ? 'bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]'}`}
                 >
                     <Palette className="w-4 h-4" />
                     Theme
@@ -900,7 +900,7 @@ export default function MenuThemesPage() {
                                 <button
                                     key={tag}
                                     onClick={() => toggleTag(tag)}
-                                    className={`h-8 px-4 rounded-full text-xs font-semibold border whitespace-nowrap ${selectedTags.includes(tag) ? "bg-[var(--cms-text)] text-[var(--cms-bg)] border-[var(--cms-text)]" : "border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"}`}
+                                    className={`h-8 px-4 rounded-full text-xs font-semibold border whitespace-nowrap ${selectedTags.includes(tag) ? "bg-[var(--cms-accent)] text-white border-[var(--cms-accent)]" : "border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"}`}
                                 >
                                     {tag}
                                 </button>
@@ -991,7 +991,7 @@ export default function MenuThemesPage() {
                                             <button
                                                 onClick={() => applyTheme(theme.id)}
                                                 disabled={savingThemeId === theme.id}
-                                                className={`h-9 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 ${savingThemeId === theme.id ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]" : "bg-[var(--cms-text)] text-[var(--cms-bg)] hover:opacity-90"}`}
+                                                className={`h-9 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 transition-colors ${savingThemeId === theme.id ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]" : "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"}`}
                                             >
                                                 {savingThemeId === theme.id && <Loader2 className="w-4 h-4 animate-spin" />}
                                                 {savingThemeId === theme.id ? "Applying..." : "Apply Theme"}

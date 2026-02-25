@@ -11,84 +11,70 @@ html {
 
 :root {
   color-scheme: light;
-  /* Light Theme - Cool gray with prominent glassmorphism */
-  --background: #f3f5fb;
-  --foreground: #1a1a1a;
+  /* Light Theme – clean, crisp, product-first */
+  --background: #f8fafc;
+  --foreground: #0f172a;
 
-  --cms-bg: #eef2f8;
-  --cms-panel: rgba(255, 255, 255, 0.78);
-  --cms-panel-strong: rgba(255, 255, 255, 0.92);
-  --cms-border: rgba(15, 23, 42, 0.14);
-  --cms-text: #1a1a1a;
-  --cms-muted: rgba(26, 26, 26, 0.6);
-  --cms-muted-strong: rgba(26, 26, 26, 0.45);
-  --cms-pill: rgba(255, 255, 255, 0.72);
+  --cms-bg: #f8fafc;
+  --cms-panel: #ffffff;
+  --cms-panel-strong: #f1f5f9;
+  --cms-border: rgba(15, 23, 42, 0.12);
+  --cms-text: #0f172a;
+  --cms-muted: rgba(15, 23, 42, 0.64);
+  --cms-muted-strong: rgba(15, 23, 42, 0.42);
+  --cms-pill: rgba(15, 23, 42, 0.06);
 
-  /* Strong glassmorphism */
-  --cms-glass: rgba(255, 255, 255, 0.42);
-  --cms-glass-border: rgba(15, 23, 42, 0.12);
-  --cms-glass-shadow: 0 16px 48px rgba(15, 23, 42, 0.12);
-  --cms-glass-highlight: rgba(255, 255, 255, 0.85);
-  --cms-glass-lowlight: rgba(15, 23, 42, 0.06);
+  --cms-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --cms-shadow-md: 0 12px 32px rgba(15, 23, 42, 0.10);
+  --cms-shadow-lg: 0 24px 72px rgba(15, 23, 42, 0.14);
 
-  /* iOS-like blurred background blobs */
-  --cms-bg-blob-opacity: 0.9;
-  --cms-bg-blob-1: rgba(59, 130, 246, 0.38);   /* blue */
-  --cms-bg-blob-2: rgba(236, 72, 153, 0.28);   /* pink */
-  --cms-bg-blob-3: rgba(34, 197, 94, 0.26);    /* green */
-  --cms-bg-blob-4: rgba(168, 85, 247, 0.22);   /* purple */
+  /* Subtle surface highlights */
+  --cms-glass-highlight: rgba(255, 255, 255, 0.92);
+  --cms-glass-lowlight: rgba(15, 23, 42, 0.05);
 
-  /* Refined warm orange - playful & friendly */
-  --cms-accent: #F97316;
-  --cms-accent-strong: #EA580C;
-  --cms-accent-light: #FDBA74;
-  --cms-accent-subtle: rgba(249, 115, 22, 0.1);
+  /* Brand */
+  --cms-accent: #f97316;
+  --cms-accent-strong: #ea580c;
+  --cms-accent-light: #fdba74;
+  --cms-accent-subtle: rgba(249, 115, 22, 0.14);
 }
 
 .dark {
   color-scheme: dark;
-  /* Dark Theme - Deep black with visible glassmorphism */
-  --background: #07070a;
-  --foreground: #fafafa;
+  /* Dark Theme – deep navy + high-contrast surfaces */
+  --background: #0b1020;
+  --foreground: #e2e8f0;
 
-  --cms-bg: #0a0a0a;
-  --cms-panel: rgba(255, 255, 255, 0.05);
-  --cms-panel-strong: rgba(255, 255, 255, 0.08);
-  --cms-border: rgba(255, 255, 255, 0.1);
-  --cms-text: #fafafa;
-  --cms-muted: rgba(250, 250, 250, 0.6);
-  --cms-muted-strong: rgba(250, 250, 250, 0.4);
-  --cms-pill: rgba(255, 255, 255, 0.08);
+  --cms-bg: #0b1020;
+  --cms-panel: #0f172a;
+  --cms-panel-strong: #111c2f;
+  --cms-border: rgba(226, 232, 240, 0.12);
+  --cms-text: #e2e8f0;
+  --cms-muted: rgba(226, 232, 240, 0.70);
+  --cms-muted-strong: rgba(226, 232, 240, 0.42);
+  --cms-pill: rgba(226, 232, 240, 0.06);
 
-  /* Strong glassmorphism */
-  --cms-glass: rgba(255, 255, 255, 0.08);
-  --cms-glass-border: rgba(255, 255, 255, 0.15);
-  --cms-glass-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
-  --cms-glass-highlight: rgba(255, 255, 255, 0.16);
+  --cms-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --cms-shadow-md: 0 18px 56px rgba(0, 0, 0, 0.55);
+  --cms-shadow-lg: 0 26px 90px rgba(0, 0, 0, 0.70);
+
+  /* Subtle surface highlights */
+  --cms-glass-highlight: rgba(255, 255, 255, 0.08);
   --cms-glass-lowlight: rgba(0, 0, 0, 0.55);
 
-  /* Subtle blurred background blobs */
-  --cms-bg-blob-opacity: 0.55;
-  --cms-bg-blob-1: rgba(34, 211, 238, 0.18);   /* cyan */
-  --cms-bg-blob-2: rgba(168, 85, 247, 0.16);   /* purple */
-  --cms-bg-blob-3: rgba(251, 146, 60, 0.14);   /* orange */
-  --cms-bg-blob-4: rgba(59, 130, 246, 0.12);   /* blue */
-
-  /* Refined warm orange - slightly brighter for dark mode */
-  --cms-accent: #FB923C;
-  --cms-accent-strong: #F97316;
-  --cms-accent-light: rgba(251, 146, 60, 0.2);
-  --cms-accent-subtle: rgba(251, 146, 60, 0.08);
+  /* Brand */
+  --cms-accent: #fb923c;
+  --cms-accent-strong: #f97316;
+  --cms-accent-light: rgba(251, 146, 60, 0.22);
+  --cms-accent-subtle: rgba(251, 146, 60, 0.10);
 }
 
-/* Glassmorphism utility class */
+/* Surface utility classes (kept as `.glass*` for backwards-compat) */
 .glass {
   position: relative;
-  background: var(--cms-glass);
-  backdrop-filter: blur(26px) saturate(185%);
-  -webkit-backdrop-filter: blur(26px) saturate(185%);
-  border: 1px solid var(--cms-glass-border);
-  box-shadow: var(--cms-glass-shadow);
+  background: var(--cms-panel);
+  border: 1px solid var(--cms-border);
+  box-shadow: var(--cms-shadow-md);
   background-clip: padding-box;
 }
 
@@ -98,9 +84,7 @@ html {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  box-shadow:
-    inset 0 1px 0 var(--cms-glass-highlight),
-    inset 0 -1px 0 var(--cms-glass-lowlight);
+  box-shadow: inset 0 1px 0 var(--cms-glass-highlight);
 }
 
 .glass::after {
@@ -109,22 +93,16 @@ html {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(135deg, var(--cms-glass-highlight), transparent 65%);
-  opacity: 0.18;
+  background: linear-gradient(180deg, var(--cms-glass-highlight), transparent 60%);
+  opacity: 0.12;
 }
 
 .glass-subtle {
   position: relative;
-  background: var(--cms-panel);
-  backdrop-filter: blur(18px) saturate(175%);
-  -webkit-backdrop-filter: blur(18px) saturate(175%);
+  background: color-mix(in srgb, var(--cms-panel) 92%, var(--cms-bg));
   border: 1px solid var(--cms-border);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.10);
+  box-shadow: var(--cms-shadow-sm);
   background-clip: padding-box;
-}
-
-.dark .glass-subtle {
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.55);
 }
 
 .glass-subtle::before {
@@ -142,8 +120,8 @@ html {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(135deg, var(--cms-glass-highlight), transparent 70%);
-  opacity: 0.12;
+  background: linear-gradient(180deg, var(--cms-glass-highlight), transparent 70%);
+  opacity: 0.08;
 }
 
 /* Auth wrapper - constrain Amplify Authenticator */
@@ -179,17 +157,25 @@ body {
 body::before {
   content: "";
   position: fixed;
-  inset: -22%;
+  inset: -18%;
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(circle at 16% 10%, var(--cms-bg-blob-1), transparent 55%),
-    radial-gradient(circle at 92% 18%, var(--cms-bg-blob-2), transparent 52%),
-    radial-gradient(circle at 45% 92%, var(--cms-bg-blob-3), transparent 58%),
-    radial-gradient(circle at 78% 78%, var(--cms-bg-blob-4), transparent 60%);
-  filter: blur(110px) saturate(160%);
-  opacity: var(--cms-bg-blob-opacity);
+    radial-gradient(800px circle at 18% -10%, rgba(249, 115, 22, 0.16), transparent 55%),
+    radial-gradient(900px circle at 92% 8%, rgba(59, 130, 246, 0.10), transparent 60%),
+    radial-gradient(700px circle at 55% 110%, rgba(16, 185, 129, 0.08), transparent 55%);
+  filter: blur(64px) saturate(120%);
+  opacity: 0.85;
   transform: translateZ(0);
+}
+
+.dark body::before {
+  background:
+    radial-gradient(900px circle at 18% -12%, rgba(251, 146, 60, 0.20), transparent 55%),
+    radial-gradient(900px circle at 92% 8%, rgba(59, 130, 246, 0.16), transparent 60%),
+    radial-gradient(800px circle at 55% 112%, rgba(168, 85, 247, 0.14), transparent 55%);
+  filter: blur(72px) saturate(130%);
+  opacity: 0.72;
 }
 
 @keyframes floatSlow {

@@ -8,6 +8,8 @@ import { useEffect, useMemo, useState } from "react";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 
 export default function DashboardPage() {
     const { user } = useAuthenticator(context => [context.user]);
@@ -103,74 +105,100 @@ export default function DashboardPage() {
     );
 
     return (
-        <div>
-            <header className="mb-8 sm:mb-12">
-                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-2">
-                    Welcome back, <span className="text-[var(--cms-text)]">{displayName}</span>
+        <div className="space-y-8">
+            <header className="space-y-2">
+                <Badge variant="outline">Overview</Badge>
+                <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+                    Welcome back, <span className="text-[var(--cms-accent-strong)]">{displayName}</span>
                 </h1>
-                <p className="text-[var(--cms-muted)]">Here is an overview of your restaurant.</p>
+                <p className="text-muted">A quick snapshot of what’s happening across your menus.</p>
             </header>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-                <div className="p-6 bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl shadow-sm">
-                    <p className="text-sm text-[var(--cms-muted)] uppercase tracking-widest mb-2 font-semibold">Companies</p>
-                    <p className={`text-3xl font-bold ${loading ? "opacity-40 animate-pulse" : ""}`}>{companyCount}</p>
-                </div>
-                <div className="p-6 bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl shadow-sm">
-                    <p className="text-sm text-[var(--cms-muted)] uppercase tracking-widest mb-2 font-semibold">Menus</p>
-                    <p className={`text-3xl font-bold ${loading ? "opacity-40 animate-pulse" : ""}`}>{menuCount}</p>
-                    <p className="text-xs text-[var(--cms-muted)] mt-2">{activeMenuCount} active</p>
-                </div>
-                <div className="p-6 bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl shadow-sm">
-                    <p className="text-sm text-[var(--cms-muted)] uppercase tracking-widest mb-2 font-semibold">Menu items</p>
-                    <p className={`text-3xl font-bold ${loading ? "opacity-40 animate-pulse" : ""}`}>{itemCount}</p>
-                </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.22em] text-muted">
+                            Companies
+                        </CardTitle>
+                        <CardDescription className="sr-only">Total companies you own</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className={`text-3xl font-bold ${loading ? "opacity-40 animate-pulse" : ""}`}>{companyCount}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.22em] text-muted">
+                            Menus
+                        </CardTitle>
+                        <CardDescription className="sr-only">Total menus</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className={`text-3xl font-bold ${loading ? "opacity-40 animate-pulse" : ""}`}>{menuCount}</p>
+                        <p className="mt-2 text-xs text-muted">{activeMenuCount} active</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-sm font-semibold uppercase tracking-[0.22em] text-muted">
+                            Menu items
+                        </CardTitle>
+                        <CardDescription className="sr-only">Total menu items</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className={`text-3xl font-bold ${loading ? "opacity-40 animate-pulse" : ""}`}>{itemCount}</p>
+                    </CardContent>
+                </Card>
             </div>
 
             {hasMenus ? (
-                <div className="mt-10 sm:mt-12 grid grid-cols-1 lg:grid-cols-[1.3fr] gap-6">
-                    <div className="p-8 bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-[32px]">
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 className="text-xl font-bold">Recently updated menus</h3>
-                                <p className="text-sm text-[var(--cms-muted)]">Jump back into what you were editing.</p>
-                            </div>
-                            <Link href="/dashboard/menus" className="text-sm text-[var(--cms-muted)] hover:text-[var(--cms-text)] inline-flex items-center gap-2">
-                                View all
-                            </Link>
+                <Card className="mt-2">
+                    <CardHeader className="flex flex-row items-start justify-between gap-4">
+                        <div>
+                            <CardTitle className="text-lg">Recently updated menus</CardTitle>
+                            <CardDescription>Jump back into what you were editing.</CardDescription>
                         </div>
-                        <div className="grid sm:grid-cols-2 gap-4">
+                        <Link href="/dashboard/menus" className="text-sm font-semibold text-muted hover:text-foreground">
+                            View all
+                        </Link>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid gap-3 sm:grid-cols-2">
                             {recentMenus.map((menu) => (
                                 <Link
                                     key={menu.id}
                                     href={`/dashboard/menus/${menu.id}`}
-                                    className="p-4 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] hover:shadow-md transition-all"
+                                    className="group rounded-2xl border border-border bg-panelStrong p-4 transition-colors hover:bg-pill"
                                 >
-                                    <div className="flex items-center justify-between mb-2">
-                                        <h4 className="font-semibold text-lg">{menu.name}</h4>
-                                        <span className={`text-[10px] uppercase tracking-widest font-semibold px-2 py-1 rounded-full ${menu.is_active ? "bg-emerald-500/15 text-emerald-500" : "bg-[var(--cms-pill)] text-[var(--cms-muted)]"}`}>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <h4 className="truncate text-base font-semibold">{menu.name}</h4>
+                                            <p className="mt-1 text-xs text-muted">Open menu editor</p>
+                                        </div>
+                                        <Badge variant={menu.is_active ? "success" : "outline"}>
                                             {menu.is_active ? "Active" : "Paused"}
-                                        </span>
+                                        </Badge>
                                     </div>
-                                    <p className="text-xs text-[var(--cms-muted)]">Open menu editor</p>
                                 </Link>
                             ))}
                         </div>
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
             ) : (
-                <div className="mt-12 p-12 border-2 border-dashed border-[var(--cms-border)] rounded-[40px] flex flex-col items-center justify-center text-center bg-[var(--cms-panel-strong)]">
-                    <div className="w-16 h-16 bg-[var(--cms-pill)] rounded-2xl flex items-center justify-center mb-6">
+                <div className="mt-2 rounded-2xl border border-dashed border-border bg-panelStrong p-10 text-center">
+                    <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-pill">
                         <LayoutDashboard className="w-8 h-8 text-[var(--cms-text)]" />
                     </div>
-                    <h3 className="text-xl font-bold mb-2">{emptyStateTitle}</h3>
-                    <p className="text-[var(--cms-muted)] max-w-sm mb-8">{emptyStateCopy}</p>
-                    <Link
-                        href={companyCount ? "/dashboard/menus/new" : "/onboarding"}
-                        className="px-8 py-3 bg-[var(--cms-text)] text-[var(--cms-bg)] font-bold rounded-xl hover:scale-105 transition-all inline-block"
-                    >
-                        {companyCount ? "Create Menu" : "Start Onboarding"}
-                    </Link>
+                    <h3 className="text-xl font-bold">{emptyStateTitle}</h3>
+                    <p className="mx-auto mt-2 max-w-md text-sm text-muted">{emptyStateCopy}</p>
+                    <div className="mt-6">
+                        <Link
+                            href={companyCount ? "/dashboard/menus/new" : "/onboarding"}
+                            className="inline-flex h-11 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-5 text-base font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                        >
+                            {companyCount ? "Create menu" : "Start onboarding"}
+                        </Link>
+                    </div>
                 </div>
             )}
         </div>

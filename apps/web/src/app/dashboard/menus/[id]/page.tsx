@@ -1278,7 +1278,7 @@ export default function MenuDetailPage() {
                                     <button
                                         onClick={handleSaveMenu}
                                         disabled={isSavingMenu || !pageDirty}
-                                        className={`h-8 px-4 rounded-full font-semibold text-sm inline-flex items-center gap-2 justify-center w-full sm:w-auto min-w-[92px] ${isSavingMenu || !pageDirty ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed" : "bg-[var(--cms-text)] text-[var(--cms-bg)] hover:opacity-90"}`}
+                                        className={`h-8 px-4 rounded-full font-semibold text-sm inline-flex items-center gap-2 justify-center w-full sm:w-auto min-w-[92px] ${isSavingMenu || !pageDirty ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed" : "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"}`}
                                     >
                                         {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
                                         {isSavingMenu ? "Saving..." : "Save"}
@@ -1567,7 +1567,7 @@ export default function MenuDetailPage() {
                                     />
                                     <button
                                         onClick={handleAddCategory}
-                                        className="bg-[var(--cms-text)] text-[var(--cms-bg)] px-6 rounded-xl font-bold hover:opacity-90"
+                                        className="bg-[var(--cms-accent)] text-white px-6 rounded-xl font-bold hover:bg-[var(--cms-accent-strong)]"
                                     >
                                         Save
                                     </button>
@@ -2124,7 +2124,7 @@ export default function MenuDetailPage() {
                                             ? !editingItem.name || (!editingItem.price && editingItem.price !== 0)
                                             : !editingItem.id || !canManageAvailability)
                                     }
-                                    className="px-6 py-3 bg-[var(--cms-text)] text-[var(--cms-bg)] rounded-xl font-semibold hover:opacity-90 transition-all disabled:opacity-50 flex items-center gap-2 shadow-[0_8px_24px_-16px_rgba(0,0,0,0.8)]"
+                                    className="px-6 py-3 bg-[var(--cms-accent)] text-white rounded-xl font-semibold hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm"
                                 >
                                     {isSavingItem && <Loader2 className="w-4 h-4 animate-spin" />}
                                     {isSavingItem ? 'Saving...' : 'Save Item'}

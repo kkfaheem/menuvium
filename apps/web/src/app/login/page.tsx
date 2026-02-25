@@ -6,6 +6,8 @@ import { useEffect, useMemo } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useTheme } from "@/components/ThemeProvider";
 import { Logo } from "@/components/Logo";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -25,18 +27,18 @@ export default function LoginPage() {
         const isDark = resolvedTheme === "dark";
         const base = isDark
             ? {
-                fontPrimary: "#fafafa",
-                fontSecondary: "rgba(250, 250, 250, 0.6)",
-                border: "rgba(255, 255, 255, 0.08)",
-                backgroundPrimary: "#141414",
-                backgroundSecondary: "#0a0a0a"
+                fontPrimary: "#e2e8f0",
+                fontSecondary: "rgba(226, 232, 240, 0.7)",
+                border: "rgba(226, 232, 240, 0.12)",
+                backgroundPrimary: "#0f172a",
+                backgroundSecondary: "#0b1020"
             }
             : {
-                fontPrimary: "#1a1a1a",
-                fontSecondary: "rgba(26, 26, 26, 0.55)",
-                border: "rgba(0, 0, 0, 0.06)",
+                fontPrimary: "#0f172a",
+                fontSecondary: "rgba(15, 23, 42, 0.64)",
+                border: "rgba(15, 23, 42, 0.12)",
                 backgroundPrimary: "#ffffff",
-                backgroundSecondary: "#fafafa"
+                backgroundSecondary: "#f8fafc"
             };
 
         return {
@@ -78,84 +80,76 @@ export default function LoginPage() {
     }, [resolvedTheme]);
 
     return (
-        <div className="min-h-screen bg-[var(--cms-bg)] text-[var(--cms-text)] relative transition-colors overflow-x-hidden">
-            {/* Header - glassmorphism */}
-            <header className="fixed top-0 left-0 right-0 z-50 glass-subtle">
-                <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-                    {/* Left spacer */}
+        <div className="min-h-screen bg-background text-foreground transition-colors">
+            <header className="sticky top-0 z-40 border-b border-border bg-panel">
+                <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
                     <div className="flex-1" />
-
-                    {/* Centered logo */}
                     <Logo size="lg" />
-
-                    {/* Right side */}
-                    <div className="flex items-center gap-3 flex-1 justify-end">
+                    <div className="flex flex-1 items-center justify-end gap-3">
                         <ThemeToggle />
                     </div>
                 </div>
             </header>
 
-            {/* Background blobs */}
-            <div className="absolute inset-0 overflow-hidden pointer-events-none">
-                <div className="absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-[var(--cms-accent)]/20 blur-[120px]" />
-                <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-pink-400/15 blur-[140px]" />
-                <div className="absolute top-1/2 left-0 h-64 w-64 rounded-full bg-blue-400/10 blur-[100px]" />
-            </div>
-
-            {/* Main content */}
-            <div className="relative z-10 min-h-screen flex items-center justify-center px-4 sm:px-6 pt-20 pb-10">
-                <div className="w-full max-w-5xl grid gap-12 lg:grid-cols-2 lg:gap-20 items-center">
-                    {/* Left side - Marketing content */}
-                    <div className="space-y-6 text-center lg:text-left">
-                        <p className="text-xs uppercase tracking-[0.3em] text-[var(--cms-accent)] font-semibold">Welcome back</p>
-                        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">
-                            Sign in to your <br />
-                            <span className="text-[var(--cms-accent)]">menu studio</span>
-                        </h1>
-                        <p className="text-base text-[var(--cms-muted)] max-w-md mx-auto lg:mx-0 leading-relaxed">
-                            Design menus that feel premium on every device. Launch faster with smart import, live editing, and beautiful themes.
+            <main className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:py-16">
+                <section className="flex flex-col justify-center gap-6">
+                    <div className="space-y-3">
+                        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--cms-accent-strong)]">
+                            Welcome back
                         </p>
-                        <div className="flex flex-wrap gap-2 text-xs font-medium text-[var(--cms-muted)] justify-center lg:justify-start">
-                            <span className="glass px-3 py-1.5 rounded-full">📱 Mobile-first</span>
-                            <span className="glass px-3 py-1.5 rounded-full">🎨 Theme-ready</span>
-                            <span className="glass px-3 py-1.5 rounded-full">📄 OCR import</span>
-                        </div>
+                        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
+                            Sign in to your <span className="text-[var(--cms-accent-strong)]">menu studio</span>
+                        </h1>
+                        <p className="max-w-xl text-base leading-relaxed text-muted">
+                            Create, edit, and publish menus that look premium on every device. Import fast, refine in real‑time, and ship
+                            beautiful themes.
+                        </p>
                     </div>
 
-                    {/* Right side - Auth form with glassmorphism */}
-                    <div className="w-full max-w-md mx-auto lg:max-w-none lg:mx-0">
-                        <div className="glass rounded-3xl text-[var(--cms-text)] overflow-hidden">
-                            <div className="p-6 sm:p-8">
+                    <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">Mobile-first</Badge>
+                        <Badge variant="outline">Live editing</Badge>
+                        <Badge variant="outline">Theme-ready</Badge>
+                    </div>
+                </section>
+
+                <section className="flex items-center justify-center lg:justify-end">
+                    <div className="w-full max-w-md">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Sign in</CardTitle>
+                                <CardDescription>Use email (and optionally a social provider) to continue.</CardDescription>
+                            </CardHeader>
+                            <CardContent>
                                 {isConfigured ? (
-                                    <div className="space-y-6">
-                                        <div>
-                                            <h2 className="text-lg font-bold mb-1">Sign in or create an account</h2>
-                                            <p className="text-sm text-[var(--cms-muted)]">Use email or a social provider.</p>
-                                        </div>
-                                        <ThemeProvider theme={amplifyTheme}>
-                                            <View className="auth-wrapper">
-                                                <Authenticator
-                                                    loginMechanisms={["email"]}
-                                                    socialProviders={hasOAuth ? ["google", "apple", "facebook"] : []}
-                                                    signUpAttributes={["email", "name"]}
-                                                />
-                                            </View>
-                                        </ThemeProvider>
-                                    </div>
+                                    <ThemeProvider theme={amplifyTheme}>
+                                        <View className="auth-wrapper">
+                                            <Authenticator
+                                                loginMechanisms={["email"]}
+                                                socialProviders={hasOAuth ? ["google", "apple", "facebook"] : []}
+                                                signUpAttributes={["email", "name"]}
+                                            />
+                                        </View>
+                                    </ThemeProvider>
                                 ) : (
-                                    <div className="space-y-4">
-                                        <div className="p-4 bg-[var(--cms-pill)] border border-[var(--cms-border)] rounded-xl text-sm text-[var(--cms-text)] leading-relaxed">
-                                            <p className="font-bold mb-1">Auth not configured</p>
-                                            <p>Set `NEXT_PUBLIC_USER_POOL_ID` and `NEXT_PUBLIC_USER_POOL_CLIENT_ID` to enable login.</p>
+                                    <div className="space-y-3">
+                                        <div className="rounded-xl border border-border bg-[var(--cms-accent-subtle)] px-4 py-3 text-sm leading-relaxed">
+                                            <p className="font-semibold">Auth not configured</p>
+                                            <p className="mt-1 text-muted">
+                                                Set <code>NEXT_PUBLIC_USER_POOL_ID</code> and <code>NEXT_PUBLIC_USER_POOL_CLIENT_ID</code> to
+                                                enable login.
+                                            </p>
                                         </div>
-                                        <p className="text-xs text-[var(--cms-muted)]">Check `docs/SETUP.md` for configuration details.</p>
+                                        <p className="text-xs text-muted">
+                                            Check <code>docs/SETUP.md</code> for configuration details.
+                                        </p>
                                     </div>
                                 )}
-                            </div>
-                        </div>
+                            </CardContent>
+                        </Card>
                     </div>
-                </div>
-            </div>
+                </section>
+            </main>
         </div>
     );
 }

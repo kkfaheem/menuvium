@@ -10,8 +10,15 @@ const config: Config = {
     theme: {
         extend: {
             colors: {
-                background: "var(--background)",
-                foreground: "var(--foreground)",
+                background: "var(--cms-bg)",
+                foreground: "var(--cms-text)",
+                panel: "var(--cms-panel)",
+                panelStrong: "var(--cms-panel-strong)",
+                border: "var(--cms-border)",
+                muted: "var(--cms-muted)",
+                accent: "var(--cms-accent)",
+                accentStrong: "var(--cms-accent-strong)",
+                pill: "var(--cms-pill)",
             },
         },
     },
