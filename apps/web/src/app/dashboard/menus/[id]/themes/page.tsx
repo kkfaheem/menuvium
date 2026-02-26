@@ -11,6 +11,7 @@ import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
 import { ImageCropperModal } from "@/components/menus/ImageCropperModal";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Badge } from "@/components/ui/Badge";
 
 interface Item {
     id: string;
@@ -444,20 +445,22 @@ export default function MenuThemesPage() {
     return (
         <div className="w-full max-w-6xl mr-auto space-y-8">
             <header className="space-y-4">
-                <Link href={`/dashboard/menus/${menuId}`} className="text-sm text-[var(--cms-muted)] hover:text-[var(--cms-text)] inline-flex items-center gap-1">
+                <Link
+                    href={`/dashboard/menus/${menuId}`}
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-muted transition-colors hover:text-foreground"
+                >
                     <ArrowLeft className="w-4 h-4" /> Back to Menu
                 </Link>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                     <div className="space-y-2">
+                        <Badge variant="outline">Design Studio</Badge>
                         <h1 className="font-heading text-3xl font-bold tracking-tight">Design Studio</h1>
-                        <p className="text-sm text-[var(--cms-muted)]">
-                            Customize your menu's branding and visual theme.
-                        </p>
+                        <p className="text-muted">Customize your menu's branding and visual theme.</p>
                     </div>
                     <Link
                         href={`/r/${menu?.id}`}
                         target="_blank"
-                        className="h-9 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)] transition-colors"
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-pill"
                     >
                         <ExternalLink className="w-4 h-4" />
                         View Public Page

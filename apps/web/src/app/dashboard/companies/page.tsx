@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Building2, ChevronRight, MoreHorizontal, Plus, Trash2, Users } from "lucide-react";
+import { Building2, ChevronRight, Plus, Trash2, Users } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
@@ -164,16 +164,15 @@ export default function CompaniesPage() {
         }
     };
 
-    const displayCompanies = useMemo(() => companies, [companies]);
+	    const displayCompanies = useMemo(() => companies, [companies]);
 
-    return (
-        <div className="w-full max-w-6xl mr-auto space-y-6">
-            <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                    <h1 className="font-heading text-3xl font-bold tracking-tight">Companies</h1>
-                    <p className="text-muted">Invite teammates and manage access.</p>
-                </div>
-            </header>
+	    return (
+	        <div className="w-full max-w-6xl mr-auto space-y-8">
+	            <header className="space-y-2">
+	                <Badge variant="outline">Companies</Badge>
+	                <h1 className="font-heading text-3xl font-bold tracking-tight">Companies</h1>
+	                <p className="text-muted">Invite teammates and manage access.</p>
+	            </header>
 
             {loading && <div className="text-sm text-muted">Loading companies...</div>}
 
@@ -192,27 +191,30 @@ export default function CompaniesPage() {
                         <Badge variant="outline">New</Badge>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        <Input
-                            className="h-11 px-4"
-                            value={newCompanyName}
-                            onChange={(e) => setNewCompanyName(e.target.value)}
-                            placeholder="Company name"
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    handleCreate();
-                                }
-                            }}
-                        />
-                        <Button
-                            className="w-full"
-                            size="lg"
-                            loading={saving}
-                            disabled={!newCompanyName.trim()}
-                            onClick={handleCreate}
-                        >
-                            Create
-                        </Button>
+                        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                            <Input
+                                className="h-11 px-4"
+                                value={newCompanyName}
+                                onChange={(e) => setNewCompanyName(e.target.value)}
+                                placeholder="Company name"
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        e.preventDefault();
+                                        handleCreate();
+                                    }
+                                }}
+                            />
+                            <Button
+                                className="w-full sm:w-auto"
+                                size="md"
+                                loading={saving}
+                                disabled={!newCompanyName.trim()}
+                                onClick={handleCreate}
+                            >
+                                <Plus className="h-4 w-4" />
+                                Create
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
 
@@ -253,24 +255,14 @@ export default function CompaniesPage() {
                                 </div>
                             </CardHeader>
 
-                            <CardContent className="flex flex-wrap items-center gap-2 pt-0">
+                            <CardContent className="pt-0">
                                 <Link
                                     href={`/dashboard/companies/${company.id}`}
-                                    className="inline-flex h-10 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                                 >
-                                    <Users className="mr-2 h-4 w-4" />
+                                    <Users className="h-4 w-4 text-[var(--cms-accent-strong)]" />
                                     Team & permissions
                                 </Link>
-
-                                <button
-                                    type="button"
-                                    disabled
-                                    className="inline-flex h-10 items-center justify-center rounded-xl border border-border bg-panel px-4 text-sm font-semibold text-muted opacity-60 cursor-not-allowed"
-                                    title="More company tools coming soon"
-                                >
-                                    <MoreHorizontal className="mr-2 h-4 w-4" />
-                                    More
-                                </button>
                             </CardContent>
                         </Card>
                     );

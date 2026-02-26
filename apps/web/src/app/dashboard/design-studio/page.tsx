@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Building2, ChevronDown, Palette, ArrowRight, Loader2 } from "lucide-react";
+import { Building2, ChevronDown, ArrowRight, Loader2 } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
@@ -126,16 +126,9 @@ export default function DesignStudioPage() {
     return (
         <div className="max-w-3xl space-y-8">
             <header className="space-y-2">
-                <Badge variant="outline">Design</Badge>
-                <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pill">
-                        <Palette className="h-5 w-5" />
-                    </div>
-                    <div>
-                        <h1 className="font-heading text-3xl font-bold tracking-tight">Design Studio</h1>
-                        <p className="text-sm text-muted">Customize your menu's branding and visual theme.</p>
-                    </div>
-                </div>
+                <Badge variant="outline">Design Studio</Badge>
+                <h1 className="font-heading text-3xl font-bold tracking-tight">Design Studio</h1>
+                <p className="text-muted">Customize your menu's branding and visual theme.</p>
             </header>
 
             {hasNoOrgs ? (

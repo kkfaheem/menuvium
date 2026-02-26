@@ -141,8 +141,9 @@ export default function MenusPage() {
     if (!loading && organizations.length === 0) {
         return (
             <div className="max-w-2xl space-y-6">
-                <header>
-                    <h1 className="font-heading text-3xl font-bold tracking-tight mb-2">Menus</h1>
+                <header className="space-y-2">
+                    <Badge variant="outline">Menus</Badge>
+                    <h1 className="font-heading text-3xl font-bold tracking-tight">Menus</h1>
                     <p className="text-muted">
                         {orgError
                             ? orgError
@@ -192,9 +193,10 @@ export default function MenusPage() {
 
     return (
         <div className="space-y-6">
-            <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="font-heading text-3xl font-bold tracking-tight mb-1">Menus</h1>
+            <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="space-y-2">
+                    <Badge variant="outline">Menus</Badge>
+                    <h1 className="font-heading text-3xl font-bold tracking-tight">Menus</h1>
                     <p className="text-muted">Manage your restaurant's menus.</p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

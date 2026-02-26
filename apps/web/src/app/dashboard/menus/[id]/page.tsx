@@ -29,6 +29,7 @@ import { SortableItemRow } from "@/components/menus/SortableItemRow";
 import { useMenuEditor } from "@/hooks/useMenuEditor";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { useToast } from "@/components/ui/ToastProvider";
+import { Badge } from "@/components/ui/Badge";
 
 export default function MenuDetailPage() {
     const params = useParams();
@@ -1182,12 +1183,16 @@ export default function MenuDetailPage() {
 
     return (
         <div className="w-full max-w-5xl mr-auto">
-            <header className="mb-6 sm:mb-8">
-                <Link href="/dashboard/menus" className="text-sm text-[var(--cms-muted)] hover:text-[var(--cms-text)] inline-flex items-center gap-1 transition-colors">
+            <header className="mb-6 space-y-3 sm:mb-8">
+                <Link
+                    href="/dashboard/menus"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-muted transition-colors hover:text-foreground"
+                >
                     <ArrowLeft className="w-4 h-4" /> Back to Menus
                 </Link>
-                <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                    <div className="space-y-2">
+                        <Badge variant="outline">Menus</Badge>
                         {isEditingMenuName ? (
                             <div className="flex items-center gap-2">
                                 <input
@@ -1231,10 +1236,10 @@ export default function MenuDetailPage() {
                                     <X className="w-4 h-4" />
                                 </button>
                             </div>
-                        ) : (
-                            <>
-                                {canManageMenus ? (
-                                    <button
+	                        ) : (
+	                            <>
+	                                {canManageMenus ? (
+	                                    <button
                                         type="button"
                                         onClick={() => {
                                             setMenuNameDraft(menuName);
@@ -1248,12 +1253,15 @@ export default function MenuDetailPage() {
                                         <PencilLine className="relative top-[1px] w-4 h-4 text-[var(--cms-muted)] transition-colors group-hover:text-[var(--cms-text)]" />
                                     </button>
                                 ) : (
-                                    <h1 className="font-heading text-3xl font-bold tracking-tight">{menuName}</h1>
-                                )}
-                            </>
-                        )}
-                    </div>
-                    <div className="flex flex-col items-start gap-3 md:items-end w-full md:w-auto">
+	                                    <h1 className="font-heading text-3xl font-bold tracking-tight">{menuName}</h1>
+	                                )}
+	                            </>
+	                        )}
+                            <p className="text-muted">
+                                Edit items, pricing, availability, and photoreal AR dishes.
+                            </p>
+	                    </div>
+	                    <div className="flex flex-col items-start gap-3 md:items-end w-full md:w-auto">
                         <div className="flex flex-col w-full gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-start md:justify-end">
                             {canManageMenus && (
                                 <>

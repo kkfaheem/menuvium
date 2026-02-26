@@ -301,6 +301,53 @@ from pathlib import Path
 from models import DietaryTag, Allergen, ItemPhoto
 
 
+def _select_manifest_path(zf: zipfile.ZipFile) -> tuple[str, str]:
+    """
+    Find manifest.json in the ZIP, supporting archives that wrap files in a top-level folder.
+
+    Returns (manifest_path, base_prefix). base_prefix is "" or like "demo_menu/".
+    """
+    names = [name for name in zf.namelist() if name and name.endswith("manifest.json")]
+
+    def is_valid(candidate: str) -> bool:
+        if candidate.endswith("/"):
+            return False
+        if "/__MACOSX/" in candidate or candidate.startswith("__MACOSX/"):
+            return False
+        basename = candidate.rsplit("/", 1)[-1]
+        return basename == "manifest.json"
+
+    candidates = [name for name in names if is_valid(name)]
+    if not candidates:
+        raise HTTPException(status_code=400, detail="ZIP archive missing manifest.json")
+
+    if "manifest.json" in candidates:
+        manifest_path = "manifest.json"
+    else:
+        # Prefer the shallowest path (fewest folders), then shortest string.
+        candidates.sort(key=lambda p: (p.count("/"), len(p)))
+        manifest_path = candidates[0]
+
+    base_prefix = ""
+    if "/" in manifest_path:
+        base_prefix = manifest_path.rsplit("/", 1)[0].rstrip("/") + "/"
+    return manifest_path, base_prefix
+
+
+def _resolve_zip_member(zip_files: set[str], base_prefix: str, path: str) -> str | None:
+    if not path:
+        return None
+    cleaned = path.lstrip("./").lstrip("/")
+    direct = cleaned if cleaned in zip_files else path if path in zip_files else None
+    if direct:
+        return direct
+    if base_prefix:
+        prefixed = f"{base_prefix}{cleaned}"
+        if prefixed in zip_files:
+            return prefixed
+    return None
+
+
 def _get_or_create_dietary_tag(session: Session, name: str, icon: str = None) -> DietaryTag:
     """Get existing dietary tag by name or create a new one with optional icon."""
     from sqlmodel import select
@@ -420,7 +467,8 @@ def import_menu_from_zip(
     
     # Extract and validate manifest
     try:
-        manifest_data = zf.read("manifest.json")
+        manifest_path, base_prefix = _select_manifest_path(zf)
+        manifest_data = zf.read(manifest_path)
         manifest = json.loads(manifest_data.decode("utf-8"))
     except KeyError:
         raise HTTPException(status_code=400, detail="ZIP archive missing manifest.json")
@@ -451,10 +499,11 @@ def import_menu_from_zip(
     
     # Import banner image if present in ZIP
     banner_filename = manifest.get("menu_banner_filename")
-    if banner_filename and banner_filename in zip_files:
+    resolved_banner = _resolve_zip_member(zip_files, base_prefix, banner_filename) if banner_filename else None
+    if resolved_banner:
         try:
-            image_data = zf.read(banner_filename)
-            ext = banner_filename.split(".")[-1].lower() if "." in banner_filename else "jpg"
+            image_data = zf.read(resolved_banner)
+            ext = resolved_banner.split(".")[-1].lower() if "." in resolved_banner else "jpg"
             content_type_map = {
                 "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
                 "gif": "image/gif", "webp": "image/webp"
@@ -469,10 +518,11 @@ def import_menu_from_zip(
     
     # Import logo image if present in ZIP
     logo_filename = manifest.get("menu_logo_filename")
-    if logo_filename and logo_filename in zip_files:
+    resolved_logo = _resolve_zip_member(zip_files, base_prefix, logo_filename) if logo_filename else None
+    if resolved_logo:
         try:
-            image_data = zf.read(logo_filename)
-            ext = logo_filename.split(".")[-1].lower() if "." in logo_filename else "jpg"
+            image_data = zf.read(resolved_logo)
+            ext = resolved_logo.split(".")[-1].lower() if "." in resolved_logo else "jpg"
             content_type_map = {
                 "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
                 "gif": "image/gif", "webp": "image/webp"
@@ -566,13 +616,14 @@ def import_menu_from_zip(
             photos_data = item_data.get("photos", [])
             for photo_data in photos_data:
                 zip_path = photo_data.get("filename")
-                if not zip_path or zip_path not in zip_files:
+                resolved_photo = _resolve_zip_member(zip_files, base_prefix, zip_path) if zip_path else None
+                if not resolved_photo:
                     continue
                 
                 try:
-                    image_data = zf.read(zip_path)
+                    image_data = zf.read(resolved_photo)
                     # Extract just the filename for upload
-                    image_filename = zip_path.split("/")[-1]
+                    image_filename = resolved_photo.split("/")[-1]
                     
                     # Determine content type from extension
                     ext = image_filename.split(".")[-1].lower() if "." in image_filename else "jpg"
@@ -646,10 +697,9 @@ def preview_zip_manifest(
         raise HTTPException(status_code=400, detail=f"Failed to read ZIP file: {str(e)}")
     
     try:
-        manifest_data = zf.read("manifest.json")
+        manifest_path, base_prefix = _select_manifest_path(zf)
+        manifest_data = zf.read(manifest_path)
         manifest = json.loads(manifest_data.decode("utf-8"))
-    except KeyError:
-        raise HTTPException(status_code=400, detail="ZIP archive missing manifest.json")
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid manifest.json format")
     
@@ -658,7 +708,8 @@ def preview_zip_manifest(
     items_count = sum(len(cat.get("items", [])) for cat in categories)
     
     # Check for images folder
-    has_images = any(name.startswith("images/") for name in zf.namelist())
+    prefix_images = f"{base_prefix}images/" if base_prefix else "images/"
+    has_images = any(name.startswith(prefix_images) for name in zf.namelist())
     
     zf.close()
     

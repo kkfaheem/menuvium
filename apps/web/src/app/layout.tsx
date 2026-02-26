@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import AmplifyProvider from "@/components/AmplifyProvider";
@@ -6,9 +6,43 @@ import ThemeProvider from "@/components/ThemeProvider";
 import ToastProvider from "@/components/ui/ToastProvider";
 import ConfirmProvider from "@/components/ui/ConfirmProvider";
 
+export const viewport: Viewport = {
+    themeColor: [
+        { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+        { media: "(prefers-color-scheme: dark)", color: "#0b0f16" },
+    ],
+};
+
 export const metadata: Metadata = {
-    title: "Menuvium",
-    description: "Dynamic QR Menu SaaS",
+    metadataBase: new URL("https://menuvium.com"),
+    title: {
+        default: "Menuvium — QR menus, made modern",
+        template: "%s — Menuvium",
+    },
+    description:
+        "Create, edit, and publish QR menus with a calm, modern workflow. Import fast, ship beautiful themes, and add photoreal AR dishes from a short video — without reprinting.",
+    applicationName: "Menuvium",
+    alternates: {
+        canonical: "/",
+    },
+    openGraph: {
+        type: "website",
+        url: "https://menuvium.com",
+        title: "Menuvium — QR menus, made modern",
+        description:
+            "Create, edit, and publish QR menus with a calm, modern workflow. Import fast, ship beautiful themes, and add photoreal AR dishes from a short video — without reprinting.",
+        siteName: "Menuvium",
+    },
+    twitter: {
+        card: "summary_large_image",
+        title: "Menuvium — QR menus, made modern",
+        description:
+            "Create, edit, and publish QR menus with a calm, modern workflow. Import fast, ship beautiful themes, and add photoreal AR dishes from a short video — without reprinting.",
+    },
+    icons: {
+        icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+        shortcut: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    },
 };
 
 const sans = Plus_Jakarta_Sans({

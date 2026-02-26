@@ -285,13 +285,15 @@ export default function Home() {
                                 Menu management, rebuilt for speed
                             </motion.div>
 
-                            <motion.h1
-                                variants={fadeUp}
-                                className="font-heading text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl"
-                            >
-                                QR menus, made modern.
-                                <span className="block text-[var(--cms-accent-strong)]">Update instantly. Add photoreal AR.</span>
-                            </motion.h1>
+	                            <motion.h1
+	                                variants={fadeUp}
+	                                className="font-heading text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl"
+	                            >
+	                                QR menus, made modern.
+	                                <span className="block bg-gradient-to-r from-[var(--cms-accent)] via-[var(--cms-accent-strong)] to-[var(--cms-accent)] bg-clip-text text-transparent gradient-shift">
+	                                    Update instantly. Add photoreal AR.
+	                                </span>
+	                            </motion.h1>
 
                             <motion.p variants={fadeUp} className="max-w-xl text-base leading-relaxed text-muted sm:text-lg">
                                 Import a menu, pick a theme, publish a QR — then update items instantly and add photoreal AR dishes from video.
@@ -312,22 +314,22 @@ export default function Home() {
                                 </Link>
                             </motion.div>
 
-                            <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                {[
-                                    { label: "AI import", icon: Wand2 },
-                                    { label: "Theme studio", icon: Palette },
-                                    { label: "Instant updates", icon: Clock },
-                                    { label: "Photoreal AR", icon: Layers },
-                                ].map(({ label, icon: Icon }) => (
-                                    <div
-                                        key={label}
-                                        className="flex items-center gap-2 rounded-2xl border border-border bg-panel px-3 py-2 text-sm shadow-[var(--cms-shadow-sm)]"
-                                    >
-                                        <Icon className="h-4 w-4 text-[var(--cms-accent-strong)]" />
-                                        <span className="font-semibold">{label}</span>
-                                    </div>
-                                ))}
-                            </motion.div>
+	                            <motion.div variants={fadeUp} className="flex flex-wrap gap-2">
+	                                {[
+	                                    { label: "AI import", icon: Wand2 },
+	                                    { label: "Theme studio", icon: Palette },
+	                                    { label: "Instant updates", icon: Clock },
+	                                    { label: "Photoreal AR", icon: Layers },
+	                                ].map(({ label, icon: Icon }) => (
+	                                    <div
+	                                        key={label}
+	                                        className="inline-flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs font-semibold text-muted shadow-sm"
+	                                    >
+	                                        <Icon className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
+	                                        <span className="text-foreground">{label}</span>
+	                                    </div>
+	                                ))}
+	                            </motion.div>
                         </motion.div>
 
                         <motion.div
@@ -336,24 +338,24 @@ export default function Home() {
                             transition={{ duration: 0.45, delay: 0.1 }}
                             className="relative"
                         >
-                            <div className="relative overflow-hidden rounded-3xl border border-border bg-panel shadow-[var(--cms-shadow-lg)]">
-                                <div className="flex items-center justify-between border-b border-border bg-panelStrong px-4 py-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="h-2 w-2 rounded-full bg-emerald-500/80" />
-                                        <p className="text-xs font-semibold text-muted">Live preview</p>
-                                    </div>
-                                    <p className="text-xs font-semibold text-muted">Dashboard</p>
-                                </div>
-                                <div className="relative aspect-[16/10]">
-                                    <Image
-                                        src="/images/hero-studio.png"
-                                        alt="Menuvium studio preview"
-                                        fill
-                                        className="object-cover object-top"
-                                        priority
-                                    />
-                                </div>
-                            </div>
+	                            <div className="relative overflow-hidden rounded-3xl border border-border bg-panel shadow-[var(--cms-shadow-lg)]">
+	                                <div className="relative aspect-[16/10]">
+	                                    <Image
+	                                        src="/images/hero-studio.png"
+	                                        alt="Menuvium studio preview"
+	                                        fill
+	                                        className="object-cover object-center"
+	                                        priority
+	                                    />
+	                                    <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-border bg-panel/70 px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm backdrop-blur-md">
+	                                        <span className="h-2 w-2 rounded-full bg-emerald-500/80" />
+	                                        Live preview
+	                                    </div>
+	                                    <div className="absolute right-4 top-4 inline-flex items-center rounded-full border border-border bg-panel/70 px-3 py-1.5 text-xs font-semibold text-muted shadow-sm backdrop-blur-md">
+	                                        Dashboard
+	                                    </div>
+	                                </div>
+	                            </div>
 
                             <div className="pointer-events-none absolute -bottom-8 -left-6 hidden w-56 rounded-3xl border border-border bg-panel p-4 shadow-[var(--cms-shadow-md)] sm:block">
                                 <p className="text-xs font-semibold text-muted">Today</p>
@@ -528,22 +530,25 @@ export default function Home() {
                                                 transition={{ duration: 0.28 }}
                                                 className="relative"
                                             >
-                                                <div className="flex items-center justify-between border-b border-border bg-panelStrong px-4 py-3">
-                                                    <p className="text-xs font-semibold text-muted">{activeTour.label} preview</p>
-                                                    <span className="text-xs font-semibold text-muted">Menuvium</span>
-                                                </div>
-                                                <div className="relative aspect-[16/10]">
-                                                    <Image
-                                                        src={activeTour.image}
-                                                        alt={`${activeTour.label} preview`}
-                                                        fill
-                                                        className="object-cover object-top"
-                                                    />
-                                                </div>
-                                            </motion.div>
-                                        </AnimatePresence>
-                                    </div>
-                                </div>
+	                                                <div className="relative aspect-[16/10]">
+	                                                    <Image
+	                                                        src={activeTour.image}
+	                                                        alt={`${activeTour.label} preview`}
+	                                                        fill
+	                                                        className="object-cover object-center"
+	                                                    />
+	                                                    <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-border bg-panel/70 px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm backdrop-blur-md">
+	                                                        <Sparkle className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
+	                                                        {activeTour.label}
+	                                                    </div>
+	                                                    <div className="absolute right-4 top-4 inline-flex items-center rounded-full border border-border bg-panel/70 px-3 py-1.5 text-xs font-semibold text-muted shadow-sm backdrop-blur-md">
+	                                                        Menuvium
+	                                                    </div>
+	                                                </div>
+	                                            </motion.div>
+	                                        </AnimatePresence>
+	                                    </div>
+	                                </div>
                             </div>
                         </motion.div>
                     </motion.div>

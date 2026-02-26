@@ -322,15 +322,13 @@ export default function SettingsPage() {
     };
 
 
-    return (
-        <div className="max-w-4xl space-y-8">
-            <header className="space-y-2">
-                <Badge variant="outline">Settings</Badge>
-                <div>
-                    <h1 className="font-heading text-3xl font-bold tracking-tight">Settings</h1>
-                    <p className="text-muted">Keep the control surface clean and fast.</p>
-                </div>
-            </header>
+	    return (
+	        <div className="max-w-4xl space-y-8">
+	            <header className="space-y-2">
+	                <Badge variant="outline">Settings</Badge>
+	                <h1 className="font-heading text-3xl font-bold tracking-tight">Settings</h1>
+	                <p className="text-muted">Keep the control surface clean and fast.</p>
+	            </header>
 
             <div className="inline-flex w-fit rounded-xl border border-border bg-panelStrong p-1">
                 <button
@@ -423,18 +421,17 @@ export default function SettingsPage() {
                 </>
             )}
 
-            {activeTab === "tags" && (
-                <div className="grid gap-4 lg:grid-cols-2">
-                    <Card className="h-full">
-                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                                <CardTitle>{tagLabels.diet}</CardTitle>
-                                <CardDescription>Dietary markers shown on items.</CardDescription>
-                            </div>
-                            <div className="w-full space-y-1 sm:w-[200px]">
-                                <p className="text-xs font-semibold text-muted">Section label</p>
-                                <Input
-                                    value={tagLabels.diet}
+	            {activeTab === "tags" && (
+	                <div className="grid gap-4 lg:grid-cols-2">
+	                    <Card className="h-full">
+	                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+	                            <div>
+	                                <CardTitle>Diet</CardTitle>
+	                            </div>
+	                            <div className="w-full space-y-1 sm:w-[200px]">
+	                                <p className="text-xs font-semibold text-muted">Section label</p>
+	                                <Input
+	                                    value={tagLabels.diet}
                                     onChange={(e) => updateTagLabel("diet", e.target.value)}
                                     className="h-10 rounded-full px-4 text-sm"
                                     aria-label="Diet section label"
@@ -492,16 +489,15 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="h-full">
-                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                                <CardTitle>{tagLabels.spice}</CardTitle>
-                                <CardDescription>Quick heat indicators for items.</CardDescription>
-                            </div>
-                            <div className="w-full space-y-1 sm:w-[200px]">
-                                <p className="text-xs font-semibold text-muted">Section label</p>
-                                <Input
-                                    value={tagLabels.spice}
+	                    <Card className="h-full">
+	                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+	                            <div>
+	                                <CardTitle>Spice level</CardTitle>
+	                            </div>
+	                            <div className="w-full space-y-1 sm:w-[200px]">
+	                                <p className="text-xs font-semibold text-muted">Section label</p>
+	                                <Input
+	                                    value={tagLabels.spice}
                                     onChange={(e) => updateTagLabel("spice", e.target.value)}
                                     className="h-10 rounded-full px-4 text-sm"
                                     aria-label="Spice section label"
@@ -559,16 +555,15 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="h-full">
-                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                                <CardTitle>{tagLabels.highlights}</CardTitle>
-                                <CardDescription>Callouts that help guests decide.</CardDescription>
-                            </div>
-                            <div className="w-full space-y-1 sm:w-[200px]">
-                                <p className="text-xs font-semibold text-muted">Section label</p>
-                                <Input
-                                    value={tagLabels.highlights}
+	                    <Card className="h-full">
+	                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+	                            <div>
+	                                <CardTitle>Highlights</CardTitle>
+	                            </div>
+	                            <div className="w-full space-y-1 sm:w-[200px]">
+	                                <p className="text-xs font-semibold text-muted">Section label</p>
+	                                <Input
+	                                    value={tagLabels.highlights}
                                     onChange={(e) => updateTagLabel("highlights", e.target.value)}
                                     className="h-10 rounded-full px-4 text-sm"
                                     aria-label="Highlights section label"
@@ -626,16 +621,15 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="h-full">
-                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                                <CardTitle>{tagLabels.allergens}</CardTitle>
-                                <CardDescription>Manage allergen warnings for menus.</CardDescription>
-                            </div>
-                            <div className="w-full space-y-1 sm:w-[200px]">
-                                <p className="text-xs font-semibold text-muted">Section label</p>
-                                <Input
-                                    value={tagLabels.allergens}
+	                    <Card className="h-full">
+	                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+	                            <div>
+	                                <CardTitle>Allergens</CardTitle>
+	                            </div>
+	                            <div className="w-full space-y-1 sm:w-[200px]">
+	                                <p className="text-xs font-semibold text-muted">Section label</p>
+	                                <Input
+	                                    value={tagLabels.allergens}
                                     onChange={(e) => updateTagLabel("allergens", e.target.value)}
                                     className="h-10 rounded-full px-4 text-sm"
                                     aria-label="Allergens section label"
