@@ -38,7 +38,7 @@ const TOUR_TABS = [
         description:
             "Create categories, items, photos, and availability in one flow — designed to feel obvious on day one.",
         highlights: ["Keyboard-friendly editing", "Bulk updates in seconds", "Live availability + pricing"],
-        image: "/images/tour-editor.svg",
+        image: "/images/tour-editor.png",
     },
     {
         id: "themes" as const,
@@ -48,7 +48,7 @@ const TOUR_TABS = [
         description:
             "Pick a layout, tune the vibe, and preview instantly. Guests get a clean, branded experience on any device.",
         highlights: ["Modern layouts", "Brand colors + typography", "Mobile-first guest preview"],
-        image: "/images/tour-themes.svg",
+        image: "/images/tour-themes.png",
     },
     {
         id: "ar" as const,
@@ -58,7 +58,7 @@ const TOUR_TABS = [
         description:
             "Upload a short rotating dish video. We generate a photoreal 3D model guests can view in their room — iOS + Android.",
         highlights: ["Video → 3D model pipeline", "View in your room (iOS + Android)", "Fast previews + posters"],
-        image: "/images/tour-ar.svg",
+        image: "/images/tour-ar.png",
     },
     {
         id: "publish" as const,
@@ -68,7 +68,7 @@ const TOUR_TABS = [
         description:
             "Publish once and keep improving. Your QR link stays stable while the menu evolves behind the scenes.",
         highlights: ["Stable QR link", "Custom domains", "Instant publish"],
-        image: "/images/tour-publish.svg",
+        image: "/images/tour-publish.png",
     },
 ] satisfies Array<{
     id: TourTab;
@@ -332,7 +332,7 @@ export default function Home() {
                                 </div>
                                 <div className="relative aspect-[16/10]">
                                     <Image
-                                        src="/images/hero-studio.svg"
+                                        src="/images/hero-studio.png"
                                         alt="Menuvium studio preview"
                                         fill
                                         className="object-cover object-top"

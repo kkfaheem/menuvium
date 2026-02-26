@@ -1945,11 +1945,11 @@ export default function MenuDetailPage() {
                                         </div>
                                     )}
 
-                                    <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+                                    <div className="space-y-3">
                                         <div className="text-xs text-[var(--cms-muted)]">
                                             Tip: shoot 4K if possible, bright diffuse light, minimal blur, keep dish centered, add some background texture.
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="grid gap-2 sm:grid-cols-2">
                                             <input
                                                 ref={arVideoInputRef}
                                                 type="file"
@@ -1971,7 +1971,7 @@ export default function MenuDetailPage() {
                                                 type="button"
                                                 onClick={() => arVideoInputRef.current?.click()}
                                                 disabled={!canEditItems}
-                                                className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-panel-strong)] transition-colors disabled:opacity-60"
+                                                className="h-11 w-full rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] shadow-sm transition-colors hover:bg-[var(--cms-pill)] disabled:opacity-60"
                                             >
                                                 Choose video
                                             </button>
@@ -1979,7 +1979,7 @@ export default function MenuDetailPage() {
                                                 type="button"
                                                 onClick={handleUploadArVideo}
                                                 disabled={!canEditItems || !editingItem.id || !arVideoToUpload || isUploadingArVideo}
-                                                className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-text)] px-3 py-1 text-[11px] font-semibold text-[var(--cms-bg)] shadow-sm hover:opacity-90 transition-colors disabled:opacity-60"
+                                                className="h-11 w-full rounded-2xl bg-[linear-gradient(180deg,var(--cms-accent),var(--cms-accent-strong))] px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:opacity-60"
                                             >
                                                 {isUploadingArVideo ? "Uploading…" : "Upload & generate"}
                                             </button>
@@ -1988,7 +1988,7 @@ export default function MenuDetailPage() {
                                                     type="button"
                                                     onClick={handleRetryArGeneration}
                                                     disabled={!canEditItems || !editingItem.id || isRetryingArGeneration || isUploadingArVideo}
-                                                    className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-panel-strong)] transition-colors disabled:opacity-60"
+                                                    className="h-11 w-full sm:col-span-2 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] shadow-sm transition-colors hover:bg-[var(--cms-pill)] disabled:opacity-60"
                                                 >
                                                     {isRetryingArGeneration ? "Retrying…" : "Retry"}
                                                 </button>
