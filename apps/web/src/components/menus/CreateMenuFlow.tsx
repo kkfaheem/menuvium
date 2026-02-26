@@ -5,7 +5,7 @@ import type { DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { Check, Loader2, PencilLine, Sparkles, Link, Upload, Package } from "lucide-react";
-import { getApiBase } from "@/lib/apiBase";
+import { getApiBase, getUploadApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions, type OrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
 import { useTheme } from "@/components/ThemeProvider";
@@ -38,6 +38,22 @@ type CreateMenuFlowProps = {
     heroLabel?: string;
     heroTitle?: string;
     heroDescription?: string;
+};
+
+const readFetchErrorDetail = async (res: Response) => {
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+        const err = await res.json().catch(() => null);
+        const detail =
+            err && typeof err === "object" && "detail" in err ? (err as any).detail : undefined;
+        if (typeof detail === "string" && detail.trim()) return detail;
+    }
+
+    if (res.status === 413) {
+        return "ZIP is too large for the proxy. Upload directly to your API domain (CORS required) and try again.";
+    }
+
+    return `Request failed (HTTP ${res.status}).`;
 };
 
 export default function CreateMenuFlow({
@@ -427,7 +443,7 @@ export default function CreateMenuFlow({
         setIsPreviewingZip(true);
         try {
             const token = await getAuthToken();
-            const apiBase = getApiBase();
+            const apiBase = getUploadApiBase();
             const formData = new FormData();
             formData.append("file", file);
 
@@ -438,13 +454,11 @@ export default function CreateMenuFlow({
             });
 
             if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                const detail =
-                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                const detail = await readFetchErrorDetail(res);
                 toast({
                     variant: "error",
                     title: "Couldn’t preview ZIP",
-                    description: typeof detail === "string" ? detail : "Please try again.",
+                    description: detail || "Please try again.",
                 });
                 setZipFile(null);
                 return;
@@ -456,7 +470,8 @@ export default function CreateMenuFlow({
             toast({
                 variant: "error",
                 title: "Couldn’t preview ZIP",
-                description: "Please try again in a moment.",
+                description:
+                    "Upload failed. If you're using a Vercel proxy (/api), large ZIPs can exceed request limits — set NEXT_PUBLIC_API_UPLOAD_URL to your API domain (and allow CORS).",
             });
             setZipFile(null);
         } finally {
@@ -482,7 +497,7 @@ export default function CreateMenuFlow({
         setIsImportingZip(true);
         try {
             const token = await getAuthToken();
-            const apiBase = getApiBase();
+            const apiBase = getUploadApiBase();
             const formData = new FormData();
             formData.append("file", zipFile);
 
@@ -493,13 +508,11 @@ export default function CreateMenuFlow({
             });
 
             if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                const detail =
-                    typeof err === "object" && err && "detail" in err ? (err as any).detail : undefined;
+                const detail = await readFetchErrorDetail(res);
                 toast({
                     variant: "error",
                     title: "ZIP import failed",
-                    description: typeof detail === "string" ? detail : "Please try again.",
+                    description: detail || "Please try again.",
                 });
                 return;
             }
@@ -517,7 +530,8 @@ export default function CreateMenuFlow({
             toast({
                 variant: "error",
                 title: "ZIP import failed",
-                description: "Please try again in a moment.",
+                description:
+                    "Upload failed. If you're using a Vercel proxy (/api), large ZIPs can exceed request limits — set NEXT_PUBLIC_API_UPLOAD_URL to your API domain (and allow CORS).",
             });
         } finally {
             setIsImportingZip(false);

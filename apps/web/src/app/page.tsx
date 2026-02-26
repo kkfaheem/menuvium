@@ -38,7 +38,7 @@ const TOUR_TABS = [
         description:
             "Create categories, items, photos, and availability in one flow — designed to feel obvious on day one.",
         highlights: ["Keyboard-friendly editing", "Bulk updates in seconds", "Live availability + pricing"],
-        image: "/images/tour-editor.png",
+        image: "/images/tour-editor-v2.png",
     },
     {
         id: "themes" as const,
@@ -48,7 +48,7 @@ const TOUR_TABS = [
         description:
             "Pick a layout, tune the vibe, and preview instantly. Guests get a clean, branded experience on any device.",
         highlights: ["Modern layouts", "Brand colors + typography", "Mobile-first guest preview"],
-        image: "/images/tour-themes.png",
+        image: "/images/tour-themes-v2.png",
     },
     {
         id: "ar" as const,
@@ -58,7 +58,7 @@ const TOUR_TABS = [
         description:
             "Upload a short rotating dish video. We generate a photoreal 3D model guests can view in their room — iOS + Android.",
         highlights: ["Video → 3D model pipeline", "View in your room (iOS + Android)", "Fast previews + posters"],
-        image: "/images/tour-ar.png",
+        image: "/images/tour-ar-v2.png",
     },
     {
         id: "publish" as const,
@@ -68,7 +68,7 @@ const TOUR_TABS = [
         description:
             "Publish once and keep improving. Your QR link stays stable while the menu evolves behind the scenes.",
         highlights: ["Stable QR link", "Custom domains", "Instant publish"],
-        image: "/images/tour-publish.png",
+        image: "/images/tour-publish-v2.png",
     },
 ] satisfies Array<{
     id: TourTab;
@@ -341,7 +341,7 @@ export default function Home() {
 	                            <div className="relative overflow-hidden rounded-3xl border border-border bg-panel shadow-[var(--cms-shadow-lg)]">
 	                                <div className="relative aspect-[16/10]">
 	                                    <Image
-	                                        src="/images/hero-studio.png"
+	                                        src="/images/hero-studio-v2.png"
 	                                        alt="Menuvium studio preview"
 	                                        fill
 	                                        className="object-cover object-center"

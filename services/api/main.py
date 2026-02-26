@@ -20,7 +20,10 @@ from pathlib import Path
 app = FastAPI(title="Menuvium API", lifespan=lifespan)
 
 # CORS Configuration
-origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+# NOTE: We default to local dev + the production web origins.
+# You can override this with `CORS_ORIGINS` (comma-separated).
+default_origins = "http://localhost:3000,https://menuvium.com,https://www.menuvium.com"
+origins = [o.strip() for o in os.getenv("CORS_ORIGINS", default_origins).split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
