@@ -87,6 +87,7 @@ export default function Home() {
     const reduceMotion = useReducedMotion();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [tourTab, setTourTab] = useState<TourTab>("editor");
+    const [tourPaused, setTourPaused] = useState(false);
     const [pricingPeriod, setPricingPeriod] = useState<PricingPeriod>("monthly");
 
     useEffect(() => {
@@ -98,6 +99,18 @@ export default function Home() {
             router.push('/dashboard');
         }
     }, [user, mounted, router]);
+
+    useEffect(() => {
+        if (reduceMotion || tourPaused) return;
+        const interval = window.setInterval(() => {
+            setTourTab((current) => {
+                const idx = TOUR_TABS.findIndex((t) => t.id === current);
+                const next = TOUR_TABS[(idx + 1) % TOUR_TABS.length]?.id ?? TOUR_TABS[0].id;
+                return next;
+            });
+        }, 6500);
+        return () => window.clearInterval(interval);
+    }, [reduceMotion, tourPaused]);
 
     if (!mounted) {
         return <div className="min-h-screen bg-background" />;
@@ -275,13 +288,12 @@ export default function Home() {
                                 variants={fadeUp}
                                 className="font-heading text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl"
                             >
-                                Build menus people scan.
-                                <span className="block text-[var(--cms-accent-strong)]">Update in seconds.</span>
+                                QR menus, made modern.
+                                <span className="block text-[var(--cms-accent-strong)]">Update instantly. Add photoreal AR.</span>
                             </motion.h1>
 
                             <motion.p variants={fadeUp} className="max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-                                Create, edit, and publish QR menus with a calm, modern workflow. Import fast, ship beautiful themes, and keep
-                                availability accurate. Add photoreal AR dishes from a quick video — without reprinting.
+                                Import a menu, pick a theme, publish a QR — then update items instantly and add photoreal AR dishes from video.
                             </motion.p>
 
                             <motion.div variants={fadeUp} className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -299,11 +311,12 @@ export default function Home() {
                                 </Link>
                             </motion.div>
 
-                            <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                                 {[
+                                    { label: "AI import", icon: Wand2 },
+                                    { label: "Theme studio", icon: Palette },
                                     { label: "Instant updates", icon: Clock },
                                     { label: "Photoreal AR", icon: Layers },
-                                    { label: "Dynamic QR", icon: QrCode },
                                 ].map(({ label, icon: Icon }) => (
                                     <div
                                         key={label}
@@ -380,7 +393,7 @@ export default function Home() {
                         whileInView="visible"
                         viewport={{ once: true, margin: "-120px" }}
                         variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
-                        className="grid gap-10 lg:grid-cols-[1fr,1.1fr] lg:items-end"
+                        className="grid gap-10 lg:grid-cols-[1fr,1.1fr] lg:items-start"
                     >
                         <motion.div variants={sectionReveal} className="space-y-3">
                             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Features</p>
@@ -404,7 +417,7 @@ export default function Home() {
                                     key={title}
                                     variants={sectionReveal}
                                     whileHover={reduceMotion ? undefined : { y: -3 }}
-                                    className="rounded-2xl border border-border bg-panel p-5 shadow-sm transition-colors hover:bg-panelStrong"
+                                    className="h-full rounded-2xl border border-border bg-panel p-5 shadow-sm transition-colors hover:bg-panelStrong"
                                 >
                                     <div className="flex items-start gap-3">
                                         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-pill">
@@ -421,8 +434,8 @@ export default function Home() {
                     </motion.div>
                 </section>
 
-                {/* Product tour */}
-                <section className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 sm:pb-20">
+                {/* How it works + Tour */}
+                <section id="how-it-works" className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 sm:pb-20">
                     <motion.div
                         initial="hidden"
                         whileInView="visible"
@@ -430,100 +443,11 @@ export default function Home() {
                         variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
                         className="rounded-[2rem] border border-border bg-panel p-6 shadow-[var(--cms-shadow-sm)] sm:p-10"
                     >
-                        <motion.div variants={sectionReveal} className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                            <div className="space-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Tour</p>
-                                <h2 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">
-                                    Everything flows together.
-                                </h2>
-                                <p className="text-sm text-muted">
-                                    Pick a lane — build, design, publish, or add AR — and jump between them without losing context.
-                                </p>
-                            </div>
-                            <div className="inline-flex items-center gap-1 rounded-2xl border border-border bg-panelStrong p-1 text-xs font-semibold">
-                                {TOUR_TABS.map((tab) => {
-                                    const Icon = tab.icon;
-                                    const active = tab.id === tourTab;
-                                    return (
-                                        <button
-                                            key={tab.id}
-                                            type="button"
-                                            onClick={() => setTourTab(tab.id)}
-                                            className={cn(
-                                                "inline-flex h-10 items-center gap-2 rounded-xl px-3 transition-colors",
-                                                active
-                                                    ? "bg-panel text-foreground shadow-[var(--cms-shadow-sm)]"
-                                                    : "text-muted hover:text-foreground hover:bg-pill"
-                                            )}
-                                            aria-pressed={active}
-                                        >
-                                            <Icon className="h-4 w-4" />
-                                            {tab.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </motion.div>
-
-                        <div className="mt-8 grid gap-8 lg:grid-cols-[0.9fr,1.1fr] lg:items-center">
-                            <motion.div variants={sectionReveal} className="space-y-4">
-                                <div className="inline-flex items-center gap-2 rounded-full border border-border bg-panelStrong px-3 py-1.5 text-xs font-semibold text-muted">
-                                    <Sparkle className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
-                                    {activeTour.label}
-                                </div>
-                                <h3 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">{activeTour.title}</h3>
-                                <p className="text-sm leading-relaxed text-muted sm:text-base">{activeTour.description}</p>
-
-                                <ul className="grid gap-2 text-sm">
-                                    {activeTour.highlights.map((line) => (
-                                        <li key={line} className="flex items-start gap-2 text-muted">
-                                            <Check className="mt-0.5 h-4 w-4 text-emerald-500" />
-                                            <span>{line}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </motion.div>
-
-                            <motion.div variants={sectionReveal} className="relative">
-                                <div className="absolute -inset-6 rounded-[2.25rem] bg-[var(--cms-accent-subtle)] blur-2xl" aria-hidden="true" />
-                                <div className="relative overflow-hidden rounded-[2rem] border border-border bg-panel shadow-[var(--cms-shadow-md)]">
-                                    <AnimatePresence mode="wait" initial={false}>
-                                        <motion.div
-                                            key={activeTour.id}
-                                            initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
-                                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                                            exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
-                                            transition={{ duration: 0.28 }}
-                                            className="relative"
-                                        >
-                                            <div className="flex items-center justify-between border-b border-border bg-panelStrong px-4 py-3">
-                                                <p className="text-xs font-semibold text-muted">{activeTour.label} preview</p>
-                                                <span className="text-xs font-semibold text-muted">Menuvium</span>
-                                            </div>
-                                            <div className="relative aspect-[16/10]">
-                                                <Image
-                                                    src={activeTour.image}
-                                                    alt={`${activeTour.label} preview`}
-                                                    fill
-                                                    className="object-cover object-top"
-                                                />
-                                            </div>
-                                        </motion.div>
-                                    </AnimatePresence>
-                                </div>
-                            </motion.div>
-                        </div>
-                    </motion.div>
-                </section>
-
-                {/* How it works */}
-                <section id="how-it-works" className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 sm:pb-20">
-                    <div className="rounded-3xl border border-border bg-panel p-6 shadow-sm sm:p-10">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                        <motion.div variants={sectionReveal} className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                             <div className="space-y-2">
                                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">How it works</p>
-                                <h2 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">From idea to QR in minutes</h2>
-                                <p className="text-sm text-muted">A simple loop: create → publish → improve.</p>
+                                <h2 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">Create → publish → improve.</h2>
+                                <p className="text-sm text-muted">A simple loop: build the menu, keep it fresh, and add AR when you want the wow.</p>
                             </div>
                             <Link
                                 href="/login"
@@ -531,25 +455,14 @@ export default function Home() {
                             >
                                 Try it now <ArrowRight className="ml-2 h-4 w-4" />
                             </Link>
-                        </div>
+                        </motion.div>
 
-                        <div className="mt-8 grid gap-4 md:grid-cols-3">
+                        <motion.div variants={sectionReveal} className="mt-8 grid gap-4 md:grid-cols-4">
                             {[
-                                {
-                                    step: "01",
-                                    title: "Create a company",
-                                    desc: "Set up your brand and invite teammates.",
-                                },
-                                {
-                                    step: "02",
-                                    title: "Build or import a menu",
-                                    desc: "Start fresh or import from a PDF in seconds.",
-                                },
-                                {
-                                    step: "03",
-                                    title: "Publish and iterate",
-                                    desc: "Update items instantly — QR stays the same.",
-                                },
+                                { step: "01", title: "Create a company", desc: "Set up your brand and invite teammates." },
+                                { step: "02", title: "Import or build", desc: "Drop a PDF or start fresh — items stay easy to manage." },
+                                { step: "03", title: "Theme + publish", desc: "Pick a theme, publish once — the QR stays the same." },
+                                { step: "04", title: "Add AR dishes", desc: "Upload a short video and generate a photoreal model." },
                             ].map(({ step, title, desc }) => (
                                 <div key={step} className="rounded-2xl border border-border bg-panelStrong p-5">
                                     <p className="text-xs font-semibold text-muted">{step}</p>
@@ -557,8 +470,105 @@ export default function Home() {
                                     <p className="mt-1 text-sm text-muted">{desc}</p>
                                 </div>
                             ))}
-                        </div>
-                    </div>
+                        </motion.div>
+
+                        <motion.div
+                            variants={sectionReveal}
+                            onMouseEnter={() => setTourPaused(true)}
+                            onMouseLeave={() => setTourPaused(false)}
+                            onFocusCapture={() => setTourPaused(true)}
+                            onBlurCapture={(e) => {
+                                const next = e.relatedTarget as Node | null;
+                                if (!next || !e.currentTarget.contains(next)) {
+                                    setTourPaused(false);
+                                }
+                            }}
+                            className="mt-10 rounded-3xl border border-border bg-panelStrong p-6 shadow-sm sm:p-8"
+                        >
+                            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                                <div className="space-y-2">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Tour</p>
+                                    <h3 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">See it in action</h3>
+                                    <p className="text-sm text-muted">Editor, themes, publishing, and AR — one workflow.</p>
+                                </div>
+                                <div className="inline-flex items-center gap-1 rounded-2xl border border-border bg-panel p-1 text-xs font-semibold">
+                                    {TOUR_TABS.map((tab) => {
+                                        const Icon = tab.icon;
+                                        const active = tab.id === tourTab;
+                                        return (
+                                            <button
+                                                key={tab.id}
+                                                type="button"
+                                                onClick={() => setTourTab(tab.id)}
+                                                className={cn(
+                                                    "inline-flex h-10 items-center gap-2 rounded-xl px-3 transition-colors",
+                                                    active
+                                                        ? "bg-panelStrong text-foreground shadow-[var(--cms-shadow-sm)]"
+                                                        : "text-muted hover:text-foreground hover:bg-pill"
+                                                )}
+                                                aria-pressed={active}
+                                            >
+                                                <Icon className="h-4 w-4" />
+                                                {tab.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="mt-8 grid gap-8 lg:grid-cols-[0.9fr,1.1fr] lg:items-center">
+                                <div className="space-y-4">
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs font-semibold text-muted">
+                                        <Sparkle className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
+                                        {activeTour.label}
+                                    </div>
+                                    <h3 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">{activeTour.title}</h3>
+                                    <p className="text-sm leading-relaxed text-muted sm:text-base">{activeTour.description}</p>
+
+                                    <ul className="grid gap-2 text-sm">
+                                        {activeTour.highlights.map((line) => (
+                                            <li key={line} className="flex items-start gap-2 text-muted">
+                                                <Check className="mt-0.5 h-4 w-4 text-emerald-500" />
+                                                <span>{line}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                <div className="relative">
+                                    <div
+                                        className="absolute -inset-6 rounded-[2.25rem] bg-[var(--cms-accent-subtle)] blur-2xl"
+                                        aria-hidden="true"
+                                    />
+                                    <div className="relative overflow-hidden rounded-[2rem] border border-border bg-panel shadow-[var(--cms-shadow-md)]">
+                                        <AnimatePresence mode="wait" initial={false}>
+                                            <motion.div
+                                                key={activeTour.id}
+                                                initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
+                                                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                                                exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+                                                transition={{ duration: 0.28 }}
+                                                className="relative"
+                                            >
+                                                <div className="flex items-center justify-between border-b border-border bg-panelStrong px-4 py-3">
+                                                    <p className="text-xs font-semibold text-muted">{activeTour.label} preview</p>
+                                                    <span className="text-xs font-semibold text-muted">Menuvium</span>
+                                                </div>
+                                                <div className="relative aspect-[16/10]">
+                                                    <Image
+                                                        src={activeTour.image}
+                                                        alt={`${activeTour.label} preview`}
+                                                        fill
+                                                        className="object-cover object-top"
+                                                    />
+                                                </div>
+                                            </motion.div>
+                                        </AnimatePresence>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
                 </section>
 
                 {/* Pricing */}
@@ -720,8 +730,20 @@ export default function Home() {
                                 a: "No. The QR stays stable — edits publish instantly behind the same link.",
                             },
                             {
+                                q: "Can I customize the design?",
+                                a: "Yes. Pick a theme, tweak the look, and preview instantly — guests get a clean mobile-first menu.",
+                            },
+                            {
                                 q: "Can I import a PDF menu?",
                                 a: "Yes. Upload a PDF or images and Menuvium can parse the structure for you.",
+                            },
+                            {
+                                q: "How do AR dishes work?",
+                                a: "Upload a short rotating dish video. We generate a 3D model (GLB/USDZ) plus a poster image for fast previews.",
+                            },
+                            {
+                                q: "Do guests need to install an app for AR?",
+                                a: "No. On iPhone, AR opens in Quick Look. On Android, it opens in Google’s Scene Viewer (may prompt for AR support).",
                             },
                             {
                                 q: "Can teammates edit menus?",
@@ -729,7 +751,15 @@ export default function Home() {
                             },
                             {
                                 q: "Does this work on iPhone and Android?",
-                                a: "Yes. Your public menus are mobile‑first and load fast on any device.",
+                                a: "Yes. Public menus are mobile‑first and load fast. AR opens with USDZ on iOS and GLB on Android when available.",
+                            },
+                            {
+                                q: "How long does AR generation take?",
+                                a: "It depends on the video and quality settings. You can keep working while it processes — the menu still updates instantly.",
+                            },
+                            {
+                                q: "Can I use my own domain?",
+                                a: "Yes. You can point a custom domain to your menu so it matches your brand.",
                             },
                         ].map(({ q, a }) => (
                             <details key={q} className="group p-6">
