@@ -424,32 +424,35 @@ export default function SettingsPage() {
             )}
 
             {activeTab === "tags" && (
-                <>
-                    <Card>
-                        <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div className="grid gap-4 lg:grid-cols-2">
+                    <Card className="h-full">
+                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <CardTitle>{tagLabels.diet}</CardTitle>
                                 <CardDescription>Dietary markers shown on items.</CardDescription>
                             </div>
-                            <Input
-                                value={tagLabels.diet}
-                                onChange={(e) => updateTagLabel("diet", e.target.value)}
-                                className="h-9 w-[160px] rounded-full px-3 text-xs"
-                                aria-label="Diet category name"
-                            />
+                            <div className="w-full space-y-1 sm:w-[200px]">
+                                <p className="text-xs font-semibold text-muted">Section label</p>
+                                <Input
+                                    value={tagLabels.diet}
+                                    onChange={(e) => updateTagLabel("diet", e.target.value)}
+                                    className="h-10 rounded-full px-4 text-sm"
+                                    aria-label="Diet section label"
+                                />
+                            </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="flex flex-wrap gap-2">
                                 {orderByDefaults(groupedTags.diet, DIET_TAGS).map((tag) => (
                                     <span
                                         key={tag.id}
-                                        className="inline-flex items-center gap-2 rounded-full bg-pill px-3 py-1.5 text-xs font-semibold"
+                                        className="inline-flex items-center gap-2 rounded-full border border-border bg-pill px-3 py-1.5 text-xs font-semibold"
                                     >
                                         {tag.name}
                                         <button
                                             type="button"
                                             onClick={() => handleDeleteTag(tag.id)}
-                                            className="text-muted hover:text-foreground"
+                                            className="rounded-full p-0.5 text-muted hover:bg-panelStrong hover:text-foreground"
                                             aria-label={`Delete ${tag.name}`}
                                         >
                                             <X className="h-3 w-3" />
@@ -457,7 +460,7 @@ export default function SettingsPage() {
                                     </span>
                                 ))}
                             </div>
-                            <div className="flex flex-wrap items-center gap-3">
+                            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                                 <Input
                                     value={newDietTag}
                                     onChange={(e) => setNewDietTag(e.target.value)}
@@ -469,13 +472,13 @@ export default function SettingsPage() {
                                         }
                                     }}
                                     placeholder="Add a diet tag"
-                                    className="h-9 min-w-[180px] flex-1 rounded-full px-4"
+                                    className="h-10 rounded-full px-4"
                                 />
                                 <Button
                                     size="sm"
                                     loading={savingTag}
                                     disabled={!newDietTag.trim()}
-                                    className="h-9 rounded-full px-4 text-xs"
+                                    className="h-10 rounded-full px-5 text-xs"
                                     onClick={() => {
                                         addDietaryTag("diet", newDietTag);
                                         setNewDietTag("");
@@ -485,35 +488,38 @@ export default function SettingsPage() {
                                     Add
                                 </Button>
                             </div>
-                            {savingTag ? <p className="text-xs text-muted">Syncing defaults...</p> : null}
+                            {savingTag ? <p className="text-xs text-muted">Saving…</p> : null}
                         </CardContent>
                     </Card>
 
-                    <Card>
-                        <CardHeader className="flex flex-row items-start justify-between gap-4">
+                    <Card className="h-full">
+                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <CardTitle>{tagLabels.spice}</CardTitle>
                                 <CardDescription>Quick heat indicators for items.</CardDescription>
                             </div>
-                            <Input
-                                value={tagLabels.spice}
-                                onChange={(e) => updateTagLabel("spice", e.target.value)}
-                                className="h-9 w-[160px] rounded-full px-3 text-xs"
-                                aria-label="Spice category name"
-                            />
+                            <div className="w-full space-y-1 sm:w-[200px]">
+                                <p className="text-xs font-semibold text-muted">Section label</p>
+                                <Input
+                                    value={tagLabels.spice}
+                                    onChange={(e) => updateTagLabel("spice", e.target.value)}
+                                    className="h-10 rounded-full px-4 text-sm"
+                                    aria-label="Spice section label"
+                                />
+                            </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="flex flex-wrap gap-2">
                                 {orderByDefaults(groupedTags.spice, SPICE_TAGS).map((tag) => (
                                     <span
                                         key={tag.id}
-                                        className="inline-flex items-center gap-2 rounded-full bg-pill px-3 py-1.5 text-xs font-semibold"
+                                        className="inline-flex items-center gap-2 rounded-full border border-border bg-pill px-3 py-1.5 text-xs font-semibold"
                                     >
                                         {tag.name}
                                         <button
                                             type="button"
                                             onClick={() => handleDeleteTag(tag.id)}
-                                            className="text-muted hover:text-foreground"
+                                            className="rounded-full p-0.5 text-muted hover:bg-panelStrong hover:text-foreground"
                                             aria-label={`Delete ${tag.name}`}
                                         >
                                             <X className="h-3 w-3" />
@@ -521,7 +527,7 @@ export default function SettingsPage() {
                                     </span>
                                 ))}
                             </div>
-                            <div className="flex flex-wrap items-center gap-3">
+                            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                                 <Input
                                     value={newSpiceTag}
                                     onChange={(e) => setNewSpiceTag(e.target.value)}
@@ -533,13 +539,13 @@ export default function SettingsPage() {
                                         }
                                     }}
                                     placeholder="Add a spice tag"
-                                    className="h-9 min-w-[180px] flex-1 rounded-full px-4"
+                                    className="h-10 rounded-full px-4"
                                 />
                                 <Button
                                     size="sm"
                                     loading={savingTag}
                                     disabled={!newSpiceTag.trim()}
-                                    className="h-9 rounded-full px-4 text-xs"
+                                    className="h-10 rounded-full px-5 text-xs"
                                     onClick={() => {
                                         addDietaryTag("spice", newSpiceTag);
                                         setNewSpiceTag("");
@@ -549,121 +555,144 @@ export default function SettingsPage() {
                                     Add
                                 </Button>
                             </div>
-                            {savingTag ? <p className="text-xs text-muted">Syncing defaults...</p> : null}
+                            {savingTag ? <p className="text-xs text-muted">Saving…</p> : null}
                         </CardContent>
                     </Card>
 
-                    <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
-                        <div className="flex items-start justify-between gap-4">
+                    <Card className="h-full">
+                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <h2 className="text-lg font-bold mb-1">{tagLabels.highlights}</h2>
-                                <p className="text-sm text-[var(--cms-muted)] mb-4">Callouts that help guests decide.</p>
+                                <CardTitle>{tagLabels.highlights}</CardTitle>
+                                <CardDescription>Callouts that help guests decide.</CardDescription>
                             </div>
-                            <input
-                                value={tagLabels.highlights}
-                                onChange={(e) => updateTagLabel("highlights", e.target.value)}
-                                className="h-9 px-3 text-xs rounded-full bg-transparent border border-[var(--cms-border)] text-[var(--cms-muted)] focus:outline-none focus:border-[var(--cms-text)]"
-                                aria-label="Highlights category name"
-                            />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {orderByDefaults(groupedTags.highlights, HIGHLIGHT_TAGS).map((tag) => (
-                                <span key={tag.id} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[var(--cms-pill)] inline-flex items-center gap-2">
-                                    {tag.name}
-                                    <button
-                                        onClick={() => handleDeleteTag(tag.id)}
-                                        className="text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
-                                        aria-label={`Delete ${tag.name}`}
+                            <div className="w-full space-y-1 sm:w-[200px]">
+                                <p className="text-xs font-semibold text-muted">Section label</p>
+                                <Input
+                                    value={tagLabels.highlights}
+                                    onChange={(e) => updateTagLabel("highlights", e.target.value)}
+                                    className="h-10 rounded-full px-4 text-sm"
+                                    aria-label="Highlights section label"
+                                />
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex flex-wrap gap-2">
+                                {orderByDefaults(groupedTags.highlights, HIGHLIGHT_TAGS).map((tag) => (
+                                    <span
+                                        key={tag.id}
+                                        className="inline-flex items-center gap-2 rounded-full border border-border bg-pill px-3 py-1.5 text-xs font-semibold"
                                     >
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-3 items-center">
-                            <input
-                                value={newHighlightTag}
-                                onChange={(e) => setNewHighlightTag(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                        e.preventDefault();
+                                        {tag.name}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteTag(tag.id)}
+                                            className="rounded-full p-0.5 text-muted hover:bg-panelStrong hover:text-foreground"
+                                            aria-label={`Delete ${tag.name}`}
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                                <Input
+                                    value={newHighlightTag}
+                                    onChange={(e) => setNewHighlightTag(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            addDietaryTag("highlights", newHighlightTag);
+                                            setNewHighlightTag("");
+                                        }
+                                    }}
+                                    placeholder="Add a highlight tag"
+                                    className="h-10 rounded-full px-4"
+                                />
+                                <Button
+                                    size="sm"
+                                    loading={savingTag}
+                                    disabled={!newHighlightTag.trim()}
+                                    className="h-10 rounded-full px-5 text-xs"
+                                    onClick={() => {
                                         addDietaryTag("highlights", newHighlightTag);
                                         setNewHighlightTag("");
-                                    }
-                                }}
-                                placeholder="Add a highlight tag"
-                                className="flex-1 min-w-[180px] h-9 bg-transparent border border-[var(--cms-border)] rounded-full px-4 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                            />
-                            <button
-                                onClick={() => {
-                                    addDietaryTag("highlights", newHighlightTag);
-                                    setNewHighlightTag("");
-                                }}
-                                disabled={savingTag || !newHighlightTag.trim()}
-                                className="h-9 px-4 rounded-full font-semibold text-xs inline-flex items-center gap-2 bg-[var(--cms-text)] text-[var(--cms-bg)] disabled:opacity-50"
-                            >
-                                <Plus className="w-3 h-3" />
-                                Add
-                            </button>
-                        </div>
-                    </section>
-
-                    <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <h2 className="text-lg font-bold mb-1">{tagLabels.allergens}</h2>
-                                <p className="text-sm text-[var(--cms-muted)] mb-4">Manage allergen warnings for menus.</p>
+                                    }}
+                                >
+                                    <Plus className="h-3 w-3" />
+                                    Add
+                                </Button>
                             </div>
-                            <input
-                                value={tagLabels.allergens}
-                                onChange={(e) => updateTagLabel("allergens", e.target.value)}
-                                className="h-9 px-3 text-xs rounded-full bg-transparent border border-[var(--cms-border)] text-[var(--cms-muted)] focus:outline-none focus:border-[var(--cms-text)]"
-                                aria-label="Allergens category name"
-                            />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {orderAllergens(allergens, ALLERGEN_TAGS).map((allergen) => (
-                                <span key={allergen.id} className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[var(--cms-pill)] inline-flex items-center gap-2">
-                                    {allergen.name}
-                                    <button
-                                        onClick={() => handleDeleteAllergen(allergen.id)}
-                                        className="text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
-                                        aria-label={`Delete ${allergen.name}`}
+                            {savingTag ? <p className="text-xs text-muted">Saving…</p> : null}
+                        </CardContent>
+                    </Card>
+
+                    <Card className="h-full">
+                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <CardTitle>{tagLabels.allergens}</CardTitle>
+                                <CardDescription>Manage allergen warnings for menus.</CardDescription>
+                            </div>
+                            <div className="w-full space-y-1 sm:w-[200px]">
+                                <p className="text-xs font-semibold text-muted">Section label</p>
+                                <Input
+                                    value={tagLabels.allergens}
+                                    onChange={(e) => updateTagLabel("allergens", e.target.value)}
+                                    className="h-10 rounded-full px-4 text-sm"
+                                    aria-label="Allergens section label"
+                                />
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex flex-wrap gap-2">
+                                {orderAllergens(allergens, ALLERGEN_TAGS).map((allergen) => (
+                                    <span
+                                        key={allergen.id}
+                                        className="inline-flex items-center gap-2 rounded-full border border-border bg-pill px-3 py-1.5 text-xs font-semibold"
                                     >
-                                        <X className="w-3 h-3" />
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-3 items-center">
-                            <input
-                                value={newAllergenTag}
-                                onChange={(e) => setNewAllergenTag(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                        e.preventDefault();
+                                        {allergen.name}
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteAllergen(allergen.id)}
+                                            className="rounded-full p-0.5 text-muted hover:bg-panelStrong hover:text-foreground"
+                                            aria-label={`Delete ${allergen.name}`}
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                                <Input
+                                    value={newAllergenTag}
+                                    onChange={(e) => setNewAllergenTag(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            addAllergen(newAllergenTag);
+                                            setNewAllergenTag("");
+                                        }
+                                    }}
+                                    placeholder="Add an allergen"
+                                    className="h-10 rounded-full px-4"
+                                />
+                                <Button
+                                    size="sm"
+                                    loading={savingAllergen}
+                                    disabled={!newAllergenTag.trim()}
+                                    className="h-10 rounded-full px-5 text-xs"
+                                    onClick={() => {
                                         addAllergen(newAllergenTag);
                                         setNewAllergenTag("");
-                                    }
-                                }}
-                                placeholder="Add an allergen"
-                                className="flex-1 min-w-[180px] h-9 bg-transparent border border-[var(--cms-border)] rounded-full px-4 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                            />
-                            <button
-                                onClick={() => {
-                                    addAllergen(newAllergenTag);
-                                    setNewAllergenTag("");
-                                }}
-                                disabled={savingAllergen || !newAllergenTag.trim()}
-                                className="h-9 px-4 rounded-full font-semibold text-xs inline-flex items-center gap-2 bg-[var(--cms-text)] text-[var(--cms-bg)] disabled:opacity-50"
-                            >
-                                <Plus className="w-3 h-3" />
-                                Add
-                            </button>
-                        </div>
-                        {savingAllergen && <p className="text-xs text-[var(--cms-muted)] mt-3">Syncing defaults...</p>}
-                    </section>
-                </>
+                                    }}
+                                >
+                                    <Plus className="h-3 w-3" />
+                                    Add
+                                </Button>
+                            </div>
+                            {savingAllergen ? <p className="text-xs text-muted">Saving…</p> : null}
+                        </CardContent>
+                    </Card>
+                </div>
             )}
         </div>
     );
