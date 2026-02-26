@@ -199,7 +199,7 @@ export default function OnboardingPage() {
         }
     };
 
-    const [displayName, setDisplayName] = useState("Menuvium Owner");
+    const [displayName, setDisplayName] = useState("");
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -231,7 +231,12 @@ export default function OnboardingPage() {
                     <div className="min-w-0">
                         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Onboarding</p>
                         <h1 className="mt-1 truncate font-heading text-2xl font-bold tracking-tight sm:text-3xl">
-                            Welcome, <span className="text-[var(--cms-accent-strong)]">{displayName}</span>
+                            Welcome,{" "}
+                            {displayName ? (
+                                <span className="text-[var(--cms-accent-strong)]">{displayName}</span>
+                            ) : (
+                                <span className="inline-block h-[1.1em] w-28 animate-pulse rounded-lg bg-pill align-middle" aria-hidden />
+                            )}
                         </h1>
                     </div>
                     <div className="flex items-center gap-2">

@@ -444,33 +444,10 @@ export default function Home() {
                         variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
                         className="rounded-[2rem] border border-border bg-panel p-6 shadow-[var(--cms-shadow-sm)] sm:p-10"
                     >
-                        <motion.div variants={sectionReveal} className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                            <div className="space-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">How it works</p>
-                                <h2 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">Create → publish → improve.</h2>
-                                <p className="text-sm text-muted">A simple loop: build the menu, keep it fresh, and add AR when you want the wow.</p>
-                            </div>
-                            <Link
-                                href="/login"
-                                className="inline-flex h-11 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[var(--cms-accent-strong)]"
-                            >
-                                Try it now <ArrowRight className="ml-2 h-4 w-4" />
-                            </Link>
-                        </motion.div>
-
-                        <motion.div variants={sectionReveal} className="mt-8 grid gap-4 md:grid-cols-4">
-                            {[
-                                { step: "01", title: "Create a company", desc: "Set up your brand and invite teammates." },
-                                { step: "02", title: "Import or build", desc: "Drop a PDF or start fresh — items stay easy to manage." },
-                                { step: "03", title: "Theme + publish", desc: "Pick a theme, publish once — the QR stays the same." },
-                                { step: "04", title: "Add AR dishes", desc: "Upload a short video and generate a photoreal model." },
-                            ].map(({ step, title, desc }) => (
-                                <div key={step} className="rounded-2xl border border-border bg-panelStrong p-5">
-                                    <p className="text-xs font-semibold text-muted">{step}</p>
-                                    <p className="mt-2 font-semibold">{title}</p>
-                                    <p className="mt-1 text-sm text-muted">{desc}</p>
-                                </div>
-                            ))}
+                        <motion.div variants={sectionReveal} className="space-y-2">
+                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">How it works</p>
+                            <h2 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">Create → publish → improve.</h2>
+                            <p className="text-sm text-muted">A simple loop: build the menu, keep it fresh, and add AR when you want the wow.</p>
                         </motion.div>
 
                         <motion.div
@@ -484,7 +461,7 @@ export default function Home() {
                                     setTourFocused(false);
                                 }
                             }}
-                            className="mt-10 rounded-3xl border border-border bg-panelStrong p-6 shadow-sm sm:p-8"
+                            className="mt-8 rounded-3xl border border-border bg-panelStrong p-6 shadow-sm sm:p-8"
                         >
                             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                                 <div className="space-y-2">

@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/Badge";
 
 export default function DashboardPage() {
     const { user } = useAuthenticator(context => [context.user]);
-    const [displayName, setDisplayName] = useState("User");
+    const [displayName, setDisplayName] = useState("");
     const [loading, setLoading] = useState(true);
     const [companyCount, setCompanyCount] = useState(0);
     const [menuCount, setMenuCount] = useState(0);
@@ -109,7 +109,12 @@ export default function DashboardPage() {
             <header className="space-y-2">
                 <Badge variant="outline">Overview</Badge>
                 <h1 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-                    Welcome back, <span className="text-[var(--cms-accent-strong)]">{displayName}</span>
+                    Welcome back,{" "}
+                    {displayName ? (
+                        <span className="text-[var(--cms-accent-strong)]">{displayName}</span>
+                    ) : (
+                        <span className="inline-block h-[1.1em] w-28 animate-pulse rounded-lg bg-pill align-middle" aria-hidden />
+                    )}
                 </h1>
                 <p className="text-muted">A quick snapshot of what’s happening across your menus.</p>
             </header>

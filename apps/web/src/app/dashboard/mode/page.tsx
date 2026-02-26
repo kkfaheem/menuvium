@@ -17,7 +17,7 @@ type Mode = "admin" | "manager";
 export default function ModeSelectPage() {
     const router = useRouter();
     const { user, signOut } = useAuthenticator((context) => [context.user]);
-    const [displayName, setDisplayName] = useState("User");
+    const [displayName, setDisplayName] = useState("");
     const [loading, setLoading] = useState(true);
     const [ownedOrgCount, setOwnedOrgCount] = useState(0);
     const [memberOrgCount, setMemberOrgCount] = useState(0);
@@ -88,7 +88,12 @@ export default function ModeSelectPage() {
                 <div>
                     <Badge variant="outline">Account</Badge>
                     <h1 className="font-heading text-3xl sm:text-4xl font-bold tracking-tight">
-                        Welcome, <span className="text-[var(--cms-accent-strong)]">{displayName}</span>
+                        Welcome,{" "}
+                        {displayName ? (
+                            <span className="text-[var(--cms-accent-strong)]">{displayName}</span>
+                        ) : (
+                            <span className="inline-block h-[1.1em] w-28 animate-pulse rounded-lg bg-pill align-middle" aria-hidden />
+                        )}
                     </h1>
                     <p className="text-sm text-muted mt-2">{subtitle}</p>
                 </div>
