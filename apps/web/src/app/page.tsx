@@ -87,7 +87,8 @@ export default function Home() {
     const reduceMotion = useReducedMotion();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const [tourTab, setTourTab] = useState<TourTab>("editor");
-    const [tourPaused, setTourPaused] = useState(false);
+    const [tourHovering, setTourHovering] = useState(false);
+    const [tourFocused, setTourFocused] = useState(false);
     const [pricingPeriod, setPricingPeriod] = useState<PricingPeriod>("monthly");
 
     useEffect(() => {
@@ -101,7 +102,7 @@ export default function Home() {
     }, [user, mounted, router]);
 
     useEffect(() => {
-        if (reduceMotion || tourPaused) return;
+        if (reduceMotion || tourHovering || tourFocused) return;
         const interval = window.setInterval(() => {
             setTourTab((current) => {
                 const idx = TOUR_TABS.findIndex((t) => t.id === current);
@@ -110,7 +111,7 @@ export default function Home() {
             });
         }, 6500);
         return () => window.clearInterval(interval);
-    }, [reduceMotion, tourPaused]);
+    }, [reduceMotion, tourFocused, tourHovering]);
 
     if (!mounted) {
         return <div className="min-h-screen bg-background" />;
@@ -474,13 +475,13 @@ export default function Home() {
 
                         <motion.div
                             variants={sectionReveal}
-                            onMouseEnter={() => setTourPaused(true)}
-                            onMouseLeave={() => setTourPaused(false)}
-                            onFocusCapture={() => setTourPaused(true)}
+                            onMouseEnter={() => setTourHovering(true)}
+                            onMouseLeave={() => setTourHovering(false)}
+                            onFocusCapture={() => setTourFocused(true)}
                             onBlurCapture={(e) => {
                                 const next = e.relatedTarget as Node | null;
                                 if (!next || !e.currentTarget.contains(next)) {
-                                    setTourPaused(false);
+                                    setTourFocused(false);
                                 }
                             }}
                             className="mt-10 rounded-3xl border border-border bg-panelStrong p-6 shadow-sm sm:p-8"
