@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
+import { useTheme } from "@/components/ThemeProvider";
 import { cn } from "@/lib/cn";
 
 type TourTab = "editor" | "themes" | "ar" | "publish";
@@ -38,7 +39,7 @@ const TOUR_TABS = [
         description:
             "Create categories, items, photos, and availability in one flow — designed to feel obvious on day one.",
         highlights: ["Keyboard-friendly editing", "Bulk updates in seconds", "Live availability + pricing"],
-        image: "/images/tour-editor-v2.png",
+        imageBase: "tour-editor-v6",
     },
     {
         id: "themes" as const,
@@ -48,7 +49,7 @@ const TOUR_TABS = [
         description:
             "Pick a layout, tune the vibe, and preview instantly. Guests get a clean, branded experience on any device.",
         highlights: ["Modern layouts", "Brand colors + typography", "Mobile-first guest preview"],
-        image: "/images/tour-themes-v2.png",
+        imageBase: "tour-themes-v6",
     },
     {
         id: "ar" as const,
@@ -58,7 +59,7 @@ const TOUR_TABS = [
         description:
             "Upload a short rotating dish video. We generate a photoreal 3D model guests can view in their room — iOS + Android.",
         highlights: ["Video → 3D model pipeline", "View in your room (iOS + Android)", "Fast previews + posters"],
-        image: "/images/tour-ar-v2.png",
+        imageBase: "tour-ar-v6",
     },
     {
         id: "publish" as const,
@@ -68,7 +69,7 @@ const TOUR_TABS = [
         description:
             "Publish once and keep improving. Your QR link stays stable while the menu evolves behind the scenes.",
         highlights: ["Stable QR link", "Custom domains", "Instant publish"],
-        image: "/images/tour-publish-v2.png",
+        imageBase: "tour-publish-v6",
     },
 ] satisfies Array<{
     id: TourTab;
@@ -77,11 +78,12 @@ const TOUR_TABS = [
     title: string;
     description: string;
     highlights: string[];
-    image: string;
+    imageBase: string;
 }>;
 
 export default function Home() {
     const { user, authStatus } = useAuthenticator(context => [context.user, context.authStatus]);
+    const { resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
     const router = useRouter();
     const reduceMotion = useReducedMotion();
@@ -132,6 +134,9 @@ export default function Home() {
         };
 
     const activeTour = TOUR_TABS.find((t) => t.id === tourTab) ?? TOUR_TABS[0];
+    const themeSuffix = resolvedTheme === "dark" ? "dark" : "light";
+    const heroImage = `/images/hero-studio-v6-${themeSuffix}@2x.png`;
+    const activeTourImage = `/images/${activeTour.imageBase}-${themeSuffix}@2x.png`;
 
     return (
         <div className="min-h-screen bg-background text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
@@ -338,22 +343,17 @@ export default function Home() {
                             transition={{ duration: 0.45, delay: 0.1 }}
                             className="relative"
                         >
-	                            <div className="relative overflow-hidden rounded-3xl border border-border bg-panel shadow-[var(--cms-shadow-lg)]">
+	                            <div className="relative overflow-hidden rounded-3xl bg-panel shadow-[var(--cms-shadow-lg)] ring-1 ring-border/45">
 	                                <div className="relative aspect-[16/10]">
 	                                    <Image
-	                                        src="/images/hero-studio-v2.png"
+	                                        src={heroImage}
 	                                        alt="Menuvium studio preview"
 	                                        fill
+	                                        sizes="(min-width: 1024px) 50vw, 100vw"
+	                                        quality={95}
 	                                        className="object-cover object-center"
 	                                        priority
 	                                    />
-	                                    <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-border bg-panel/70 px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm backdrop-blur-md">
-	                                        <span className="h-2 w-2 rounded-full bg-emerald-500/80" />
-	                                        Live preview
-	                                    </div>
-	                                    <div className="absolute right-4 top-4 inline-flex items-center rounded-full border border-border bg-panel/70 px-3 py-1.5 text-xs font-semibold text-muted shadow-sm backdrop-blur-md">
-	                                        Dashboard
-	                                    </div>
 	                                </div>
 	                            </div>
 
@@ -520,30 +520,25 @@ export default function Home() {
                                         className="absolute -inset-6 rounded-[2.25rem] bg-[var(--cms-accent-subtle)] blur-2xl"
                                         aria-hidden="true"
                                     />
-                                    <div className="relative overflow-hidden rounded-[2rem] border border-border bg-panel shadow-[var(--cms-shadow-md)]">
-                                        <AnimatePresence mode="wait" initial={false}>
-                                            <motion.div
-                                                key={activeTour.id}
-                                                initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
-                                                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                                                exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
-                                                transition={{ duration: 0.28 }}
-                                                className="relative"
-                                            >
+	                                    <div className="relative overflow-hidden rounded-[2rem] bg-panel shadow-[var(--cms-shadow-md)] ring-1 ring-border/45">
+	                                        <AnimatePresence mode="wait" initial={false}>
+	                                            <motion.div
+	                                                key={activeTour.id}
+	                                                initial={reduceMotion ? undefined : { opacity: 0, y: 12 }}
+	                                                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+	                                                exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+	                                                transition={{ duration: 0.28 }}
+	                                                className="relative"
+	                                            >
 	                                                <div className="relative aspect-[16/10]">
 	                                                    <Image
-	                                                        src={activeTour.image}
+	                                                        src={activeTourImage}
 	                                                        alt={`${activeTour.label} preview`}
 	                                                        fill
+	                                                        sizes="(min-width: 1024px) 55vw, 100vw"
+	                                                        quality={95}
 	                                                        className="object-cover object-center"
 	                                                    />
-	                                                    <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full border border-border bg-panel/70 px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm backdrop-blur-md">
-	                                                        <Sparkle className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
-	                                                        {activeTour.label}
-	                                                    </div>
-	                                                    <div className="absolute right-4 top-4 inline-flex items-center rounded-full border border-border bg-panel/70 px-3 py-1.5 text-xs font-semibold text-muted shadow-sm backdrop-blur-md">
-	                                                        Menuvium
-	                                                    </div>
 	                                                </div>
 	                                            </motion.div>
 	                                        </AnimatePresence>
