@@ -76,23 +76,23 @@ html {
 }
 
 .landing-shell {
-  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 84%, transparent);
-  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 78%, transparent);
-  --cms-border: color-mix(in srgb, var(--cms-border-solid) 80%, transparent);
+  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 80%, transparent);
+  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 74%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 76%, transparent);
   --cms-glass-highlight: rgba(255, 255, 255, 0.76);
-  --cms-shadow-sm: 0 10px 26px rgba(17, 24, 39, 0.10);
-  --cms-shadow-md: 0 18px 44px rgba(17, 24, 39, 0.14);
-  --cms-shadow-lg: 0 30px 90px rgba(17, 24, 39, 0.18);
+  --cms-shadow-sm: 0 8px 22px rgba(17, 24, 39, 0.09);
+  --cms-shadow-md: 0 16px 42px rgba(17, 24, 39, 0.13);
+  --cms-shadow-lg: 0 26px 82px rgba(17, 24, 39, 0.17);
 }
 
 .dark .landing-shell {
-  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 74%, transparent);
-  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 70%, transparent);
-  --cms-border: color-mix(in srgb, var(--cms-border-solid) 86%, transparent);
+  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 70%, transparent);
+  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 66%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 82%, transparent);
   --cms-glass-highlight: rgba(255, 255, 255, 0.12);
-  --cms-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --cms-shadow-md: 0 16px 50px rgba(0, 0, 0, 0.62);
-  --cms-shadow-lg: 0 28px 100px rgba(0, 0, 0, 0.78);
+  --cms-shadow-sm: 0 8px 22px rgba(0, 0, 0, 0.4);
+  --cms-shadow-md: 0 16px 46px rgba(0, 0, 0, 0.56);
+  --cms-shadow-lg: 0 28px 92px rgba(0, 0, 0, 0.72);
 }
 
 /* Surface utility classes (kept as `.glass*` for backwards-compat) */
@@ -192,21 +192,21 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(900px circle at 20% -20%, rgba(249, 115, 22, 0.10), transparent 55%),
-    radial-gradient(900px circle at 92% 0%, rgba(59, 130, 246, 0.06), transparent 60%),
-    radial-gradient(800px circle at 55% 120%, rgba(16, 185, 129, 0.05), transparent 55%);
-  filter: blur(60px) saturate(110%);
-  opacity: 1;
+    radial-gradient(920px circle at 18% -16%, rgba(249, 115, 22, 0.08), transparent 58%),
+    radial-gradient(920px circle at 88% -4%, rgba(59, 130, 246, 0.05), transparent 64%),
+    radial-gradient(860px circle at 54% 118%, rgba(16, 185, 129, 0.04), transparent 58%);
+  filter: blur(72px) saturate(92%);
+  opacity: 0.88;
   transform: translateZ(0);
 }
 
 .dark body::before {
   background:
-    radial-gradient(900px circle at 20% -20%, rgba(251, 146, 60, 0.16), transparent 55%),
-    radial-gradient(900px circle at 92% 0%, rgba(59, 130, 246, 0.12), transparent 60%),
-    radial-gradient(900px circle at 55% 120%, rgba(168, 85, 247, 0.10), transparent 55%);
-  filter: blur(70px) saturate(120%);
-  opacity: 0.9;
+    radial-gradient(920px circle at 18% -16%, rgba(251, 146, 60, 0.12), transparent 58%),
+    radial-gradient(920px circle at 88% -4%, rgba(59, 130, 246, 0.08), transparent 64%),
+    radial-gradient(940px circle at 54% 118%, rgba(168, 85, 247, 0.07), transparent 60%);
+  filter: blur(78px) saturate(96%);
+  opacity: 0.78;
 }
 
 @keyframes floatSlow {

@@ -81,43 +81,6 @@ const TOUR_TABS = [
     imageBase: string;
 }>;
 
-const HERO_SLIDES = [
-    {
-        id: "editor" as const,
-        label: "Menu editor",
-        title: "Edit prices and availability instantly",
-        subtitle: "Your team updates items in seconds with a clean, focused workflow.",
-        imageBase: "tour-editor-v6",
-    },
-    {
-        id: "themes" as const,
-        label: "Design studio",
-        title: "Apply your brand without touching code",
-        subtitle: "Tune typography, colors, and layout, then preview exactly what guests see.",
-        imageBase: "tour-themes-v6",
-    },
-    {
-        id: "ar" as const,
-        label: "Photoreal AR",
-        title: "Turn a short dish video into AR",
-        subtitle: "Generate USDZ and GLB outputs guests can open in-room on iOS and Android.",
-        imageBase: "tour-ar-v6",
-    },
-    {
-        id: "publish" as const,
-        label: "Publish",
-        title: "Use one QR code forever",
-        subtitle: "Publish once and keep improving behind the same stable link.",
-        imageBase: "tour-publish-v6",
-    },
-] satisfies Array<{
-    id: TourTab;
-    label: string;
-    title: string;
-    subtitle: string;
-    imageBase: string;
-}>;
-
 export default function Home() {
     const { user, authStatus } = useAuthenticator(context => [context.user, context.authStatus]);
     const { resolvedTheme } = useTheme();
@@ -128,8 +91,6 @@ export default function Home() {
     const [tourTab, setTourTab] = useState<TourTab>("editor");
     const [tourHovering, setTourHovering] = useState(false);
     const [tourFocused, setTourFocused] = useState(false);
-    const [heroSlideIndex, setHeroSlideIndex] = useState(0);
-    const [heroPaused, setHeroPaused] = useState(false);
     const [pricingPeriod, setPricingPeriod] = useState<PricingPeriod>("monthly");
 
     useEffect(() => {
@@ -154,14 +115,6 @@ export default function Home() {
         return () => window.clearInterval(interval);
     }, [reduceMotion, tourFocused, tourHovering]);
 
-    useEffect(() => {
-        if (reduceMotion || heroPaused) return;
-        const interval = window.setInterval(() => {
-            setHeroSlideIndex((current) => (current + 1) % HERO_SLIDES.length);
-        }, 4200);
-        return () => window.clearInterval(interval);
-    }, [reduceMotion, heroPaused]);
-
     if (!mounted) {
         return <div className="min-h-screen bg-background" />;
     }
@@ -181,9 +134,8 @@ export default function Home() {
         };
 
     const activeTour = TOUR_TABS.find((t) => t.id === tourTab) ?? TOUR_TABS[0];
-    const activeHeroSlide = HERO_SLIDES[heroSlideIndex] ?? HERO_SLIDES[0];
     const themeSuffix = resolvedTheme === "dark" ? "dark" : "light";
-    const activeHeroImage = `/images/${activeHeroSlide.imageBase}-${themeSuffix}@2x.png`;
+    const heroPreviewImage = `/images/tour-editor-v6-${themeSuffix}@2x.png`;
     const activeTourImage = `/images/${activeTour.imageBase}-${themeSuffix}@2x.png`;
 
     return (
@@ -304,167 +256,105 @@ export default function Home() {
 
             <main>
                 {/* Hero */}
-                <section className="relative pb-14 pt-12 sm:pb-16 sm:pt-16">
-                    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 -top-40 -bottom-40 overflow-hidden">
-                        <div
-                            className={cn(
-                                "absolute -top-40 -left-32 h-[28rem] w-[28rem] rounded-full bg-[var(--cms-accent-subtle)] blur-3xl",
-                                !reduceMotion && "float-slow"
-                            )}
-                        />
-                        <div
-                            className={cn(
-                                "absolute top-0 -right-40 h-[30rem] w-[30rem] rounded-full bg-sky-500/10 blur-3xl",
-                                !reduceMotion && "float-medium"
-                            )}
-                        />
-                        <div
-                            className={cn(
-                                "absolute -bottom-56 left-[28%] h-[34rem] w-[34rem] rounded-full bg-emerald-500/10 blur-3xl",
-                                !reduceMotion && "float-slow"
-                            )}
-                        />
-                    </div>
+                <section className="relative py-24 sm:py-28 lg:py-32">
                     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-                        <div className="relative grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
-                        <motion.div
-                            initial="hidden"
-                            animate="visible"
-                            variants={fadeUp ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
-                            className="space-y-7"
-                        >
-                            <motion.div variants={fadeUp} className="inline-flex items-center gap-2 rounded-full border border-border bg-panelStrong px-3 py-1.5 text-xs font-semibold text-muted">
-                                <Sparkles className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
-                                Built for modern restaurants
-                            </motion.div>
-
-	                            <motion.h1
-	                                variants={fadeUp}
-	                                className="font-heading text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl"
-	                            >
-	                                Run a modern QR menu
-                                    <br className="hidden sm:block" /> without operational chaos.
-	                                <span className="block bg-gradient-to-r from-[var(--cms-accent)] via-[var(--cms-accent-strong)] to-[var(--cms-accent)] bg-clip-text text-transparent gradient-shift">
-	                                    Edit fast. Stay live. Add photoreal AR.
-	                                </span>
-	                            </motion.h1>
-
-                            <motion.p variants={fadeUp} className="max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-                                Menuvium gives your team one calm workspace for menu editing, branding, publishing, and AR content.
-                            </motion.p>
-
-                            <motion.div variants={fadeUp} className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                                <Link
-                                    href="/login"
-                                    className="inline-flex h-12 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                        <div className="grid items-center gap-14 lg:grid-cols-[0.84fr,1.16fr] lg:gap-16">
+                            <motion.div
+                                initial="hidden"
+                                animate="visible"
+                                variants={fadeUp ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
+                                className="max-w-xl space-y-8"
+                            >
+                                <motion.div
+                                    variants={fadeUp}
+                                    className="inline-flex items-center gap-2 rounded-full border border-border bg-panel/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted shadow-[var(--cms-shadow-sm)] backdrop-blur-xl"
                                 >
-                                    Start free <ArrowRight className="ml-2 h-4 w-4" />
-                                </Link>
-                                <Link
-                                    href="#pricing"
-                                    className="inline-flex h-12 items-center justify-center rounded-xl border border-border bg-panelStrong px-5 text-base font-semibold text-foreground shadow-sm transition-colors hover:bg-pill"
-                                >
-                                    View pricing
-                                </Link>
-                            </motion.div>
+                                    <Sparkles className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
+                                    Built for modern restaurants
+                                </motion.div>
 
-	                            <motion.div variants={fadeUp} className="flex flex-wrap gap-2">
-	                                {[
-	                                    { label: "Instant updates", icon: Clock },
-	                                    { label: "Theme studio", icon: Palette },
-	                                    { label: "Photoreal AR", icon: Layers },
-	                                ].map(({ label, icon: Icon }) => (
-	                                    <div
-	                                        key={label}
-	                                        className="inline-flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-xs font-semibold text-muted shadow-sm"
-	                                    >
-	                                        <Icon className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
-	                                        <span className="text-foreground">{label}</span>
-	                                    </div>
-	                                ))}
-	                            </motion.div>
-                        </motion.div>
+                                <div className="space-y-5">
+                                    <motion.h1
+                                        variants={fadeUp}
+                                        className="max-w-[13ch] font-heading text-5xl font-bold tracking-tight sm:text-6xl lg:text-[4.25rem] lg:leading-[1.02]"
+                                    >
+                                        Run your QR menu <span className="text-[var(--cms-accent)]">live.</span>
+                                    </motion.h1>
 
-                        <motion.div
-                            initial={reduceMotion ? undefined : { opacity: 0, y: 18 }}
-                            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                            transition={{ duration: 0.45, delay: 0.1 }}
-                            className="relative"
-                        >
-	                            <div
-	                                className="relative overflow-hidden rounded-3xl bg-panel/80 shadow-[var(--cms-shadow-lg)] ring-1 ring-border/50 backdrop-blur-xl"
-	                                onMouseEnter={() => setHeroPaused(true)}
-	                                onMouseLeave={() => setHeroPaused(false)}
-	                                onFocusCapture={() => setHeroPaused(true)}
-	                                onBlurCapture={(e) => {
-	                                    const next = e.relatedTarget as Node | null;
-	                                    if (!next || !e.currentTarget.contains(next)) {
-	                                        setHeroPaused(false);
-	                                    }
-	                                }}
-	                            >
-	                                <AnimatePresence mode="wait" initial={false}>
-	                                    <motion.div
-	                                        key={activeHeroSlide.id}
-	                                        initial={reduceMotion ? undefined : { opacity: 0, y: 12, scale: 0.985 }}
-	                                        animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
-	                                        exit={reduceMotion ? undefined : { opacity: 0, y: -10, scale: 0.99 }}
-	                                        transition={{ duration: 0.34 }}
-	                                        className="relative aspect-[16/10]"
-	                                    >
-	                                        <Image
-	                                            src={activeHeroImage}
-	                                            alt={`${activeHeroSlide.title} preview`}
-	                                            fill
-	                                            sizes="(min-width: 1024px) 50vw, 100vw"
-	                                            quality={95}
-	                                            className="object-cover object-center"
-	                                            priority
-	                                        />
-	                                        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/70 via-black/28 to-transparent" />
-	                                    </motion.div>
-	                                </AnimatePresence>
-
-	                                <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/20 bg-black/35 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
-	                                    Live product preview
-	                                </div>
-
-	                                <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-	                                    <div className="rounded-2xl border border-white/15 bg-black/35 p-4 backdrop-blur-md">
-	                                        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/75">
-	                                            {activeHeroSlide.label}
-	                                        </p>
-	                                        <p className="mt-2 text-base font-semibold text-white sm:text-lg">
-	                                            {activeHeroSlide.title}
-	                                        </p>
-	                                        <p className="mt-1 text-xs text-white/75 sm:text-sm">{activeHeroSlide.subtitle}</p>
-	                                    </div>
-	                                </div>
-	                            </div>
-
-                                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                    {HERO_SLIDES.map((slide, index) => {
-                                        const active = index === heroSlideIndex;
-                                        return (
-                                            <button
-                                                key={slide.id}
-                                                type="button"
-                                                onClick={() => setHeroSlideIndex(index)}
-                                                aria-pressed={active}
-                                                className={cn(
-                                                    "rounded-xl border px-3 py-2 text-left text-xs font-semibold whitespace-nowrap transition-colors",
-                                                    active
-                                                        ? "border-[var(--cms-accent)]/40 bg-[var(--cms-accent-subtle)] text-foreground"
-                                                        : "border-border bg-panel/75 text-muted hover:bg-panelStrong/80 hover:text-foreground"
-                                                )}
-                                            >
-                                                {slide.label}
-                                            </button>
-                                        );
-                                    })}
+                                    <motion.p variants={fadeUp} className="max-w-[35ch] text-base leading-relaxed text-muted sm:text-lg">
+                                        Edit instantly. Publish in seconds. Add photoreal AR.
+                                    </motion.p>
                                 </div>
-                        </motion.div>
-                    </div>
+
+                                <motion.div
+                                    variants={fadeUp}
+                                    className="inline-flex w-full max-w-[460px] flex-col gap-3 rounded-2xl border border-border bg-panel/65 p-2.5 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl sm:flex-row sm:items-center"
+                                >
+                                    <Link
+                                        href="/login"
+                                        className="inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-6 text-base font-semibold text-white shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-[var(--cms-accent-strong)] hover:shadow-[var(--cms-shadow-md)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                                    >
+                                        Start free <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Link>
+                                    <Link
+                                        href="#how-it-works"
+                                        className="inline-flex h-12 flex-1 items-center justify-center rounded-xl border border-border bg-panel/45 px-6 text-base font-semibold text-foreground shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-panel/70 hover:shadow-[var(--cms-shadow-sm)]"
+                                    >
+                                        Watch workflow
+                                    </Link>
+                                </motion.div>
+
+                                <motion.p variants={fadeUp} className="text-xs text-muted">
+                                    No app install for guests. Works on iOS and Android.
+                                </motion.p>
+                            </motion.div>
+
+                            <motion.div
+                                initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
+                                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                                transition={{ duration: 0.5, delay: 0.12 }}
+                                className="relative mx-auto w-full max-w-[860px] lg:max-w-none"
+                            >
+                                <div
+                                    aria-hidden="true"
+                                    className="pointer-events-none absolute inset-x-8 bottom-12 top-8 rounded-[2.6rem] bg-[radial-gradient(75%_75%_at_50%_50%,color-mix(in_srgb,var(--cms-accent)_20%,transparent),transparent)] blur-2xl"
+                                />
+                                <motion.div
+                                    animate={reduceMotion ? { y: 0 } : { y: [0, -3, 0] }}
+                                    transition={reduceMotion ? undefined : { duration: 9, repeat: Infinity, ease: "easeInOut" }}
+                                    className="relative"
+                                >
+                                    <div className="relative overflow-hidden rounded-[2.15rem] border border-border bg-panel/72 p-2.5 shadow-[var(--cms-shadow-lg)] backdrop-blur-xl">
+                                        <div className="relative overflow-hidden rounded-[1.55rem] border border-border/70 bg-panelStrong/90">
+                                            <div className="relative aspect-[16/10]">
+                                                <Image
+                                                    src={heroPreviewImage}
+                                                    alt="Editing a menu item in Menuvium"
+                                                    fill
+                                                    sizes="(min-width: 1024px) 58vw, 100vw"
+                                                    quality={100}
+                                                    className="origin-center scale-[1.15] object-cover object-[57%_44%] sm:scale-[1.1]"
+                                                    priority
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <motion.div
+                                        initial={reduceMotion ? undefined : { opacity: 0, y: 10 }}
+                                        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.32, delay: 0.25 }}
+                                        className="absolute bottom-4 left-4 right-4 rounded-2xl border border-border bg-panel/72 p-4 shadow-[var(--cms-shadow-md)] backdrop-blur-xl sm:left-auto sm:right-6 sm:w-[320px]"
+                                    >
+                                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Live update</p>
+                                        <p className="mt-1.5 text-sm font-semibold text-foreground">Update prices instantly</p>
+                                        <p className="mt-1 text-xs leading-relaxed text-muted">
+                                            Edit once in the studio. Guests see the change immediately on the same QR menu.
+                                        </p>
+                                    </motion.div>
+                                </motion.div>
+                            </motion.div>
+                        </div>
                     </div>
                 </section>
 
