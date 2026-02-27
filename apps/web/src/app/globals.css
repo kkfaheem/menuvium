@@ -76,23 +76,23 @@ html {
 }
 
 .landing-shell {
-  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 80%, transparent);
-  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 74%, transparent);
-  --cms-border: color-mix(in srgb, var(--cms-border-solid) 76%, transparent);
+  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 84%, transparent);
+  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 78%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 80%, transparent);
   --cms-glass-highlight: rgba(255, 255, 255, 0.76);
-  --cms-shadow-sm: 0 8px 22px rgba(17, 24, 39, 0.09);
-  --cms-shadow-md: 0 16px 42px rgba(17, 24, 39, 0.13);
-  --cms-shadow-lg: 0 26px 82px rgba(17, 24, 39, 0.17);
+  --cms-shadow-sm: 0 10px 26px rgba(17, 24, 39, 0.10);
+  --cms-shadow-md: 0 18px 44px rgba(17, 24, 39, 0.14);
+  --cms-shadow-lg: 0 30px 90px rgba(17, 24, 39, 0.18);
 }
 
 .dark .landing-shell {
-  --cms-panel: rgba(255, 255, 255, 0.07);
-  --cms-panel-strong: rgba(255, 255, 255, 0.10);
-  --cms-border: rgba(255, 255, 255, 0.14);
+  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 74%, transparent);
+  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 70%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 86%, transparent);
   --cms-glass-highlight: rgba(255, 255, 255, 0.12);
-  --cms-shadow-sm: 0 8px 20px rgba(0, 0, 0, 0.38);
-  --cms-shadow-md: 0 16px 42px rgba(0, 0, 0, 0.52);
-  --cms-shadow-lg: 0 26px 82px rgba(0, 0, 0, 0.66);
+  --cms-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --cms-shadow-md: 0 16px 50px rgba(0, 0, 0, 0.62);
+  --cms-shadow-lg: 0 28px 100px rgba(0, 0, 0, 0.78);
 }
 
 /* Surface utility classes (kept as `.glass*` for backwards-compat) */
@@ -101,8 +101,6 @@ html {
   background: var(--cms-panel);
   border: 1px solid var(--cms-border);
   box-shadow: var(--cms-shadow-md);
-  backdrop-filter: blur(18px) saturate(130%);
-  -webkit-backdrop-filter: blur(18px) saturate(130%);
   background-clip: padding-box;
 }
 
@@ -130,8 +128,6 @@ html {
   background: color-mix(in srgb, var(--cms-panel) 92%, var(--cms-bg));
   border: 1px solid var(--cms-border);
   box-shadow: var(--cms-shadow-sm);
-  backdrop-filter: blur(14px) saturate(120%);
-  -webkit-backdrop-filter: blur(14px) saturate(120%);
   background-clip: padding-box;
 }
 
@@ -196,37 +192,21 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(920px circle at 18% -16%, rgba(249, 115, 22, 0.08), transparent 58%),
-    radial-gradient(920px circle at 88% -4%, rgba(59, 130, 246, 0.05), transparent 64%),
-    radial-gradient(860px circle at 54% 118%, rgba(16, 185, 129, 0.04), transparent 58%);
-  filter: blur(72px) saturate(92%);
-  opacity: 0.88;
+    radial-gradient(900px circle at 20% -20%, rgba(249, 115, 22, 0.10), transparent 55%),
+    radial-gradient(900px circle at 92% 0%, rgba(59, 130, 246, 0.06), transparent 60%),
+    radial-gradient(800px circle at 55% 120%, rgba(16, 185, 129, 0.05), transparent 55%);
+  filter: blur(60px) saturate(110%);
+  opacity: 1;
   transform: translateZ(0);
 }
 
 .dark body::before {
   background:
-    radial-gradient(1280px circle at -14% -22%, rgba(251, 146, 60, 0.12), transparent 62%),
-    radial-gradient(1320px circle at 112% -4%, rgba(59, 130, 246, 0.11), transparent 64%),
-    radial-gradient(1200px circle at 52% 118%, rgba(16, 185, 129, 0.10), transparent 66%);
-  filter: blur(96px) saturate(104%);
-  opacity: 0.72;
-}
-
-.dark body::after {
-  content: "";
-  position: fixed;
-  inset: -22%;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(1100px circle at 78% 72%, rgba(59, 130, 246, 0.09), transparent 68%),
-    radial-gradient(1180px circle at 22% 82%, rgba(16, 185, 129, 0.08), transparent 70%),
-    radial-gradient(980px circle at 54% -26%, rgba(249, 115, 22, 0.07), transparent 70%);
-  filter: blur(118px) saturate(102%);
-  opacity: 0.54;
-  transform: translate3d(0, 0, 0);
-  animation: ambientDrift 90s ease-in-out infinite alternate;
+    radial-gradient(900px circle at 20% -20%, rgba(251, 146, 60, 0.16), transparent 55%),
+    radial-gradient(900px circle at 92% 0%, rgba(59, 130, 246, 0.12), transparent 60%),
+    radial-gradient(900px circle at 55% 120%, rgba(168, 85, 247, 0.10), transparent 55%);
+  filter: blur(70px) saturate(120%);
+  opacity: 0.9;
 }
 
 @keyframes floatSlow {
@@ -267,16 +247,6 @@ body::before {
   }
 }
 
-@keyframes ambientDrift {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-
-  100% {
-    transform: translate3d(-2.2%, 1.6%, 0) scale(1.02);
-  }
-}
-
 .float-slow {
   animation: floatSlow 12s ease-in-out infinite;
 }
@@ -288,12 +258,6 @@ body::before {
 .gradient-shift {
   background-size: 200% 200%;
   animation: gradientShift 16s ease infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dark body::after {
-    animation: none;
-  }
 }
 
 .cms-modal-overlay {
