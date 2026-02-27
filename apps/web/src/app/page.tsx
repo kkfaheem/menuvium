@@ -84,35 +84,35 @@ const TOUR_TABS = [
 const HERO_SLIDES = [
     {
         id: "editor" as const,
-        step: "Step 1",
-        title: "Edit menu items and pricing",
-        subtitle: "Update dishes, categories, and availability in one place.",
+        label: "Menu editor",
+        title: "Edit prices and availability instantly",
+        subtitle: "Your team updates items in seconds with a clean, focused workflow.",
         imageBase: "tour-editor-v6",
     },
     {
         id: "themes" as const,
-        step: "Step 2",
-        title: "Apply your brand theme",
-        subtitle: "Pick colors and typography, then preview instantly.",
+        label: "Design studio",
+        title: "Apply your brand without touching code",
+        subtitle: "Tune typography, colors, and layout, then preview exactly what guests see.",
         imageBase: "tour-themes-v6",
     },
     {
         id: "ar" as const,
-        step: "Step 3",
-        title: "Generate photoreal AR dishes",
-        subtitle: "Upload a short dish video and auto-generate AR outputs.",
+        label: "Photoreal AR",
+        title: "Turn a short dish video into AR",
+        subtitle: "Generate USDZ and GLB outputs guests can open in-room on iOS and Android.",
         imageBase: "tour-ar-v6",
     },
     {
         id: "publish" as const,
-        step: "Step 4",
-        title: "Publish once with one stable QR",
-        subtitle: "Keep improving the menu without ever reprinting.",
+        label: "Publish",
+        title: "Use one QR code forever",
+        subtitle: "Publish once and keep improving behind the same stable link.",
         imageBase: "tour-publish-v6",
     },
 ] satisfies Array<{
     id: TourTab;
-    step: string;
+    label: string;
     title: string;
     subtitle: string;
     imageBase: string;
@@ -187,7 +187,7 @@ export default function Home() {
     const activeTourImage = `/images/${activeTour.imageBase}-${themeSuffix}@2x.png`;
 
     return (
-        <div className="min-h-screen bg-background text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
+        <div className="landing-shell min-h-screen overflow-x-hidden bg-background text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
             {/* Top nav */}
             <header className="sticky top-0 z-50 border-b border-border bg-panel/95 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
                 <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
@@ -335,21 +335,22 @@ export default function Home() {
                         >
                             <motion.div variants={fadeUp} className="inline-flex items-center gap-2 rounded-full border border-border bg-panelStrong px-3 py-1.5 text-xs font-semibold text-muted">
                                 <Sparkles className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
-                                Menu management, rebuilt for speed
+                                Built for modern restaurants
                             </motion.div>
 
 	                            <motion.h1
 	                                variants={fadeUp}
 	                                className="font-heading text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl"
 	                            >
-	                                QR menus, made modern.
+	                                Run a modern QR menu
+                                    <br className="hidden sm:block" /> without operational chaos.
 	                                <span className="block bg-gradient-to-r from-[var(--cms-accent)] via-[var(--cms-accent-strong)] to-[var(--cms-accent)] bg-clip-text text-transparent gradient-shift">
-	                                    Update instantly. Add photoreal AR.
+	                                    Edit fast. Stay live. Add photoreal AR.
 	                                </span>
 	                            </motion.h1>
 
                             <motion.p variants={fadeUp} className="max-w-xl text-base leading-relaxed text-muted sm:text-lg">
-                                Import a menu, pick a theme, publish a QR — then update items instantly and add photoreal AR dishes from video.
+                                Menuvium gives your team one calm workspace for menu editing, branding, publishing, and AR content.
                             </motion.p>
 
                             <motion.div variants={fadeUp} className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -369,9 +370,8 @@ export default function Home() {
 
 	                            <motion.div variants={fadeUp} className="flex flex-wrap gap-2">
 	                                {[
-	                                    { label: "AI import", icon: Wand2 },
-	                                    { label: "Theme studio", icon: Palette },
 	                                    { label: "Instant updates", icon: Clock },
+	                                    { label: "Theme studio", icon: Palette },
 	                                    { label: "Photoreal AR", icon: Layers },
 	                                ].map(({ label, icon: Icon }) => (
 	                                    <div
@@ -392,7 +392,7 @@ export default function Home() {
                             className="relative"
                         >
 	                            <div
-	                                className="relative overflow-hidden rounded-3xl bg-panel shadow-[var(--cms-shadow-lg)] ring-1 ring-border/45"
+	                                className="relative overflow-hidden rounded-3xl bg-panel/80 shadow-[var(--cms-shadow-lg)] ring-1 ring-border/50 backdrop-blur-xl"
 	                                onMouseEnter={() => setHeroPaused(true)}
 	                                onMouseLeave={() => setHeroPaused(false)}
 	                                onFocusCapture={() => setHeroPaused(true)}
@@ -406,10 +406,10 @@ export default function Home() {
 	                                <AnimatePresence mode="wait" initial={false}>
 	                                    <motion.div
 	                                        key={activeHeroSlide.id}
-	                                        initial={reduceMotion ? undefined : { opacity: 0, y: 10 }}
-	                                        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-	                                        exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
-	                                        transition={{ duration: 0.28 }}
+	                                        initial={reduceMotion ? undefined : { opacity: 0, y: 12, scale: 0.985 }}
+	                                        animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
+	                                        exit={reduceMotion ? undefined : { opacity: 0, y: -10, scale: 0.99 }}
+	                                        transition={{ duration: 0.34 }}
 	                                        className="relative aspect-[16/10]"
 	                                    >
 	                                        <Image
@@ -421,53 +421,55 @@ export default function Home() {
 	                                            className="object-cover object-center"
 	                                            priority
 	                                        />
-	                                        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/65 via-black/25 to-transparent" />
+	                                        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/70 via-black/28 to-transparent" />
 	                                    </motion.div>
 	                                </AnimatePresence>
 
 	                                <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/20 bg-black/35 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
-	                                    How it works
+	                                    Live product preview
 	                                </div>
 
 	                                <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
 	                                    <div className="rounded-2xl border border-white/15 bg-black/35 p-4 backdrop-blur-md">
 	                                        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/75">
-	                                            {activeHeroSlide.step}
+	                                            {activeHeroSlide.label}
 	                                        </p>
 	                                        <p className="mt-2 text-base font-semibold text-white sm:text-lg">
 	                                            {activeHeroSlide.title}
 	                                        </p>
 	                                        <p className="mt-1 text-xs text-white/75 sm:text-sm">{activeHeroSlide.subtitle}</p>
-	                                        <div className="mt-3 flex items-center gap-2">
-	                                            {HERO_SLIDES.map((slide, index) => {
-	                                                const active = index === heroSlideIndex;
-	                                                return (
-	                                                    <button
-	                                                        key={slide.id}
-	                                                        type="button"
-	                                                        aria-label={`Show ${slide.title}`}
-	                                                        aria-pressed={active}
-	                                                        onClick={() => setHeroSlideIndex(index)}
-	                                                        className={cn(
-	                                                            "h-2.5 rounded-full transition-all",
-	                                                            active
-	                                                                ? "w-7 bg-white"
-	                                                                : "w-2.5 bg-white/45 hover:bg-white/70"
-	                                                        )}
-	                                                    />
-	                                                );
-	                                            })}
-	                                        </div>
 	                                    </div>
 	                                </div>
 	                            </div>
+
+                                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                    {HERO_SLIDES.map((slide, index) => {
+                                        const active = index === heroSlideIndex;
+                                        return (
+                                            <button
+                                                key={slide.id}
+                                                type="button"
+                                                onClick={() => setHeroSlideIndex(index)}
+                                                aria-pressed={active}
+                                                className={cn(
+                                                    "rounded-xl border px-3 py-2 text-left text-xs font-semibold whitespace-nowrap transition-colors",
+                                                    active
+                                                        ? "border-[var(--cms-accent)]/40 bg-[var(--cms-accent-subtle)] text-foreground"
+                                                        : "border-border bg-panel/75 text-muted hover:bg-panelStrong/80 hover:text-foreground"
+                                                )}
+                                            >
+                                                {slide.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                         </motion.div>
                     </div>
                     </div>
                 </section>
 
                 {/* Social proof */}
-                <section className="border-y border-border bg-panelStrong">
+                <section className="border-y border-border bg-panelStrong/70 backdrop-blur-xl">
                     <div className="mx-auto grid max-w-7xl gap-6 px-4 py-10 sm:px-6 md:grid-cols-2 md:items-center">
                         <p className="text-sm font-semibold text-muted">
                             Trusted by teams moving fast — from single locations to multi‑brand groups.
@@ -516,7 +518,7 @@ export default function Home() {
                                     key={title}
                                     variants={sectionReveal}
                                     whileHover={reduceMotion ? undefined : { y: -3 }}
-                                    className="h-full rounded-2xl border border-border bg-panel p-5 shadow-sm transition-colors hover:bg-panelStrong"
+                                    className="h-full rounded-2xl border border-border bg-panel/80 p-5 shadow-sm backdrop-blur-xl transition-colors hover:bg-panelStrong/80"
                                 >
                                     <div className="flex items-start gap-3">
                                         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-pill">
@@ -540,7 +542,7 @@ export default function Home() {
                         whileInView="visible"
                         viewport={{ once: true, margin: "-120px" }}
                         variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
-                        className="rounded-[2rem] border border-border bg-panel p-6 shadow-[var(--cms-shadow-sm)] sm:p-10"
+                        className="rounded-[2rem] border border-border bg-panel/75 p-6 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl sm:p-10"
                     >
                         <motion.div variants={sectionReveal} className="space-y-2">
                             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">How it works</p>
@@ -559,7 +561,7 @@ export default function Home() {
                                     setTourFocused(false);
                                 }
                             }}
-                            className="mt-8 rounded-3xl border border-border bg-panelStrong p-6 shadow-sm sm:p-8"
+                            className="mt-8 rounded-3xl border border-border bg-panelStrong/70 p-6 shadow-sm backdrop-blur-xl sm:p-8"
                         >
                             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                                 <div className="space-y-2">
@@ -567,7 +569,7 @@ export default function Home() {
                                     <h3 className="font-heading text-2xl font-bold tracking-tight sm:text-3xl">See it in action</h3>
                                     <p className="text-sm text-muted">Editor, themes, publishing, and AR — one workflow.</p>
                                 </div>
-                                <div className="inline-flex items-center gap-1 rounded-2xl border border-border bg-panel p-1 text-xs font-semibold">
+                                <div className="inline-flex w-full items-center gap-1 overflow-x-auto rounded-2xl border border-border bg-panel/85 p-1 text-xs font-semibold backdrop-blur-xl md:w-auto">
                                     {TOUR_TABS.map((tab) => {
                                         const Icon = tab.icon;
                                         const active = tab.id === tourTab;
@@ -577,7 +579,7 @@ export default function Home() {
                                                 type="button"
                                                 onClick={() => setTourTab(tab.id)}
                                                 className={cn(
-                                                    "inline-flex h-10 items-center gap-2 rounded-xl px-3 transition-colors",
+                                                    "inline-flex h-10 items-center gap-2 rounded-xl px-3 whitespace-nowrap transition-colors",
                                                     active
                                                         ? "bg-panelStrong text-foreground shadow-[var(--cms-shadow-sm)]"
                                                         : "text-muted hover:text-foreground hover:bg-pill"
@@ -658,7 +660,7 @@ export default function Home() {
                             </p>
                         </div>
 
-                        <div className="inline-flex rounded-2xl border border-border bg-panelStrong p-1 text-xs font-semibold">
+                        <div className="inline-flex w-full rounded-2xl border border-border bg-panelStrong/70 p-1 text-xs font-semibold backdrop-blur-xl sm:w-auto">
                             {[
                                 { id: "monthly" as const, label: "Monthly" },
                                 { id: "annual" as const, label: "Annual (2 months free)" },
@@ -670,7 +672,7 @@ export default function Home() {
                                         type="button"
                                         onClick={() => setPricingPeriod(opt.id)}
                                         className={cn(
-                                            "h-10 rounded-xl px-3 transition-colors",
+                                            "h-10 rounded-xl px-3 whitespace-nowrap transition-colors",
                                             active ? "bg-panel text-foreground shadow-[var(--cms-shadow-sm)]" : "text-muted hover:text-foreground hover:bg-pill"
                                         )}
                                         aria-pressed={active}
@@ -733,10 +735,10 @@ export default function Home() {
                                 <div
                                     key={tier.name}
                                     className={cn(
-                                        "rounded-[2rem] border p-6 shadow-[var(--cms-shadow-sm)]",
+                                        "rounded-[2rem] border p-6 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl",
                                         tier.highlight
                                             ? "border-[var(--cms-accent)] bg-[var(--cms-accent-subtle)]"
-                                            : "border-border bg-panel"
+                                            : "border-border bg-panel/80"
                                     )}
                                 >
                                     <div className="flex items-start justify-between gap-3">
@@ -797,7 +799,7 @@ export default function Home() {
                         </h2>
                     </div>
 
-                    <div className="mt-10 divide-y divide-border rounded-3xl border border-border bg-panel shadow-sm">
+                    <div className="mt-10 divide-y divide-border rounded-3xl border border-border bg-panel/80 shadow-sm backdrop-blur-xl">
                         {[
                             {
                                 q: "Will my QR code change when I edit the menu?",
@@ -852,7 +854,7 @@ export default function Home() {
 
                 {/* Final CTA */}
                 <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 sm:pb-24">
-                    <div className="rounded-3xl border border-border bg-panel p-8 shadow-sm sm:p-12">
+                    <div className="rounded-3xl border border-border bg-panel/80 p-8 shadow-sm backdrop-blur-xl sm:p-12">
                         <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
                             <div className="space-y-2">
                                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Get started</p>
@@ -875,7 +877,7 @@ export default function Home() {
             </main>
 
             {/* Footer */}
-            <footer className="border-t border-border bg-panelStrong">
+            <footer className="border-t border-border bg-panelStrong/75 backdrop-blur-xl">
                 <div className="mx-auto grid max-w-7xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-2 md:items-start">
                     <div className="space-y-3">
                         <Logo size="lg" />

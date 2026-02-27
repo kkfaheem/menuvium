@@ -14,9 +14,13 @@ html {
   --foreground: #0b1220;
 
   --cms-bg: #fcfcfd;
-  --cms-panel: #ffffff;
-  --cms-panel-strong: #f6f7fb;
-  --cms-border: rgba(17, 24, 39, 0.10);
+  --cms-panel-solid: #ffffff;
+  --cms-panel-strong-solid: #f6f7fb;
+  --cms-border-solid: rgba(17, 24, 39, 0.10);
+
+  --cms-panel: var(--cms-panel-solid);
+  --cms-panel-strong: var(--cms-panel-strong-solid);
+  --cms-border: var(--cms-border-solid);
   --cms-text: #0b1220;
   --cms-muted: rgba(11, 18, 32, 0.68);
   --cms-muted-strong: rgba(11, 18, 32, 0.46);
@@ -44,9 +48,13 @@ html {
   --foreground: #e6eaf3;
 
   --cms-bg: #0b0c10;
-  --cms-panel: #111218;
-  --cms-panel-strong: #161823;
-  --cms-border: rgba(255, 255, 255, 0.10);
+  --cms-panel-solid: #111218;
+  --cms-panel-strong-solid: #161823;
+  --cms-border-solid: rgba(255, 255, 255, 0.10);
+
+  --cms-panel: var(--cms-panel-solid);
+  --cms-panel-strong: var(--cms-panel-strong-solid);
+  --cms-border: var(--cms-border-solid);
   --cms-text: #e6eaf3;
   --cms-muted: rgba(230, 234, 243, 0.72);
   --cms-muted-strong: rgba(230, 234, 243, 0.44);
@@ -65,6 +73,26 @@ html {
   --cms-accent-strong: #f97316;
   --cms-accent-light: rgba(251, 146, 60, 0.22);
   --cms-accent-subtle: rgba(251, 146, 60, 0.10);
+}
+
+.landing-shell {
+  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 84%, transparent);
+  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 78%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 80%, transparent);
+  --cms-glass-highlight: rgba(255, 255, 255, 0.76);
+  --cms-shadow-sm: 0 10px 26px rgba(17, 24, 39, 0.10);
+  --cms-shadow-md: 0 18px 44px rgba(17, 24, 39, 0.14);
+  --cms-shadow-lg: 0 30px 90px rgba(17, 24, 39, 0.18);
+}
+
+.dark .landing-shell {
+  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 74%, transparent);
+  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 70%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 86%, transparent);
+  --cms-glass-highlight: rgba(255, 255, 255, 0.12);
+  --cms-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --cms-shadow-md: 0 16px 50px rgba(0, 0, 0, 0.62);
+  --cms-shadow-lg: 0 28px 100px rgba(0, 0, 0, 0.78);
 }
 
 /* Surface utility classes (kept as `.glass*` for backwards-compat) */
