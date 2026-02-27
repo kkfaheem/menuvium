@@ -81,6 +81,43 @@ const TOUR_TABS = [
     imageBase: string;
 }>;
 
+const HERO_SLIDES = [
+    {
+        id: "editor" as const,
+        step: "Step 1",
+        title: "Edit menu items and pricing",
+        subtitle: "Update dishes, categories, and availability in one place.",
+        imageBase: "tour-editor-v6",
+    },
+    {
+        id: "themes" as const,
+        step: "Step 2",
+        title: "Apply your brand theme",
+        subtitle: "Pick colors and typography, then preview instantly.",
+        imageBase: "tour-themes-v6",
+    },
+    {
+        id: "ar" as const,
+        step: "Step 3",
+        title: "Generate photoreal AR dishes",
+        subtitle: "Upload a short dish video and auto-generate AR outputs.",
+        imageBase: "tour-ar-v6",
+    },
+    {
+        id: "publish" as const,
+        step: "Step 4",
+        title: "Publish once with one stable QR",
+        subtitle: "Keep improving the menu without ever reprinting.",
+        imageBase: "tour-publish-v6",
+    },
+] satisfies Array<{
+    id: TourTab;
+    step: string;
+    title: string;
+    subtitle: string;
+    imageBase: string;
+}>;
+
 export default function Home() {
     const { user, authStatus } = useAuthenticator(context => [context.user, context.authStatus]);
     const { resolvedTheme } = useTheme();
@@ -91,6 +128,8 @@ export default function Home() {
     const [tourTab, setTourTab] = useState<TourTab>("editor");
     const [tourHovering, setTourHovering] = useState(false);
     const [tourFocused, setTourFocused] = useState(false);
+    const [heroSlideIndex, setHeroSlideIndex] = useState(0);
+    const [heroPaused, setHeroPaused] = useState(false);
     const [pricingPeriod, setPricingPeriod] = useState<PricingPeriod>("monthly");
 
     useEffect(() => {
@@ -115,6 +154,14 @@ export default function Home() {
         return () => window.clearInterval(interval);
     }, [reduceMotion, tourFocused, tourHovering]);
 
+    useEffect(() => {
+        if (reduceMotion || heroPaused) return;
+        const interval = window.setInterval(() => {
+            setHeroSlideIndex((current) => (current + 1) % HERO_SLIDES.length);
+        }, 4200);
+        return () => window.clearInterval(interval);
+    }, [reduceMotion, heroPaused]);
+
     if (!mounted) {
         return <div className="min-h-screen bg-background" />;
     }
@@ -134,8 +181,9 @@ export default function Home() {
         };
 
     const activeTour = TOUR_TABS.find((t) => t.id === tourTab) ?? TOUR_TABS[0];
+    const activeHeroSlide = HERO_SLIDES[heroSlideIndex] ?? HERO_SLIDES[0];
     const themeSuffix = resolvedTheme === "dark" ? "dark" : "light";
-    const heroImage = `/images/hero-studio-v6-${themeSuffix}@2x.png`;
+    const activeHeroImage = `/images/${activeHeroSlide.imageBase}-${themeSuffix}@2x.png`;
     const activeTourImage = `/images/${activeTour.imageBase}-${themeSuffix}@2x.png`;
 
     return (
@@ -343,28 +391,76 @@ export default function Home() {
                             transition={{ duration: 0.45, delay: 0.1 }}
                             className="relative"
                         >
-	                            <div className="relative overflow-hidden rounded-3xl bg-panel shadow-[var(--cms-shadow-lg)] ring-1 ring-border/45">
-	                                <div className="relative aspect-[16/10]">
-	                                    <Image
-	                                        src={heroImage}
-	                                        alt="Menuvium studio preview"
-	                                        fill
-	                                        sizes="(min-width: 1024px) 50vw, 100vw"
-	                                        quality={95}
-	                                        className="object-cover object-center"
-	                                        priority
-	                                    />
+	                            <div
+	                                className="relative overflow-hidden rounded-3xl bg-panel shadow-[var(--cms-shadow-lg)] ring-1 ring-border/45"
+	                                onMouseEnter={() => setHeroPaused(true)}
+	                                onMouseLeave={() => setHeroPaused(false)}
+	                                onFocusCapture={() => setHeroPaused(true)}
+	                                onBlurCapture={(e) => {
+	                                    const next = e.relatedTarget as Node | null;
+	                                    if (!next || !e.currentTarget.contains(next)) {
+	                                        setHeroPaused(false);
+	                                    }
+	                                }}
+	                            >
+	                                <AnimatePresence mode="wait" initial={false}>
+	                                    <motion.div
+	                                        key={activeHeroSlide.id}
+	                                        initial={reduceMotion ? undefined : { opacity: 0, y: 10 }}
+	                                        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+	                                        exit={reduceMotion ? undefined : { opacity: 0, y: -8 }}
+	                                        transition={{ duration: 0.28 }}
+	                                        className="relative aspect-[16/10]"
+	                                    >
+	                                        <Image
+	                                            src={activeHeroImage}
+	                                            alt={`${activeHeroSlide.title} preview`}
+	                                            fill
+	                                            sizes="(min-width: 1024px) 50vw, 100vw"
+	                                            quality={95}
+	                                            className="object-cover object-center"
+	                                            priority
+	                                        />
+	                                        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/65 via-black/25 to-transparent" />
+	                                    </motion.div>
+	                                </AnimatePresence>
+
+	                                <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/20 bg-black/35 px-3 py-1 text-xs font-semibold text-white backdrop-blur">
+	                                    How it works
+	                                </div>
+
+	                                <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+	                                    <div className="rounded-2xl border border-white/15 bg-black/35 p-4 backdrop-blur-md">
+	                                        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/75">
+	                                            {activeHeroSlide.step}
+	                                        </p>
+	                                        <p className="mt-2 text-base font-semibold text-white sm:text-lg">
+	                                            {activeHeroSlide.title}
+	                                        </p>
+	                                        <p className="mt-1 text-xs text-white/75 sm:text-sm">{activeHeroSlide.subtitle}</p>
+	                                        <div className="mt-3 flex items-center gap-2">
+	                                            {HERO_SLIDES.map((slide, index) => {
+	                                                const active = index === heroSlideIndex;
+	                                                return (
+	                                                    <button
+	                                                        key={slide.id}
+	                                                        type="button"
+	                                                        aria-label={`Show ${slide.title}`}
+	                                                        aria-pressed={active}
+	                                                        onClick={() => setHeroSlideIndex(index)}
+	                                                        className={cn(
+	                                                            "h-2.5 rounded-full transition-all",
+	                                                            active
+	                                                                ? "w-7 bg-white"
+	                                                                : "w-2.5 bg-white/45 hover:bg-white/70"
+	                                                        )}
+	                                                    />
+	                                                );
+	                                            })}
+	                                        </div>
+	                                    </div>
 	                                </div>
 	                            </div>
-
-                            <div className="pointer-events-none absolute -bottom-8 -left-6 hidden w-56 rounded-3xl border border-border bg-panel p-4 shadow-[var(--cms-shadow-md)] sm:block">
-                                <p className="text-xs font-semibold text-muted">Today</p>
-                                <p className="mt-2 text-sm font-semibold">Updated menu prices</p>
-                                <div className="mt-3 flex items-center gap-2 text-xs text-muted">
-                                    <Check className="h-4 w-4 text-emerald-500" />
-                                    Published instantly
-                                </div>
-                            </div>
                         </motion.div>
                     </div>
                     </div>
