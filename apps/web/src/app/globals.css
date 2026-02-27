@@ -202,11 +202,13 @@ body::before {
 
 .dark body::before {
   background:
-    radial-gradient(900px circle at 20% -20%, rgba(251, 146, 60, 0.16), transparent 55%),
-    radial-gradient(900px circle at 92% 0%, rgba(59, 130, 246, 0.12), transparent 60%),
-    radial-gradient(900px circle at 55% 120%, rgba(168, 85, 247, 0.10), transparent 55%);
-  filter: blur(70px) saturate(120%);
-  opacity: 0.9;
+    radial-gradient(1000px circle at 16% -12%, rgba(251, 146, 60, 0.20), transparent 58%),
+    radial-gradient(1080px circle at 96% -4%, rgba(59, 130, 246, 0.17), transparent 60%),
+    radial-gradient(980px circle at 54% 32%, rgba(16, 185, 129, 0.11), transparent 66%),
+    radial-gradient(1100px circle at 18% 92%, rgba(251, 146, 60, 0.10), transparent 70%),
+    radial-gradient(1180px circle at 90% 86%, rgba(59, 130, 246, 0.10), transparent 72%);
+  filter: blur(84px) saturate(128%);
+  opacity: 0.86;
 }
 
 @keyframes floatSlow {

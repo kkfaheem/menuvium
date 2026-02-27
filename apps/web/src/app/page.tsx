@@ -139,7 +139,7 @@ export default function Home() {
     const activeTourImage = `/images/${activeTour.imageBase}-${themeSuffix}@2x.png`;
 
     return (
-        <div className="landing-shell min-h-screen overflow-x-hidden bg-background text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
+        <div className="landing-shell min-h-screen overflow-x-hidden bg-transparent text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
             {/* Top nav */}
             <header className="sticky top-0 z-50 border-b border-border bg-panel/95 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
                 <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
