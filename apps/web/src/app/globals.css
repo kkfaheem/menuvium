@@ -202,14 +202,32 @@ body::before {
 
 .dark body::before {
   background:
-    radial-gradient(1080px circle at 14% -14%, rgba(245, 158, 11, 0.17), transparent 60%),
-    radial-gradient(1080px circle at 96% -10%, rgba(59, 130, 246, 0.17), transparent 60%),
-    radial-gradient(1080px circle at 50% 116%, rgba(16, 185, 129, 0.17), transparent 60%),
-    radial-gradient(980px circle at 10% 82%, rgba(245, 158, 11, 0.09), transparent 72%),
-    radial-gradient(980px circle at 90% 82%, rgba(59, 130, 246, 0.09), transparent 72%),
-    radial-gradient(980px circle at 50% 24%, rgba(16, 185, 129, 0.09), transparent 72%);
-  filter: blur(88px) saturate(124%);
-  opacity: 0.82;
+    radial-gradient(1080px circle at 14% -14%, rgba(245, 158, 11, 0.16), transparent 60%),
+    radial-gradient(1080px circle at 96% -10%, rgba(59, 130, 246, 0.16), transparent 60%),
+    radial-gradient(1080px circle at 8% 112%, rgba(16, 185, 129, 0.16), transparent 60%),
+    radial-gradient(980px circle at 88% 108%, rgba(245, 158, 11, 0.09), transparent 72%),
+    radial-gradient(980px circle at 92% 24%, rgba(16, 185, 129, 0.09), transparent 72%),
+    radial-gradient(980px circle at 8% 24%, rgba(59, 130, 246, 0.09), transparent 72%);
+  filter: blur(90px) saturate(122%);
+  opacity: 0.8;
+  animation: ambientDriftA 56s ease-in-out infinite alternate;
+}
+
+.dark body::after {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1000px circle at 56% -20%, rgba(245, 158, 11, 0.11), transparent 66%),
+    radial-gradient(1000px circle at 40% 122%, rgba(59, 130, 246, 0.11), transparent 66%),
+    radial-gradient(920px circle at 106% 50%, rgba(16, 185, 129, 0.11), transparent 68%),
+    radial-gradient(920px circle at -6% 52%, rgba(245, 158, 11, 0.08), transparent 68%);
+  filter: blur(104px) saturate(116%);
+  opacity: 0.56;
+  transform: translate3d(0, 0, 0);
+  animation: ambientDriftB 74s ease-in-out infinite alternate;
 }
 
 @keyframes floatSlow {
@@ -250,6 +268,26 @@ body::before {
   }
 }
 
+@keyframes ambientDriftA {
+  0% {
+    transform: translate3d(0%, 0%, 0) scale(1);
+  }
+
+  100% {
+    transform: translate3d(-2.5%, 1.8%, 0) scale(1.03);
+  }
+}
+
+@keyframes ambientDriftB {
+  0% {
+    transform: translate3d(0%, 0%, 0) scale(1);
+  }
+
+  100% {
+    transform: translate3d(2.2%, -1.6%, 0) scale(1.02);
+  }
+}
+
 .float-slow {
   animation: floatSlow 12s ease-in-out infinite;
 }
@@ -261,6 +299,13 @@ body::before {
 .gradient-shift {
   background-size: 200% 200%;
   animation: gradientShift 16s ease infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dark body::before,
+  .dark body::after {
+    animation: none;
+  }
 }
 
 .cms-modal-overlay {
