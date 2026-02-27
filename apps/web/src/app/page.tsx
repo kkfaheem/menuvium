@@ -135,11 +135,15 @@ export default function Home() {
 
     const activeTour = TOUR_TABS.find((t) => t.id === tourTab) ?? TOUR_TABS[0];
     const themeSuffix = resolvedTheme === "dark" ? "dark" : "light";
-    const heroPreviewImage = `/images/tour-editor-v6-${themeSuffix}@2x.png`;
     const activeTourImage = `/images/${activeTour.imageBase}-${themeSuffix}@2x.png`;
 
     return (
-        <div className="landing-shell min-h-screen overflow-x-hidden bg-transparent text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
+        <div className="landing-shell relative isolate min-h-screen overflow-x-hidden bg-transparent text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
+            <div aria-hidden="true" className="landing-ambient">
+                <span className="landing-blob landing-blob-emerald" />
+                <span className="landing-blob landing-blob-blue" />
+                <span className="landing-blob landing-blob-orange" />
+            </div>
             {/* Top nav */}
             <header className="sticky top-0 z-50 border-b border-border bg-panel/95 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
                 <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
@@ -254,16 +258,16 @@ export default function Home() {
                 ) : null}
             </AnimatePresence>
 
-            <main>
+            <main className="relative z-10">
                 {/* Hero */}
-                <section className="relative py-24 sm:py-28 lg:py-32">
+                <section className="relative py-24 sm:py-32 lg:py-36">
                     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-                        <div className="grid items-center gap-14 lg:grid-cols-[0.74fr,1.26fr] lg:gap-16">
+                        <div className="grid items-center gap-16 lg:grid-cols-[0.64fr,1.36fr] lg:gap-20">
                             <motion.div
                                 initial="hidden"
                                 animate="visible"
                                 variants={fadeUp ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
-                                className="max-w-xl space-y-8"
+                                className="max-w-2xl space-y-10"
                             >
                                 <motion.div
                                     variants={fadeUp}
@@ -273,32 +277,32 @@ export default function Home() {
                                     Built for modern restaurants
                                 </motion.div>
 
-                                <div className="space-y-5">
+                                <div className="space-y-6">
                                     <motion.h1
                                         variants={fadeUp}
-                                        className="max-w-[13ch] font-heading text-5xl font-bold tracking-tight sm:text-6xl lg:text-[4.25rem] lg:leading-[1.02]"
+                                        className="max-w-[12ch] font-heading text-5xl font-extrabold tracking-[-0.03em] sm:text-6xl lg:text-[4.5rem] lg:leading-[0.96]"
                                     >
                                         Run your QR menu <span className="text-[var(--cms-accent)]">live.</span>
                                     </motion.h1>
 
-                                    <motion.p variants={fadeUp} className="max-w-[35ch] text-base leading-relaxed text-muted sm:text-lg">
+                                    <motion.p variants={fadeUp} className="max-w-[62ch] text-base leading-relaxed text-muted sm:text-lg">
                                         Edit instantly. Publish in seconds. Add photoreal AR.
                                     </motion.p>
                                 </div>
 
                                 <motion.div
                                     variants={fadeUp}
-                                    className="inline-flex w-full max-w-[460px] flex-col gap-3 rounded-2xl bg-panel/60 p-2.5 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl sm:flex-row sm:items-center"
+                                    className="flex w-full max-w-[34rem] flex-col gap-4 pt-1 sm:flex-row sm:items-center"
                                 >
                                     <Link
                                         href="/login"
-                                        className="inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-6 text-base font-semibold text-white shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-[var(--cms-accent-strong)] hover:shadow-[var(--cms-shadow-md)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                                        className="inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-[var(--cms-accent)] px-6 text-base font-semibold text-white shadow-sm transition-all duration-200 ease-out hover:scale-[1.01] hover:bg-[var(--cms-accent-strong)] hover:shadow-[var(--cms-shadow-md)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                                     >
                                         Start free <ArrowRight className="ml-2 h-4 w-4" />
                                     </Link>
                                     <Link
                                         href="#how-it-works"
-                                        className="inline-flex h-12 flex-1 items-center justify-center rounded-xl border border-black/[0.08] bg-panel/45 px-6 text-base font-semibold text-foreground shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-panel/70 hover:shadow-[var(--cms-shadow-sm)] dark:border-white/[0.12]"
+                                        className="inline-flex h-12 flex-1 items-center justify-center rounded-xl border border-black/[0.08] bg-panel/52 px-6 text-base font-semibold text-foreground shadow-sm transition-all duration-200 ease-out hover:scale-[1.01] hover:bg-panel/72 hover:shadow-[var(--cms-shadow-sm)] dark:border-white/[0.12]"
                                     >
                                         Watch workflow
                                     </Link>
@@ -313,49 +317,88 @@ export default function Home() {
                                 initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5, delay: 0.12 }}
-                                className="relative mx-auto w-full max-w-[940px] lg:max-w-[1180px] lg:translate-x-8"
+                                className="relative mx-auto w-full max-w-[1260px] lg:translate-x-10"
                             >
                                 <div
                                     aria-hidden="true"
-                                    className="pointer-events-none absolute inset-x-6 bottom-6 top-4 rounded-[2.9rem] bg-[radial-gradient(84%_78%_at_50%_52%,color-mix(in_srgb,var(--cms-accent)_20%,transparent),transparent)] blur-2xl"
+                                    className="hero-showcase-glow"
                                 />
-                                <motion.div
-                                    animate={reduceMotion ? { y: 0 } : { y: [0, -3, 0] }}
-                                    transition={reduceMotion ? undefined : { duration: 9, repeat: Infinity, ease: "easeInOut" }}
-                                    className="relative"
+                                <div
+                                    className="hero-showcase-frame relative"
+                                    onMouseEnter={() => setTourHovering(true)}
+                                    onMouseLeave={() => setTourHovering(false)}
+                                    onFocusCapture={() => setTourFocused(true)}
+                                    onBlurCapture={(e) => {
+                                        const next = e.relatedTarget as Node | null;
+                                        if (!next || !e.currentTarget.contains(next)) {
+                                            setTourFocused(false);
+                                        }
+                                    }}
                                 >
-                                    <div className="relative overflow-hidden rounded-[2.4rem] shadow-[var(--cms-shadow-lg)]">
-                                        <div
-                                            className="relative aspect-[16/10] overflow-hidden rounded-[2.4rem]"
-                                            style={{
-                                                WebkitMaskImage: "radial-gradient(140% 125% at 52% 50%, #000 62%, transparent 100%)",
-                                                maskImage: "radial-gradient(140% 125% at 52% 50%, #000 62%, transparent 100%)",
-                                            }}
-                                        >
-                                            <Image
-                                                src={heroPreviewImage}
-                                                alt="Editing a menu item in Menuvium"
-                                                fill
-                                                sizes="(min-width: 1024px) 66vw, 100vw"
-                                                quality={100}
-                                                className="origin-center scale-[1.2] object-cover object-[57%_44%] sm:scale-[1.14]"
-                                                priority
+                                    <div className="hero-showcase-shell relative overflow-hidden rounded-[2rem] p-3 sm:rounded-[2.15rem] sm:p-4">
+                                        <div className="overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-panel/80 shadow-[0_1px_0_rgba(255,255,255,0.08)] sm:rounded-[1.8rem]">
+                                            <div className="flex flex-wrap items-center gap-3 border-b border-white/[0.08] bg-panelStrong/65 px-4 py-3 sm:gap-4 sm:px-5">
+                                                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
+                                                    Workflow
+                                                </p>
+                                                <div className="inline-flex flex-1 items-center gap-1 overflow-x-auto rounded-xl border border-border/70 bg-panel/80 p-1 text-xs font-semibold backdrop-blur-xl">
+                                                    {TOUR_TABS.map((tab) => {
+                                                        const active = tab.id === tourTab;
+                                                        return (
+                                                            <button
+                                                                key={tab.id}
+                                                                type="button"
+                                                                onClick={() => setTourTab(tab.id)}
+                                                                className={cn(
+                                                                    "h-9 rounded-lg px-3 whitespace-nowrap transition-colors",
+                                                                    active
+                                                                        ? "bg-panelStrong text-foreground shadow-[var(--cms-shadow-sm)]"
+                                                                        : "text-muted hover:text-foreground hover:bg-pill"
+                                                                )}
+                                                                aria-pressed={active}
+                                                            >
+                                                                {tab.label}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="relative aspect-[16/11] overflow-hidden sm:aspect-[16/10] lg:aspect-[16/9]">
+                                            <AnimatePresence mode="wait" initial={false}>
+                                                <motion.div
+                                                    key={`hero-${activeTour.id}`}
+                                                    initial={reduceMotion ? undefined : { opacity: 0 }}
+                                                    animate={reduceMotion ? undefined : { opacity: 1 }}
+                                                    exit={reduceMotion ? undefined : { opacity: 0 }}
+                                                    transition={{ duration: 0.45, ease: "easeInOut" }}
+                                                    className="absolute inset-0"
+                                                >
+                                                    <Image
+                                                        src={activeTourImage}
+                                                        alt={`${activeTour.label} screen in Menuvium`}
+                                                        fill
+                                                        sizes="(min-width: 1280px) 62vw, (min-width: 1024px) 58vw, 100vw"
+                                                        quality={100}
+                                                        className="origin-center scale-[1.07] object-cover object-[53%_18%] sm:scale-[1.04]"
+                                                        priority
+                                                    />
+                                                </motion.div>
+                                            </AnimatePresence>
+                                            <div
+                                                aria-hidden="true"
+                                                className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#06080f]/35 via-transparent to-transparent"
                                             />
                                         </div>
                                     </div>
-
-                                    <motion.div
-                                        initial={reduceMotion ? undefined : { opacity: 0, y: 10 }}
-                                        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.32, delay: 0.25 }}
-                                        className="absolute bottom-3 left-4 right-4 rounded-2xl border border-black/[0.08] bg-panel/72 p-4 shadow-[var(--cms-shadow-md)] backdrop-blur-xl dark:border-white/[0.12] sm:left-auto sm:right-6 sm:w-[320px]"
-                                    >
-                                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Live update</p>
-                                        <p className="mt-1.5 text-sm font-semibold text-foreground">Update prices instantly</p>
-                                        <p className="mt-1 text-xs leading-relaxed text-muted">
-                                            Edit once in the studio. Guests see the change immediately on the same QR menu.
-                                        </p>
-                                    </motion.div>
+                                </div>
+                                <motion.div
+                                    initial={reduceMotion ? undefined : { opacity: 0, y: 8 }}
+                                    animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.36, delay: 0.2 }}
+                                    className="hero-support-chip absolute -right-1 top-8 hidden rounded-full border border-white/[0.14] bg-panel/72 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted shadow-[var(--cms-shadow-sm)] backdrop-blur-xl sm:inline-flex"
+                                >
+                                    Live studio
                                 </motion.div>
                             </motion.div>
                         </div>

@@ -95,6 +95,79 @@ html {
   --cms-shadow-lg: 0 28px 100px rgba(0, 0, 0, 0.78);
 }
 
+.landing-ambient {
+  position: fixed;
+  inset: -38vh -34vw;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.landing-blob {
+  position: absolute;
+  width: 170vmax;
+  height: 170vmax;
+  border-radius: 9999px;
+  filter: blur(132px) saturate(114%);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.landing-blob-emerald {
+  left: -62%;
+  top: -48%;
+  background:
+    radial-gradient(circle at 54% 48%, rgba(16, 185, 129, 0.26), rgba(20, 184, 166, 0.17) 28%, transparent 66%);
+  animation: landingBlobDriftEmerald 28s ease-in-out infinite alternate;
+}
+
+.landing-blob-blue {
+  right: -64%;
+  top: -56%;
+  background:
+    radial-gradient(circle at 45% 50%, rgba(59, 130, 246, 0.24), rgba(37, 99, 235, 0.16) 30%, transparent 68%);
+  animation: landingBlobDriftBlue 34s ease-in-out infinite alternate;
+}
+
+.landing-blob-orange {
+  right: -56%;
+  bottom: -62%;
+  background:
+    radial-gradient(circle at 45% 46%, rgba(251, 146, 60, 0.22), rgba(245, 158, 11, 0.14) 28%, transparent 66%);
+  animation: landingBlobDriftOrange 40s ease-in-out infinite alternate;
+}
+
+.hero-showcase-glow {
+  position: absolute;
+  inset: -12% -8% -16%;
+  border-radius: 2.5rem;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 70% at 24% 52%, rgba(16, 185, 129, 0.14), transparent 72%),
+    radial-gradient(62% 74% at 76% 42%, rgba(59, 130, 246, 0.14), transparent 72%),
+    radial-gradient(70% 82% at 52% 64%, color-mix(in srgb, var(--cms-accent) 30%, transparent), transparent 74%);
+  filter: blur(42px);
+  opacity: 0.8;
+  transform: translate3d(0, 0, 0);
+}
+
+.hero-showcase-frame {
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  animation: heroShowcaseFloat 26s ease-in-out infinite;
+}
+
+.hero-showcase-shell {
+  border: 1px solid color-mix(in srgb, var(--cms-border) 86%, rgba(255, 255, 255, 0.3));
+  background: color-mix(in srgb, var(--cms-panel) 88%, transparent);
+  box-shadow:
+    0 34px 90px -56px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -22px 44px -38px rgba(0, 0, 0, 0.55);
+  will-change: box-shadow;
+  animation: heroShowcaseBreath 16s ease-in-out infinite;
+}
+
 /* Surface utility classes (kept as `.glass*` for backwards-compat) */
 .glass {
   position: relative;
@@ -230,6 +303,11 @@ body::before {
   animation: ambientDriftB 74s ease-in-out infinite alternate;
 }
 
+body:has(.landing-shell)::before,
+body:has(.landing-shell)::after {
+  content: none;
+}
+
 @keyframes floatSlow {
 
   0%,
@@ -288,6 +366,76 @@ body::before {
   }
 }
 
+@keyframes landingBlobDriftEmerald {
+  0% {
+    transform: translate3d(-6vw, -5vh, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(-1.5vw, 2vh, 0) scale(1.02);
+  }
+
+  100% {
+    transform: translate3d(5vw, 7vh, 0) scale(1.04);
+  }
+}
+
+@keyframes landingBlobDriftBlue {
+  0% {
+    transform: translate3d(5vw, -4vh, 0) scale(1.01);
+  }
+
+  50% {
+    transform: translate3d(0, 2vh, 0) scale(1.03);
+  }
+
+  100% {
+    transform: translate3d(-6vw, 8vh, 0) scale(1.05);
+  }
+}
+
+@keyframes landingBlobDriftOrange {
+  0% {
+    transform: translate3d(4vw, 5vh, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+  }
+
+  100% {
+    transform: translate3d(-7vw, -6vh, 0) scale(1.04);
+  }
+}
+
+@keyframes heroShowcaseFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(0, -3px, 0);
+  }
+}
+
+@keyframes heroShowcaseBreath {
+  0%,
+  100% {
+    box-shadow:
+      0 34px 92px -56px rgba(0, 0, 0, 0.62),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -22px 44px -38px rgba(0, 0, 0, 0.55);
+  }
+
+  50% {
+    box-shadow:
+      0 38px 102px -52px rgba(0, 0, 0, 0.68),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 -24px 50px -36px rgba(0, 0, 0, 0.58);
+  }
+}
+
 .float-slow {
   animation: floatSlow 12s ease-in-out infinite;
 }
@@ -303,7 +451,10 @@ body::before {
 
 @media (prefers-reduced-motion: reduce) {
   .dark body::before,
-  .dark body::after {
+  .dark body::after,
+  .landing-blob,
+  .hero-showcase-frame,
+  .hero-showcase-shell {
     animation: none;
   }
 }
