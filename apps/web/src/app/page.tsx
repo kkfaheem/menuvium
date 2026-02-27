@@ -258,7 +258,7 @@ export default function Home() {
                 {/* Hero */}
                 <section className="relative py-24 sm:py-28 lg:py-32">
                     <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-                        <div className="grid items-center gap-14 lg:grid-cols-[0.84fr,1.16fr] lg:gap-16">
+                        <div className="grid items-center gap-14 lg:grid-cols-[0.74fr,1.26fr] lg:gap-16">
                             <motion.div
                                 initial="hidden"
                                 animate="visible"
@@ -267,7 +267,7 @@ export default function Home() {
                             >
                                 <motion.div
                                     variants={fadeUp}
-                                    className="inline-flex items-center gap-2 rounded-full border border-border bg-panel/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted shadow-[var(--cms-shadow-sm)] backdrop-blur-xl"
+                                    className="inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-panel/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted shadow-[var(--cms-shadow-sm)] backdrop-blur-xl dark:border-white/[0.12]"
                                 >
                                     <Sparkles className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
                                     Built for modern restaurants
@@ -288,7 +288,7 @@ export default function Home() {
 
                                 <motion.div
                                     variants={fadeUp}
-                                    className="inline-flex w-full max-w-[460px] flex-col gap-3 rounded-2xl border border-border bg-panel/65 p-2.5 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl sm:flex-row sm:items-center"
+                                    className="inline-flex w-full max-w-[460px] flex-col gap-3 rounded-2xl bg-panel/60 p-2.5 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl sm:flex-row sm:items-center"
                                 >
                                     <Link
                                         href="/login"
@@ -298,7 +298,7 @@ export default function Home() {
                                     </Link>
                                     <Link
                                         href="#how-it-works"
-                                        className="inline-flex h-12 flex-1 items-center justify-center rounded-xl border border-border bg-panel/45 px-6 text-base font-semibold text-foreground shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-panel/70 hover:shadow-[var(--cms-shadow-sm)]"
+                                        className="inline-flex h-12 flex-1 items-center justify-center rounded-xl border border-black/[0.08] bg-panel/45 px-6 text-base font-semibold text-foreground shadow-sm transition-all duration-200 ease-out hover:scale-[1.02] hover:bg-panel/70 hover:shadow-[var(--cms-shadow-sm)] dark:border-white/[0.12]"
                                     >
                                         Watch workflow
                                     </Link>
@@ -313,30 +313,34 @@ export default function Home() {
                                 initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5, delay: 0.12 }}
-                                className="relative mx-auto w-full max-w-[860px] lg:max-w-none"
+                                className="relative mx-auto w-full max-w-[940px] lg:max-w-[1180px] lg:translate-x-8"
                             >
                                 <div
                                     aria-hidden="true"
-                                    className="pointer-events-none absolute inset-x-8 bottom-12 top-8 rounded-[2.6rem] bg-[radial-gradient(75%_75%_at_50%_50%,color-mix(in_srgb,var(--cms-accent)_20%,transparent),transparent)] blur-2xl"
+                                    className="pointer-events-none absolute inset-x-6 bottom-6 top-4 rounded-[2.9rem] bg-[radial-gradient(84%_78%_at_50%_52%,color-mix(in_srgb,var(--cms-accent)_20%,transparent),transparent)] blur-2xl"
                                 />
                                 <motion.div
                                     animate={reduceMotion ? { y: 0 } : { y: [0, -3, 0] }}
                                     transition={reduceMotion ? undefined : { duration: 9, repeat: Infinity, ease: "easeInOut" }}
                                     className="relative"
                                 >
-                                    <div className="relative overflow-hidden rounded-[2.15rem] border border-border bg-panel/72 p-2.5 shadow-[var(--cms-shadow-lg)] backdrop-blur-xl">
-                                        <div className="relative overflow-hidden rounded-[1.55rem] border border-border/70 bg-panelStrong/90">
-                                            <div className="relative aspect-[16/10]">
-                                                <Image
-                                                    src={heroPreviewImage}
-                                                    alt="Editing a menu item in Menuvium"
-                                                    fill
-                                                    sizes="(min-width: 1024px) 58vw, 100vw"
-                                                    quality={100}
-                                                    className="origin-center scale-[1.15] object-cover object-[57%_44%] sm:scale-[1.1]"
-                                                    priority
-                                                />
-                                            </div>
+                                    <div className="relative overflow-hidden rounded-[2.4rem] shadow-[var(--cms-shadow-lg)]">
+                                        <div
+                                            className="relative aspect-[16/10] overflow-hidden rounded-[2.4rem]"
+                                            style={{
+                                                WebkitMaskImage: "radial-gradient(140% 125% at 52% 50%, #000 62%, transparent 100%)",
+                                                maskImage: "radial-gradient(140% 125% at 52% 50%, #000 62%, transparent 100%)",
+                                            }}
+                                        >
+                                            <Image
+                                                src={heroPreviewImage}
+                                                alt="Editing a menu item in Menuvium"
+                                                fill
+                                                sizes="(min-width: 1024px) 66vw, 100vw"
+                                                quality={100}
+                                                className="origin-center scale-[1.2] object-cover object-[57%_44%] sm:scale-[1.14]"
+                                                priority
+                                            />
                                         </div>
                                     </div>
 
@@ -344,7 +348,7 @@ export default function Home() {
                                         initial={reduceMotion ? undefined : { opacity: 0, y: 10 }}
                                         animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                         transition={{ duration: 0.32, delay: 0.25 }}
-                                        className="absolute bottom-4 left-4 right-4 rounded-2xl border border-border bg-panel/72 p-4 shadow-[var(--cms-shadow-md)] backdrop-blur-xl sm:left-auto sm:right-6 sm:w-[320px]"
+                                        className="absolute bottom-3 left-4 right-4 rounded-2xl border border-black/[0.08] bg-panel/72 p-4 shadow-[var(--cms-shadow-md)] backdrop-blur-xl dark:border-white/[0.12] sm:left-auto sm:right-6 sm:w-[320px]"
                                     >
                                         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Live update</p>
                                         <p className="mt-1.5 text-sm font-semibold text-foreground">Update prices instantly</p>

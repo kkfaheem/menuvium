@@ -88,7 +88,7 @@ html {
 .dark .landing-shell {
   --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 74%, transparent);
   --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 70%, transparent);
-  --cms-border: color-mix(in srgb, var(--cms-border-solid) 86%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 72%, transparent);
   --cms-glass-highlight: rgba(255, 255, 255, 0.12);
   --cms-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.45);
   --cms-shadow-md: 0 16px 50px rgba(0, 0, 0, 0.62);
@@ -202,13 +202,14 @@ body::before {
 
 .dark body::before {
   background:
-    radial-gradient(1000px circle at 16% -12%, rgba(251, 146, 60, 0.20), transparent 58%),
-    radial-gradient(1080px circle at 96% -4%, rgba(59, 130, 246, 0.17), transparent 60%),
-    radial-gradient(980px circle at 54% 32%, rgba(16, 185, 129, 0.11), transparent 66%),
-    radial-gradient(1100px circle at 18% 92%, rgba(251, 146, 60, 0.10), transparent 70%),
-    radial-gradient(1180px circle at 90% 86%, rgba(59, 130, 246, 0.10), transparent 72%);
-  filter: blur(84px) saturate(128%);
-  opacity: 0.86;
+    radial-gradient(1080px circle at 14% -14%, rgba(245, 158, 11, 0.17), transparent 60%),
+    radial-gradient(1080px circle at 96% -10%, rgba(59, 130, 246, 0.17), transparent 60%),
+    radial-gradient(1080px circle at 50% 116%, rgba(16, 185, 129, 0.17), transparent 60%),
+    radial-gradient(980px circle at 10% 82%, rgba(245, 158, 11, 0.09), transparent 72%),
+    radial-gradient(980px circle at 90% 82%, rgba(59, 130, 246, 0.09), transparent 72%),
+    radial-gradient(980px circle at 50% 24%, rgba(16, 185, 129, 0.09), transparent 72%);
+  filter: blur(88px) saturate(124%);
+  opacity: 0.82;
 }
 
 @keyframes floatSlow {
