@@ -254,7 +254,11 @@ export default function Home() {
     const activeShowcase = SHOWCASE_TABS.find((tab) => tab.id === showcaseTab) ?? SHOWCASE_TABS[0];
     const themeSuffix = resolvedTheme === "dark" ? "dark" : "light";
 
-    const heroGuestImage = `/images/tour-publish-v6-${themeSuffix}@2x.png`;
+    const heroStudioImage = `/images/tour-editor-v6-${themeSuffix}@2x.png`;
+    const heroGuestImage = "/images/hero/guest-view-reference.png";
+    const heroArSceneImage = `/images/tour-ar-v6-${themeSuffix}@2x.png`;
+    const heroArDishImage = "/images/hero/wagyu_burger.png";
+    const heroQrImage = "/images/hero/qr-reference.png";
     const activeShowcaseImage = `/images/${activeShowcase.imageBase}-${themeSuffix}@2x.png`;
 
     return (
@@ -389,12 +393,13 @@ export default function Home() {
                                     variants={fadeUp}
                                     className="mt-6 max-w-[11ch] font-heading text-5xl font-extrabold tracking-[-0.03em] sm:text-6xl lg:text-[4.45rem] lg:leading-[0.95]"
                                 >
-                                    Keep every table synced with one living menu.
+                                    <span className="block">Digital menus.</span>
+                                    <span className="block">Dynamic QR.</span>
+                                    <span className="block">Immersive AR.</span>
                                 </motion.h1>
 
                                 <motion.p variants={fadeUp} className="mt-6 max-w-[64ch] text-base leading-relaxed text-muted sm:text-lg">
-                                    Menuvium gives teams one place to edit, style, and publish. Guests always see the latest menu,
-                                    without app installs or reprinting QR codes.
+                                    One place to edit. A menu that evolves. A QR that never changes.
                                 </motion.p>
 
                                 <motion.div variants={fadeUp} className="mt-8 flex w-full max-w-[34rem] flex-col gap-4 sm:flex-row sm:items-center">
@@ -414,9 +419,9 @@ export default function Home() {
 
                                 <motion.ul variants={fadeUp} className="mt-7 grid gap-2 text-sm text-muted sm:grid-cols-3 sm:gap-3">
                                     {[
-                                        "No app install for guests",
-                                        "Instant updates behind one QR",
-                                        "Works on iOS and Android",
+                                        "No app required",
+                                        "Instant updates",
+                                        "iOS & Android ready",
                                     ].map((line) => (
                                         <li key={line} className="flex items-start gap-2">
                                             <Check className="mt-0.5 h-4 w-4 text-emerald-400" />
@@ -433,41 +438,98 @@ export default function Home() {
                                 className="relative mx-auto w-full max-w-[760px]"
                             >
                                 <div className="hero-live-visual relative">
-                                    <div className="hero-live-panel absolute left-[0%] top-[30%] z-20 w-[60%] rounded-2xl border border-white/[0.14] bg-panel/82 p-3.5 shadow-[var(--cms-shadow-md)] backdrop-blur-xl sm:top-[26%] sm:w-[56%] sm:p-4">
-                                        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">Studio update</p>
-                                        <div className="mt-3 rounded-xl border border-border/70 bg-panelStrong/70 px-3 py-2">
-                                            <p className="text-xs text-muted">Salmon</p>
-                                            <p className="text-sm font-semibold text-foreground">
-                                                <span className="text-muted line-through">$24</span>
-                                                <span className="ml-2 text-[var(--cms-accent)]">$26</span>
-                                            </p>
-                                        </div>
-                                        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold text-emerald-200">
-                                            <span className="hero-live-dot" />
-                                            Live on guest menu
-                                        </div>
-                                    </div>
-
-                                    <div aria-hidden="true" className="hero-live-connector absolute left-[50%] top-[46%] h-[1px] w-[14%]" />
-
-                                    <div className="hero-phone-shell relative ml-auto w-[66%] rounded-[2.2rem] border border-white/[0.14] bg-panel/82 p-2.5 shadow-[var(--cms-shadow-lg)] sm:w-[62%]">
-                                        <div className="hero-phone-screen relative overflow-hidden rounded-[1.8rem] border border-white/[0.08] bg-[#050810]">
-                                            <div className="relative aspect-[9/19]">
+                                    <div className="hero-stage relative rounded-[2rem] p-1.5 sm:p-2">
+                                        <div className="hero-mockup-label hero-mockup-label-tablet">Menu Studio</div>
+                                        <div className="hero-stage-screen relative overflow-hidden rounded-[1.6rem] sm:rounded-[1.8rem]">
+                                            <div className="relative aspect-[16/10] lg:aspect-[16/9]">
                                                 <Image
-                                                    src={heroGuestImage}
-                                                    alt="Guest menu preview on mobile"
+                                                    src={heroStudioImage}
+                                                    alt="Menuvium Studio editor preview"
                                                     fill
-                                                    sizes="(min-width: 1024px) 34vw, 72vw"
+                                                    sizes="(min-width: 1024px) 42vw, 84vw"
                                                     quality={100}
-                                                    className="origin-center scale-[1.28] object-cover object-[84%_44%]"
+                                                    className="object-cover object-top"
                                                     priority
                                                 />
-                                                <div
-                                                    aria-hidden="true"
-                                                    className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-[#060812]/76 to-transparent"
+                                                <div className="hero-stage-screen-overlay" aria-hidden="true" />
+                                                <div className="hero-stage-live-badge absolute right-3 top-3 inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]">
+                                                    <span className="hero-live-dot" />
+                                                    Live
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="hero-qr-card absolute left-1/2 top-[10%] z-30 w-[24%] -translate-x-1/2 rounded-[0.34rem] p-[0.2rem] sm:w-[24%]">
+                                            <div className="hero-mockup-label">Dynamic QR</div>
+                                            <div className="hero-qr-grid rounded-[0.2rem]">
+                                                <Image
+                                                    src={heroQrImage}
+                                                    alt="Dynamic QR code"
+                                                    fill
+                                                    sizes="(min-width: 1024px) 12vw, 22vw"
+                                                    quality={100}
+                                                    className="hero-qr-image"
                                                 />
-                                                <div className="absolute inset-x-3 top-3 rounded-full border border-white/[0.14] bg-black/28 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/86 backdrop-blur-md">
-                                                    Guest View
+                                            </div>
+                                        </div>
+
+                                        <div className="hero-stack-phone absolute -bottom-12 left-[7%] z-20 w-[24.6%] rounded-[0.96rem] p-[0.11rem] sm:-bottom-12 sm:w-[24.6%]">
+                                            <div className="hero-mockup-label">Guest View</div>
+                                            <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
+                                                <span aria-hidden="true" className="hero-phone-punch" />
+                                                <div className="hero-guest-preview relative aspect-[9/19]">
+                                                    <Image
+                                                        src={heroGuestImage}
+                                                        alt="Guest menu mobile preview"
+                                                        fill
+                                                        sizes="(min-width: 1024px) 18vw, 30vw"
+                                                        quality={96}
+                                                        className="object-cover object-[50%_8%]"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="hero-stack-phone hero-stack-phone-ar absolute -bottom-12 left-[66%] z-20 w-[24.6%] rounded-[0.96rem] p-[0.11rem] sm:-bottom-12 sm:w-[24.6%]">
+                                            <div className="hero-mockup-label">AR Mode</div>
+                                            <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
+                                                <span aria-hidden="true" className="hero-phone-punch" />
+                                                <div className="hero-ar-ui relative aspect-[9/19]">
+                                                    <Image
+                                                        src={heroArSceneImage}
+                                                        alt="Restaurant scene"
+                                                        fill
+                                                        sizes="(min-width: 1024px) 18vw, 30vw"
+                                                        quality={92}
+                                                        className="hero-ar-scene-bg object-cover object-center"
+                                                    />
+                                                    <div aria-hidden="true" className="hero-ar-scene-vignette absolute inset-0" />
+                                                    <div aria-hidden="true" className="hero-ar-table-plane absolute inset-x-0 bottom-0 h-[38%]" />
+
+                                                    <div className="hero-ar-target absolute left-1/2 top-[56%] z-20 h-[44%] w-[86%] -translate-x-1/2 -translate-y-1/2">
+                                                        <span className="hero-ar-corner hero-ar-corner-tl" />
+                                                        <span className="hero-ar-corner hero-ar-corner-tr" />
+                                                        <span className="hero-ar-corner hero-ar-corner-bl" />
+                                                        <span className="hero-ar-corner hero-ar-corner-br" />
+                                                    </div>
+
+                                                    <div className="hero-ar-dish-wrap absolute inset-x-0 bottom-[14%] z-30 mx-auto h-[48%] w-[94%]">
+                                                        <Image
+                                                            src={heroArDishImage}
+                                                            alt="Dish rendered in augmented reality"
+                                                            fill
+                                                            sizes="(min-width: 1024px) 16vw, 28vw"
+                                                            quality={96}
+                                                            className="object-contain drop-shadow-[0_22px_20px_rgba(0,0,0,0.45)]"
+                                                        />
+                                                    </div>
+
+                                                    <div className="hero-ar-surface-shadow absolute left-1/2 top-[74%] z-20 h-5 w-[62%] -translate-x-1/2 rounded-[999px]" />
+                                                    <div className="hero-ar-ui-controls absolute inset-x-0 bottom-3 z-40 flex items-end justify-center gap-2.5">
+                                                        <span className="hero-ar-ui-btn hero-ar-ui-btn-side" />
+                                                        <span className="hero-ar-ui-btn hero-ar-ui-btn-main" />
+                                                        <span className="hero-ar-ui-btn hero-ar-ui-btn-side" />
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
