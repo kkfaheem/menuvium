@@ -29,24 +29,32 @@ import { cn } from "@/lib/cn";
 type ShowcaseTab = "editor" | "themes" | "publish" | "ar";
 type PricingPeriod = "monthly" | "annual";
 type HeroFocusCard = "studio" | "qr" | "guest" | "ar";
+type HeroPhoneCard = Exclude<HeroFocusCard, "studio">;
 type HeroFocusSlide = "studio" | "trio";
 type HeroFocusOffset = { x: number; y: number };
+type HeroPhoneFrame = { left: number; top: number; width: number; height: number };
 
 const HERO_FOCUS_CARDS: HeroFocusCard[] = ["studio", "qr", "guest", "ar"];
+const HERO_PHONE_CARDS: HeroPhoneCard[] = ["qr", "guest", "ar"];
 const HERO_FOCUS_SLIDES: HeroFocusSlide[] = ["studio", "trio"];
 const HERO_FOCUS_STEP_MS = 3500;
 const HERO_FOCUS_RESUME_DELAY_MS = 1000;
 const HERO_FOCUS_ACTIVE_SCALES: Record<HeroFocusCard, number> = {
-    studio: 1.2,
-    qr: 1.5,
-    guest: 1.5,
-    ar: 1.5,
+    studio: 1.03,
+    qr: 1,
+    guest: 1,
+    ar: 1,
 };
 const HERO_FOCUS_ZERO_OFFSETS: Record<HeroFocusCard, HeroFocusOffset> = {
     studio: { x: 0, y: 0 },
     qr: { x: 0, y: 0 },
     guest: { x: 0, y: 0 },
     ar: { x: 0, y: 0 },
+};
+const HERO_PHONE_ZERO_LAYOUT: Record<HeroPhoneCard, HeroPhoneFrame> = {
+    qr: { left: 0, top: 0, width: 0, height: 0 },
+    guest: { left: 0, top: 0, width: 0, height: 0 },
+    ar: { left: 0, top: 0, width: 0, height: 0 },
 };
 
 const SHOWCASE_TABS = [
@@ -233,6 +241,7 @@ export default function Home() {
     const [heroFocusSlide, setHeroFocusSlide] = useState<HeroFocusSlide>("studio");
     const [heroFocusPaused, setHeroFocusPaused] = useState(false);
     const [heroFocusOffsets, setHeroFocusOffsets] = useState<Record<HeroFocusCard, HeroFocusOffset>>(HERO_FOCUS_ZERO_OFFSETS);
+    const [heroPhoneLayout, setHeroPhoneLayout] = useState<Record<HeroPhoneCard, HeroPhoneFrame>>(HERO_PHONE_ZERO_LAYOUT);
     const heroFocusResumeTimeoutRef = useRef<number | null>(null);
     const heroSceneRef = useRef<HTMLDivElement | null>(null);
     const heroCardRefs = useRef<Record<HeroFocusCard, HTMLDivElement | null>>({
@@ -326,66 +335,51 @@ export default function Home() {
                 const guestCard = heroCardRefs.current.guest;
                 const arCard = heroCardRefs.current.ar;
                 if (!studioCard || !qrCard || !guestCard || !arCard) return;
+                const tabletLeft = studioCard.offsetLeft;
+                const tabletTop = studioCard.offsetTop;
+                const tabletWidth = studioCard.offsetWidth;
+                const tabletHeight = studioCard.offsetHeight;
+                const phoneHeight = tabletHeight;
+                const phoneWidth = phoneHeight * (9 / 19);
+                const phoneGap = Math.max(0, (tabletWidth - phoneWidth * 3) / 2);
 
-                const studioCenterX = studioCard.offsetLeft + studioCard.offsetWidth / 2;
-                const studioCenterY = studioCard.offsetTop + studioCard.offsetHeight / 2;
-                const guestScaledWidth = guestCard.offsetWidth * HERO_FOCUS_ACTIVE_SCALES.guest;
-                const qrScaledWidth = qrCard.offsetWidth * HERO_FOCUS_ACTIVE_SCALES.qr;
-                const arScaledWidth = arCard.offsetWidth * HERO_FOCUS_ACTIVE_SCALES.ar;
-                const trioGap = Math.min(44, Math.max(24, Math.round(scene.offsetWidth * 0.034)));
-                const trioTotalWidth = qrScaledWidth + guestScaledWidth + arScaledWidth + trioGap * 2;
-                const sceneRect = scene.getBoundingClientRect();
-                const viewportMargin = 20;
-                const desiredTrioCenterViewportX = sceneRect.left + studioCenterX;
-                const minTrioCenterViewportX = viewportMargin + trioTotalWidth / 2;
-                const maxTrioCenterViewportX = window.innerWidth - viewportMargin - trioTotalWidth / 2;
-                const trioCenterViewportX =
-                    minTrioCenterViewportX <= maxTrioCenterViewportX
-                        ? Math.min(
-                            maxTrioCenterViewportX,
-                            Math.max(minTrioCenterViewportX, desiredTrioCenterViewportX),
-                        )
-                        : desiredTrioCenterViewportX;
-                const trioCenterX = trioCenterViewportX - sceneRect.left;
-                const trioLeft = trioCenterX - trioTotalWidth / 2;
-
-                const qrTargetCenterX = trioLeft + qrScaledWidth / 2;
-                const guestTargetCenterX =
-                    qrTargetCenterX + qrScaledWidth / 2 + trioGap + guestScaledWidth / 2;
-                const arTargetCenterX =
-                    guestTargetCenterX + guestScaledWidth / 2 + trioGap + arScaledWidth / 2;
-                const trioTargetCenterY = studioCenterY;
-
-                const qrCenterX = qrCard.offsetLeft + qrCard.offsetWidth / 2;
-                const qrCenterY = qrCard.offsetTop + qrCard.offsetHeight / 2;
-                const guestCenterX = guestCard.offsetLeft + guestCard.offsetWidth / 2;
-                const guestCenterY = guestCard.offsetTop + guestCard.offsetHeight / 2;
-                const arCenterX = arCard.offsetLeft + arCard.offsetWidth / 2;
-                const arCenterY = arCard.offsetTop + arCard.offsetHeight / 2;
-
-                const nextOffsets: Record<HeroFocusCard, HeroFocusOffset> = {
-                    studio: { x: 0, y: 0 },
+                const nextPhoneLayout: Record<HeroPhoneCard, HeroPhoneFrame> = {
                     qr: {
-                        x: Math.round((qrTargetCenterX - qrCenterX) * 10) / 10,
-                        y: Math.round((trioTargetCenterY - qrCenterY) * 10) / 10,
+                        left: tabletLeft,
+                        top: tabletTop,
+                        width: phoneWidth,
+                        height: phoneHeight,
                     },
                     guest: {
-                        x: Math.round((guestTargetCenterX - guestCenterX) * 10) / 10,
-                        y: Math.round((trioTargetCenterY - guestCenterY) * 10) / 10,
+                        left: tabletLeft + phoneWidth + phoneGap,
+                        top: tabletTop,
+                        width: phoneWidth,
+                        height: phoneHeight,
                     },
                     ar: {
-                        x: Math.round((arTargetCenterX - arCenterX) * 10) / 10,
-                        y: Math.round((trioTargetCenterY - arCenterY) * 10) / 10,
+                        left: tabletLeft + (phoneWidth + phoneGap) * 2,
+                        top: tabletTop,
+                        width: phoneWidth,
+                        height: phoneHeight,
                     },
                 };
 
-                setHeroFocusOffsets((prev) => {
-                    const changed = HERO_FOCUS_CARDS.some((card) => {
-                        const dx = Math.abs(prev[card].x - nextOffsets[card].x);
-                        const dy = Math.abs(prev[card].y - nextOffsets[card].y);
-                        return dx > 0.5 || dy > 0.5;
+                setHeroPhoneLayout((prev) => {
+                    const changed = HERO_PHONE_CARDS.some((card) => {
+                        const framePrev = prev[card];
+                        const frameNext = nextPhoneLayout[card];
+                        const dl = Math.abs(framePrev.left - frameNext.left);
+                        const dt = Math.abs(framePrev.top - frameNext.top);
+                        const dw = Math.abs(framePrev.width - frameNext.width);
+                        const dh = Math.abs(framePrev.height - frameNext.height);
+                        return dl > 0.5 || dt > 0.5 || dw > 0.5 || dh > 0.5;
                     });
-                    return changed ? nextOffsets : prev;
+                    return changed ? nextPhoneLayout : prev;
+                });
+
+                setHeroFocusOffsets((prev) => {
+                    const changed = HERO_FOCUS_CARDS.some((card) => prev[card].x !== 0 || prev[card].y !== 0);
+                    return changed ? HERO_FOCUS_ZERO_OFFSETS : prev;
                 });
             });
         };
@@ -407,6 +401,34 @@ export default function Home() {
         };
     }, [mounted]);
 
+    const activeShowcase = SHOWCASE_TABS.find((tab) => tab.id === showcaseTab) ?? SHOWCASE_TABS[0];
+    const themeSuffix = resolvedTheme === "dark" ? "dark" : "light";
+
+    const heroStudioImage = `/images/tour-editor-v6-${themeSuffix}@2x.png`;
+    const heroGuestImage = "/images/hero/guest-view-reference.png";
+    const heroArSceneImage = `/images/tour-ar-v6-${themeSuffix}@2x.png`;
+    const heroArDishImage = "/images/hero/wagyu_burger.png";
+    const heroQrScanPhoneImage = "/images/hero/qr-scan-phone-reference.jpg";
+    const activeShowcaseImage = `/images/${activeShowcase.imageBase}-${themeSuffix}@2x.png`;
+
+    useEffect(() => {
+        const preloadSources = [
+            heroStudioImage,
+            heroGuestImage,
+            heroArSceneImage,
+            heroArDishImage,
+            heroQrScanPhoneImage,
+            activeShowcaseImage,
+        ];
+
+        preloadSources.forEach((src) => {
+            const img = new window.Image();
+            img.decoding = "async";
+            img.loading = "eager";
+            img.src = src;
+        });
+    }, [heroStudioImage, heroGuestImage, heroArSceneImage, heroArDishImage, heroQrScanPhoneImage, activeShowcaseImage]);
+
     if (!mounted) {
         return <div className="min-h-screen bg-background" />;
     }
@@ -424,16 +446,6 @@ export default function Home() {
             hidden: { opacity: 0, y: 18 },
             visible: { opacity: 1, y: 0 },
         };
-
-    const activeShowcase = SHOWCASE_TABS.find((tab) => tab.id === showcaseTab) ?? SHOWCASE_TABS[0];
-    const themeSuffix = resolvedTheme === "dark" ? "dark" : "light";
-
-    const heroStudioImage = `/images/tour-editor-v6-${themeSuffix}@2x.png`;
-    const heroGuestImage = "/images/hero/guest-view-reference.png";
-    const heroArSceneImage = `/images/tour-ar-v6-${themeSuffix}@2x.png`;
-    const heroArDishImage = "/images/hero/wagyu_burger.png";
-    const heroQrScanPhoneImage = "/images/hero/qr-scan-phone-reference.jpg";
-    const activeShowcaseImage = `/images/${activeShowcase.imageBase}-${themeSuffix}@2x.png`;
     const getHeroFocusState = (card: HeroFocusCard): "active" | "inactive" | "static" => {
         if (reduceMotion) return "static";
         if (heroFocusSlide === "studio") return card === "studio" ? "active" : "inactive";
@@ -446,6 +458,16 @@ export default function Home() {
             "--focus-shift-y": `${heroFocusOffsets[card].y}px`,
             "--focus-active-scale": `${activeScale}`,
         } as CSSProperties;
+    };
+    const getHeroPhoneLayoutStyle = (card: HeroPhoneCard): CSSProperties => {
+        const frame = heroPhoneLayout[card];
+        if (frame.width <= 0 || frame.height <= 0) return {};
+        return {
+            left: `${frame.left}px`,
+            top: `${frame.top}px`,
+            width: `${frame.width}px`,
+            height: `${frame.height}px`,
+        };
     };
 
     return (
@@ -560,8 +582,8 @@ export default function Home() {
 
             <main className="relative z-10 pt-16">
                 <section className="relative pb-20 pt-24 sm:pb-24 sm:pt-32 lg:pb-28 lg:pt-36">
-                    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
-                        <div className="grid items-center gap-14 lg:grid-cols-[1fr,1fr] lg:gap-24">
+                    <div className="mx-auto w-full max-w-[84rem] px-4 sm:px-6">
+                        <div className="grid items-center gap-14 lg:grid-cols-[0.96fr,1.04fr] lg:gap-20 xl:gap-24">
                             <motion.div
                                 initial="hidden"
                                 animate="visible"
@@ -621,8 +643,8 @@ export default function Home() {
                             <motion.div
                                 initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5, delay: 0.16 }}
-                                className="relative mx-auto w-full max-w-[760px] lg:ml-6 xl:ml-8"
+                                transition={{ duration: 0.34, delay: 0.04 }}
+                                className="relative mx-auto w-full max-w-[760px] lg:ml-6 xl:ml-8 2xl:max-w-[820px]"
                             >
                                 <div
                                     className="hero-live-visual hero-focus-stack relative"
@@ -644,7 +666,7 @@ export default function Home() {
                                             ref={(node) => {
                                                 heroCardRefs.current.studio = node;
                                             }}
-                                            className="hero-stage hero-focus-card hero-focus-card-studio relative left-2 top-2 mx-auto w-full sm:left-3 sm:top-3"
+                                            className="hero-stage hero-focus-card hero-focus-card-studio relative top-2 mx-auto w-full sm:left-3 sm:top-3"
                                             data-focus-state={getHeroFocusState("studio")}
                                             style={getHeroFocusStyle("studio")}
                                             onMouseEnter={() => engageHeroFocusSlide("studio")}
@@ -675,22 +697,24 @@ export default function Home() {
                                             ref={(node) => {
                                                 heroCardRefs.current.qr = node;
                                             }}
-                                            className="hero-stack-phone hero-stack-phone-qr hero-focus-card hero-focus-card-qr absolute -bottom-12 left-[7%] w-[24.6%] rounded-[0.96rem] p-[0.11rem] sm:-bottom-12 sm:w-[24.6%]"
+                                            className="hero-stack-phone hero-stack-phone-qr hero-focus-card hero-focus-card-qr absolute rounded-[0.96rem] p-[0.11rem]"
                                             data-focus-state={getHeroFocusState("qr")}
-                                            style={getHeroFocusStyle("qr")}
+                                            style={{ ...getHeroFocusStyle("qr"), ...getHeroPhoneLayoutStyle("qr") }}
                                             onMouseEnter={() => engageHeroFocusSlide("trio")}
                                             onFocus={() => engageHeroFocusSlide("trio")}
                                             tabIndex={reduceMotion ? -1 : 0}
                                         >
                                             <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
                                                 <span aria-hidden="true" className="hero-phone-punch" />
-                                                <div className="relative aspect-[9/19]">
+                                                <div className="relative h-full w-full">
                                                     <Image
                                                         src={heroQrScanPhoneImage}
                                                         alt="Phone screen scanning a tabletop QR code menu in a restaurant"
                                                         fill
                                                         sizes="(min-width: 1024px) 18vw, 30vw"
                                                         quality={96}
+                                                        priority
+                                                        fetchPriority="high"
                                                         className="object-cover object-center"
                                                     />
                                                 </div>
@@ -701,22 +725,24 @@ export default function Home() {
                                             ref={(node) => {
                                                 heroCardRefs.current.guest = node;
                                             }}
-                                            className="hero-stack-phone hero-focus-card hero-focus-card-guest absolute -bottom-12 left-[35%] w-[24.6%] rounded-[0.96rem] p-[0.11rem] sm:-bottom-12 sm:w-[24.6%]"
+                                            className="hero-stack-phone hero-focus-card hero-focus-card-guest absolute rounded-[0.96rem] p-[0.11rem]"
                                             data-focus-state={getHeroFocusState("guest")}
-                                            style={getHeroFocusStyle("guest")}
+                                            style={{ ...getHeroFocusStyle("guest"), ...getHeroPhoneLayoutStyle("guest") }}
                                             onMouseEnter={() => engageHeroFocusSlide("trio")}
                                             onFocus={() => engageHeroFocusSlide("trio")}
                                             tabIndex={reduceMotion ? -1 : 0}
                                         >
                                             <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
                                                 <span aria-hidden="true" className="hero-phone-punch" />
-                                                <div className="hero-guest-preview relative aspect-[9/19]">
+                                                <div className="hero-guest-preview relative h-full w-full">
                                                     <Image
                                                         src={heroGuestImage}
                                                         alt="Guest menu mobile preview"
                                                         fill
                                                         sizes="(min-width: 1024px) 18vw, 30vw"
                                                         quality={96}
+                                                        priority
+                                                        fetchPriority="high"
                                                         className="object-cover object-[50%_8%]"
                                                     />
                                                 </div>
@@ -727,22 +753,24 @@ export default function Home() {
                                             ref={(node) => {
                                                 heroCardRefs.current.ar = node;
                                             }}
-                                            className="hero-stack-phone hero-stack-phone-ar hero-focus-card hero-focus-card-ar absolute -bottom-12 left-[66%] w-[24.6%] rounded-[0.96rem] p-[0.11rem] sm:-bottom-12 sm:w-[24.6%]"
+                                            className="hero-stack-phone hero-stack-phone-ar hero-focus-card hero-focus-card-ar absolute rounded-[0.96rem] p-[0.11rem]"
                                             data-focus-state={getHeroFocusState("ar")}
-                                            style={getHeroFocusStyle("ar")}
+                                            style={{ ...getHeroFocusStyle("ar"), ...getHeroPhoneLayoutStyle("ar") }}
                                             onMouseEnter={() => engageHeroFocusSlide("trio")}
                                             onFocus={() => engageHeroFocusSlide("trio")}
                                             tabIndex={reduceMotion ? -1 : 0}
                                         >
                                             <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
                                                 <span aria-hidden="true" className="hero-phone-punch" />
-                                                <div className="hero-ar-ui relative aspect-[9/19]">
+                                                <div className="hero-ar-ui relative h-full w-full">
                                                     <Image
                                                         src={heroArSceneImage}
                                                         alt="Restaurant scene"
                                                         fill
                                                         sizes="(min-width: 1024px) 18vw, 30vw"
                                                         quality={92}
+                                                        priority
+                                                        fetchPriority="high"
                                                         className="hero-ar-scene-bg object-cover object-center"
                                                     />
                                                     <div aria-hidden="true" className="hero-ar-scene-vignette absolute inset-0" />
@@ -762,6 +790,8 @@ export default function Home() {
                                                             fill
                                                             sizes="(min-width: 1024px) 16vw, 28vw"
                                                             quality={96}
+                                                            priority
+                                                            fetchPriority="high"
                                                             className="object-contain drop-shadow-[0_22px_20px_rgba(0,0,0,0.45)]"
                                                         />
                                                     </div>

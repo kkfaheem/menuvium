@@ -263,6 +263,8 @@ html {
 
 .hero-phone-screen {
   border: 0.8px solid color-mix(in srgb, var(--hero-screen-bezel) 62%, var(--hero-frame-border));
+  width: 100%;
+  height: 100%;
   background: linear-gradient(180deg, var(--hero-screen-bezel) 0%, color-mix(in srgb, var(--hero-screen-bezel) 78%, #0b0f18) 100%);
   box-shadow:
     inset 0 0 0 1px var(--hero-screen-bezel-soft),
@@ -322,6 +324,7 @@ html {
 
 .hero-stage {
   border: 0.85px solid var(--hero-frame-border-strong);
+  box-sizing: border-box;
   border-radius: 1.28rem;
   padding: 0.34rem;
   background: linear-gradient(160deg, var(--hero-tablet-shell-top) 0%, var(--hero-tablet-shell-mid) 46%, var(--hero-tablet-shell-bottom) 100%);
@@ -365,6 +368,7 @@ html {
 
 .hero-stage-screen {
   border: 0.85px solid color-mix(in srgb, var(--hero-screen-bezel) 64%, var(--hero-frame-border));
+  box-sizing: border-box;
   border-radius: 0.82rem;
   background: var(--hero-screen-bezel);
   box-shadow:
@@ -414,11 +418,11 @@ html {
   --focus-shift-y: 0px;
   --focus-active-z: 80;
   --focus-inactive-z: 12;
-  --focus-inactive-scale: 0.98;
-  --focus-active-scale: 1.04;
-  --focus-inactive-opacity: 0.5;
-  --focus-inactive-blur: 8px;
-  --focus-inactive-brightness: 0.84;
+  --focus-inactive-scale: 1;
+  --focus-active-scale: 1;
+  --focus-inactive-opacity: 0.62;
+  --focus-inactive-blur: 5px;
+  --focus-inactive-brightness: 0.9;
   --focus-active-shadow:
     0 32px 72px -46px rgba(0, 0, 0, 0.62),
     var(--hero-phone-shadow);
@@ -426,18 +430,18 @@ html {
   backface-visibility: hidden;
   will-change: transform, opacity, filter;
   transition:
-    translate 940ms cubic-bezier(0.22, 1, 0.36, 1),
-    scale 940ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 940ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 940ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 940ms cubic-bezier(0.22, 1, 0.36, 1);
+    translate 700ms cubic-bezier(0.22, 0.84, 0.3, 1),
+    scale 700ms cubic-bezier(0.22, 0.84, 0.3, 1),
+    opacity 700ms cubic-bezier(0.22, 0.84, 0.3, 1),
+    filter 700ms cubic-bezier(0.22, 0.84, 0.3, 1),
+    box-shadow 700ms cubic-bezier(0.22, 0.84, 0.3, 1);
 }
 
 .hero-focus-card[data-focus-state="active"] {
   translate: var(--focus-shift-x) var(--focus-shift-y);
   scale: var(--focus-active-scale);
   opacity: 1;
-  filter: blur(0) brightness(1) saturate(1);
+  filter: blur(0) brightness(1) saturate(1.02);
   z-index: var(--focus-active-z);
   box-shadow: var(--focus-active-shadow);
 }
@@ -446,7 +450,7 @@ html {
   translate: 0 0;
   scale: var(--focus-inactive-scale);
   opacity: var(--focus-inactive-opacity);
-  filter: blur(var(--focus-inactive-blur)) brightness(var(--focus-inactive-brightness)) saturate(0.88);
+  filter: blur(var(--focus-inactive-blur)) brightness(var(--focus-inactive-brightness)) saturate(0.94);
   z-index: var(--focus-inactive-z);
 }
 
@@ -503,10 +507,18 @@ html {
 }
 
 @media (max-width: 768px) {
+  .hero-live-visual {
+    padding-inline: 0.35rem;
+  }
+
+  .hero-focus-scene {
+    overflow-x: clip;
+  }
+
   .hero-focus-card {
-    --focus-inactive-opacity: 0.7;
-    --focus-inactive-blur: 4px;
-    transition-duration: 780ms;
+    --focus-inactive-opacity: 0.74;
+    --focus-inactive-blur: 3px;
+    transition-duration: 620ms;
   }
 
   .hero-focus-caption,
@@ -552,6 +564,7 @@ html {
 }
 
 .hero-stack-phone {
+  box-sizing: border-box;
   border: 1px solid var(--hero-frame-border-strong);
   background: linear-gradient(160deg, var(--hero-phone-shell-top) 0%, var(--hero-phone-shell-mid) 52%, var(--hero-phone-shell-bottom) 100%);
   box-shadow:
@@ -590,10 +603,6 @@ html {
   background: linear-gradient(180deg, var(--hero-shell-edge-light) 0%, var(--hero-shell-metal-line) 50%, var(--hero-shell-edge-dark) 100%);
   opacity: 0.9;
   pointer-events: none;
-}
-
-.hero-stack-phone.hero-focus-card[data-focus-state="active"] {
-  animation: none;
 }
 
 .hero-stack-phone-ar {
