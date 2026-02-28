@@ -136,46 +136,58 @@ const BENEFITS = [
     detail: string;
 }>;
 
-const HOW_STEPS = [
-    {
-        step: "01",
-        title: "Build",
-        detail: "Import or create your menu structure in one workspace.",
-        imageBase: "tour-editor-v6",
-    },
-    {
-        step: "02",
-        title: "Style",
-        detail: "Tune theme and presentation so your brand feels consistent.",
-        imageBase: "tour-themes-v6",
-    },
-    {
-        step: "03",
-        title: "Publish",
-        detail: "Push updates to the same QR instantly and optionally add AR.",
-        imageBase: "tour-publish-v6",
-    },
-] satisfies Array<{
-    step: string;
-    title: string;
-    detail: string;
-    imageBase: string;
-}>;
-
-const TRUST_CHIPS = ["Bistro V", "Urban Eatery", "The Golden Spoon", "Caffeine Fix", "Pizza & Co"];
-
 const FAQ_ITEMS = [
     {
         q: "Will my QR code change when I edit the menu?",
         a: "No. Your QR link stays stable while content updates behind it instantly.",
     },
     {
-        q: "Can I customize the menu design?",
-        a: "Yes. Theme controls let you tune layout and style while keeping mobile readability.",
+        q: "Can I import an existing PDF menu?",
+        a: "Yes. Upload a PDF and Menuvium helps parse your menu into editable sections and items.",
     },
     {
-        q: "Can I import an existing PDF menu?",
-        a: "Yes. Upload a PDF or image set and Menuvium helps structure your content quickly.",
+        q: "Can I import multiple files at once?",
+        a: "Yes. You can import multiple menu files in one flow, including PDFs and images.",
+    },
+    {
+        q: "Can I import from a URL instead of uploading files?",
+        a: "Yes. Paste a public URL and Menuvium can parse supported menu content from that link.",
+    },
+    {
+        q: "Can I import a Menuvium export ZIP?",
+        a: "Yes. You can upload a Menuvium export ZIP to bring over menu data and related assets quickly.",
+    },
+    {
+        q: "Can I customize the menu design?",
+        a: "Yes. Theme controls let you tune layout, typography, and color while keeping mobile readability.",
+    },
+    {
+        q: "Can I switch between different visual themes?",
+        a: "Yes. Each menu can use different built-in themes, and you can update theme choices whenever needed.",
+    },
+    {
+        q: "Can I add photos to menu items?",
+        a: "Yes. Items support photos, and you can update or replace them as your menu changes.",
+    },
+    {
+        q: "Can I manage sold-out items quickly?",
+        a: "Yes. Availability can be toggled per item so guests see sold-out states without reprinting anything.",
+    },
+    {
+        q: "Can sold-out items be hidden on the public menu?",
+        a: "Yes. Sold-out behavior supports dimming or hiding, based on your display preference.",
+    },
+    {
+        q: "Does the public menu support search?",
+        a: "Yes. Guests can search by item name or description directly on the public menu page.",
+    },
+    {
+        q: "Can guests filter by dietary tags and allergens?",
+        a: "Yes. Public menus support dietary and allergen filtering when those tags are added to items.",
+    },
+    {
+        q: "Can I define my own dietary tags and allergens?",
+        a: "Yes. You can manage dietary tags and allergen labels in settings and apply them to items.",
     },
     {
         q: "How does AR dish generation work?",
@@ -184,6 +196,34 @@ const FAQ_ITEMS = [
     {
         q: "Do guests need an app for AR?",
         a: "No separate app install is required; supported devices open AR through native viewers.",
+    },
+    {
+        q: "What if AR generation is still processing?",
+        a: "Menuvium tracks AR status and updates progress until model assets are ready.",
+    },
+    {
+        q: "Can my team collaborate on the same company?",
+        a: "Yes. You can invite teammates by email and control what each person can do.",
+    },
+    {
+        q: "Can I set different permissions for team members?",
+        a: "Yes. Permissions can be set for availability changes, item editing, and menu management.",
+    },
+    {
+        q: "Can I manage multiple companies and menus?",
+        a: "Yes. The dashboard supports multiple companies, each with its own menus and settings.",
+    },
+    {
+        q: "Can I reorder categories and items?",
+        a: "Yes. Menu structure is editable with drag-and-drop reordering for categories and items.",
+    },
+    {
+        q: "Can I preview the public menu before sharing it?",
+        a: "Yes. Each menu has a public page preview so you can verify updates before sharing with guests.",
+    },
+    {
+        q: "Do you support custom domains?",
+        a: "Custom domain support is available on higher tiers for teams that need branded links.",
     },
 ] as const;
 
@@ -341,26 +381,35 @@ export default function Home() {
                 const tabletHeight = studioCard.offsetHeight;
                 const phoneHeight = tabletHeight;
                 const phoneWidth = phoneHeight * (9 / 19);
-                const phoneGap = Math.max(0, (tabletWidth - phoneWidth * 3) / 2);
+                const desiredInset = Math.min(24, Math.max(6, tabletWidth * 0.018));
+                const maxInsetToFit = Math.max(0, (tabletWidth - phoneWidth * 3) / 2);
+                const groupInset = Math.min(desiredInset, maxInsetToFit);
+                const groupLeft = tabletLeft + groupInset;
+                const groupWidth = tabletWidth - groupInset * 2;
+                const qrLeft = groupLeft;
+                const arLeft = groupLeft + groupWidth - phoneWidth;
+                const phoneGap = Math.max(0, (arLeft - qrLeft - phoneWidth * 2) / 2);
+                const guestLeft = qrLeft + phoneWidth + phoneGap;
+                const round1 = (value: number) => Math.round(value * 10) / 10;
 
                 const nextPhoneLayout: Record<HeroPhoneCard, HeroPhoneFrame> = {
                     qr: {
-                        left: tabletLeft,
-                        top: tabletTop,
-                        width: phoneWidth,
-                        height: phoneHeight,
+                        left: round1(qrLeft),
+                        top: round1(tabletTop),
+                        width: round1(phoneWidth),
+                        height: round1(phoneHeight),
                     },
                     guest: {
-                        left: tabletLeft + phoneWidth + phoneGap,
-                        top: tabletTop,
-                        width: phoneWidth,
-                        height: phoneHeight,
+                        left: round1(guestLeft),
+                        top: round1(tabletTop),
+                        width: round1(phoneWidth),
+                        height: round1(phoneHeight),
                     },
                     ar: {
-                        left: tabletLeft + (phoneWidth + phoneGap) * 2,
-                        top: tabletTop,
-                        width: phoneWidth,
-                        height: phoneHeight,
+                        left: round1(arLeft),
+                        top: round1(tabletTop),
+                        width: round1(phoneWidth),
+                        height: round1(phoneHeight),
                     },
                 };
 
@@ -487,9 +536,7 @@ export default function Home() {
                     <Logo size="lg" />
 
                     <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-muted">
-                        <Link href="#benefits" className="transition-colors hover:text-foreground">Benefits</Link>
                         <Link href="#how-it-works" className="transition-colors hover:text-foreground">How it works</Link>
-                        <Link href="#showcase" className="transition-colors hover:text-foreground">Showcase</Link>
                         <Link href="#pricing" className="transition-colors hover:text-foreground">Pricing</Link>
                         <Link href="#faq" className="transition-colors hover:text-foreground">FAQ</Link>
                     </nav>
@@ -558,9 +605,7 @@ export default function Home() {
 
                             <div className="mt-4 space-y-1">
                                 {[
-                                    { href: "#benefits", label: "Benefits" },
                                     { href: "#how-it-works", label: "How it works" },
-                                    { href: "#showcase", label: "Showcase" },
                                     { href: "#pricing", label: "Pricing" },
                                     { href: "#faq", label: "FAQ" },
                                 ].map((item) => (
@@ -581,9 +626,9 @@ export default function Home() {
             </AnimatePresence>
 
             <main className="relative z-10 pt-16">
-                <section className="relative pb-20 pt-24 sm:pb-24 sm:pt-32 lg:pb-28 lg:pt-36">
-                    <div className="mx-auto w-full max-w-[84rem] px-4 sm:px-6">
-                        <div className="grid items-center gap-14 lg:grid-cols-[0.96fr,1.04fr] lg:gap-20 xl:gap-24">
+                <section className="relative pb-10 pt-16 sm:pb-12 sm:pt-24 lg:pb-14 lg:pt-28">
+                    <div className="mx-auto w-full max-w-7xl px-4 sm:px-6">
+                        <div className="grid items-center gap-14 lg:grid-cols-[0.9fr,1.1fr] lg:gap-10 xl:gap-12">
                             <motion.div
                                 initial="hidden"
                                 animate="visible"
@@ -600,14 +645,14 @@ export default function Home() {
 
                                 <motion.h1
                                     variants={fadeUp}
-                                    className="mt-6 max-w-[11ch] font-heading text-5xl font-extrabold tracking-[-0.03em] sm:text-6xl lg:text-[4.45rem] lg:leading-[0.95]"
+                                    className="mt-6 max-w-[11ch] font-heading text-4xl font-extrabold tracking-[-0.03em] sm:text-5xl lg:text-[3.95rem] lg:leading-[0.96]"
                                 >
                                     <span className="block">Digital menus.</span>
                                     <span className="block">Dynamic QR.</span>
                                     <span className="block">Immersive AR.</span>
                                 </motion.h1>
 
-                                <motion.p variants={fadeUp} className="mt-6 max-w-[64ch] text-base leading-relaxed text-muted sm:text-lg">
+                                <motion.p variants={fadeUp} className="mt-6 max-w-[64ch] text-sm leading-relaxed text-muted sm:text-base">
                                     One place to edit. A menu that evolves. A QR that never changes.
                                 </motion.p>
 
@@ -619,14 +664,14 @@ export default function Home() {
                                         Start free <ArrowRight className="ml-2 h-4 w-4" />
                                     </Link>
                                     <Link
-                                        href="#showcase"
+                                        href="#how-it-works"
                                         className="inline-flex h-12 flex-1 items-center justify-center rounded-xl border border-black/[0.08] bg-panel/52 px-6 text-base font-semibold text-foreground shadow-sm transition-all duration-200 ease-out hover:scale-[1.01] hover:bg-panel/72 hover:shadow-[var(--cms-shadow-sm)] dark:border-white/[0.12]"
                                     >
                                         See live demo
                                     </Link>
                                 </motion.div>
 
-                                <motion.ul variants={fadeUp} className="mt-7 grid gap-2 text-sm text-muted sm:grid-cols-3 sm:gap-3">
+                                <motion.ul variants={fadeUp} className="mt-7 grid gap-2 text-xs text-muted sm:grid-cols-3 sm:gap-3 sm:text-sm">
                                     {[
                                         "No app required",
                                         "Instant updates",
@@ -644,7 +689,7 @@ export default function Home() {
                                 initial={reduceMotion ? undefined : { opacity: 0, y: 16 }}
                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                 transition={{ duration: 0.34, delay: 0.04 }}
-                                className="relative mx-auto w-full max-w-[760px] lg:ml-6 xl:ml-8 2xl:max-w-[820px]"
+                                className="relative mx-auto w-full max-w-[760px] lg:-ml-2 lg:mx-0"
                             >
                                 <div
                                     className="hero-live-visual hero-focus-stack relative"
@@ -685,10 +730,6 @@ export default function Home() {
                                                         priority
                                                     />
                                                     <div className="hero-stage-screen-overlay" aria-hidden="true" />
-                                                    <div className="hero-stage-live-badge absolute right-3 top-3 inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]">
-                                                        <span className="hero-live-dot" />
-                                                        Live
-                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -809,121 +850,34 @@ export default function Home() {
                                 </div>
                             </motion.div>
                         </div>
+                        <motion.div
+                            initial="hidden"
+                            whileInView="visible"
+                            viewport={{ once: true, margin: "-120px" }}
+                            variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
+                            className="mt-8 sm:mt-9 lg:mt-10"
+                        >
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                                {BENEFITS.map(({ icon: Icon, title, detail }) => (
+                                    <motion.div
+                                        key={title}
+                                        variants={sectionReveal}
+                                        whileHover={reduceMotion ? undefined : { y: -3 }}
+                                        className="rounded-2xl border border-border bg-panel/78 p-5 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl transition-colors hover:bg-panelStrong/78"
+                                    >
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pill">
+                                            <Icon className="h-4.5 w-4.5 text-[var(--cms-accent)]" />
+                                        </div>
+                                        <p className="mt-4 text-sm font-semibold text-foreground">{title}</p>
+                                        <p className="mt-2 text-sm text-muted">{detail}</p>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </motion.div>
                     </div>
                 </section>
 
-                <section className="border-y border-border bg-panelStrong/62 backdrop-blur-xl">
-                    <div className="mx-auto grid max-w-7xl gap-6 px-4 py-9 sm:px-6 md:grid-cols-[1fr,1.45fr] md:items-center">
-                        <p className="max-w-[58ch] text-sm font-medium text-muted">
-                            Trusted by teams moving fast, from single-location dining rooms to multi-brand restaurant groups.
-                        </p>
-                        <div className="flex flex-wrap items-center justify-start gap-2.5 md:justify-end">
-                            {TRUST_CHIPS.map((name) => (
-                                <span
-                                    key={name}
-                                    className="inline-flex items-center rounded-full border border-border bg-panel/88 px-3.5 py-1.5 text-xs font-semibold tracking-[0.01em] text-muted"
-                                >
-                                    {name}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-
-                <section id="benefits" className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:py-28">
-                    <motion.div
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: true, margin: "-120px" }}
-                        variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
-                    >
-                        <motion.div variants={sectionReveal} className="max-w-3xl space-y-3">
-                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Why Menuvium</p>
-                            <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl lg:text-[2.9rem] lg:leading-tight">
-                                Built for teams that change menus daily, not quarterly.
-                            </h2>
-                            <p className="max-w-[64ch] text-sm leading-relaxed text-muted sm:text-base">
-                                Every capability is designed to reduce busywork and keep guest experience consistent in real time.
-                            </p>
-                        </motion.div>
-
-                        <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                            {BENEFITS.map(({ icon: Icon, title, detail }) => (
-                                <motion.div
-                                    key={title}
-                                    variants={sectionReveal}
-                                    whileHover={reduceMotion ? undefined : { y: -3 }}
-                                    className="rounded-2xl border border-border bg-panel/78 p-5 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl transition-colors hover:bg-panelStrong/78"
-                                >
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pill">
-                                        <Icon className="h-4.5 w-4.5 text-[var(--cms-accent)]" />
-                                    </div>
-                                    <p className="mt-4 text-sm font-semibold text-foreground">{title}</p>
-                                    <p className="mt-2 text-sm text-muted">{detail}</p>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </motion.div>
-                </section>
-
-                <section id="how-it-works" className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 sm:pb-24 lg:pb-28">
-                    <motion.div
-                        initial="hidden"
-                        whileInView="visible"
-                        viewport={{ once: true, margin: "-120px" }}
-                        variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
-                        className="rounded-[2rem] border border-border bg-panel/72 p-6 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl sm:p-10"
-                    >
-                        <motion.div variants={sectionReveal} className="max-w-3xl space-y-3">
-                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">How it works</p>
-                            <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">A focused 3-step loop.</h2>
-                            <p className="max-w-[62ch] text-sm leading-relaxed text-muted sm:text-base">
-                                Build once, polish fast, publish continuously. Each step has a clear owner and output.
-                            </p>
-                        </motion.div>
-
-                        <div className="relative mt-10 grid gap-4 lg:grid-cols-3">
-                            <div
-                                aria-hidden="true"
-                                className="pointer-events-none absolute left-[16%] right-[16%] top-[2.15rem] hidden h-px bg-gradient-to-r from-transparent via-white/[0.16] to-transparent lg:block"
-                            />
-
-                            {HOW_STEPS.map((step, idx) => (
-                                <motion.div
-                                    key={step.step}
-                                    variants={sectionReveal}
-                                    whileHover={reduceMotion ? undefined : { y: -3 }}
-                                    transition={{ duration: 0.2 }}
-                                    className="relative rounded-2xl border border-border bg-panelStrong/72 p-4 shadow-sm backdrop-blur-xl sm:p-5"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="inline-flex h-9 min-w-[2.4rem] items-center justify-center rounded-full border border-white/[0.16] bg-panel text-xs font-semibold text-foreground">
-                                            {step.step}
-                                        </div>
-                                        <span className={cn("how-step-dot", idx === 1 ? "how-step-dot-delay" : "")} />
-                                        <p className="text-sm font-semibold text-foreground">{step.title}</p>
-                                    </div>
-                                    <p className="mt-2 text-sm text-muted">{step.detail}</p>
-
-                                    <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.08] bg-[#05070f]">
-                                        <div className="relative aspect-[16/9]">
-                                            <Image
-                                                src={`/images/${step.imageBase}-${themeSuffix}@2x.png`}
-                                                alt={`${step.title} preview`}
-                                                fill
-                                                sizes="(min-width: 1024px) 28vw, (min-width: 640px) 44vw, 100vw"
-                                                quality={92}
-                                                className="object-cover object-top"
-                                            />
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </motion.div>
-                </section>
-
-                <section id="showcase" className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 sm:pb-24 lg:pb-28">
+                <section id="how-it-works" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
                     <motion.div
                         initial="hidden"
                         whileInView="visible"
@@ -933,8 +887,8 @@ export default function Home() {
                     >
                         <motion.div variants={sectionReveal} className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                             <div className="max-w-2xl space-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Product showcase</p>
-                                <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">One deep look inside Menuvium Studio.</h2>
+                                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">How it works</p>
+                                <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">How Menuvium works in real service.</h2>
                                 <p className="max-w-[64ch] text-sm leading-relaxed text-muted sm:text-base">
                                     Explore the core workflow with large, readable screens and smooth transitions.
                                 </p>
@@ -1022,7 +976,7 @@ export default function Home() {
                     </motion.div>
                 </section>
 
-                <section id="pricing" className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 sm:pb-24 lg:pb-28">
+                <section id="pricing" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
                     <motion.div
                         initial="hidden"
                         whileInView="visible"
@@ -1130,7 +1084,7 @@ export default function Home() {
                     </motion.div>
                 </section>
 
-                <section id="faq" className="mx-auto max-w-5xl px-4 pb-20 sm:px-6 sm:pb-24 lg:pb-28">
+                <section id="faq" className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-20 lg:py-24">
                     <motion.div
                         initial="hidden"
                         whileInView="visible"
