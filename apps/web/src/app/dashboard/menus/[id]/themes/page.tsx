@@ -4,30 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { ArrowLeft, ChevronDown, ExternalLink, Image, Loader2, Palette, QrCode, Search, X, Sparkles } from "lucide-react";
-import { MENU_THEMES, MenuThemeId } from "@/lib/menuThemes";
+import { ArrowLeft, ChevronDown, ExternalLink, Image, Loader2, Palette, Search, X, Sparkles } from "lucide-react";
+import { MENU_THEME_BY_ID, MENU_THEMES, MenuThemeId } from "@/lib/menuThemes";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
 import { ImageCropperModal } from "@/components/menus/ImageCropperModal";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
-
-interface Item {
-    id: string;
-    name: string;
-    description?: string;
-    price: number;
-    photo_url?: string | null;
-    photos?: { url: string }[];
-    is_sold_out?: boolean;
-}
-
-interface Category {
-    id: string;
-    name: string;
-    items: Item[];
-}
 
 interface TitleDesignConfig {
     enabled: boolean;
@@ -57,15 +41,12 @@ interface Menu {
     org_id: string;
 }
 
-type SampleItem = Item & { category: string };
-
 export default function MenuThemesPage() {
     const params = useParams();
     const router = useRouter();
     const { user } = useAuthenticator((context) => [context.user]);
     const { toast } = useToast();
     const [menu, setMenu] = useState<Menu | null>(null);
-    const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [savingThemeId, setSavingThemeId] = useState<MenuThemeId | null>(null);
     const apiBase = getApiBase();
@@ -82,8 +63,18 @@ export default function MenuThemesPage() {
     const [titleConfig, setTitleConfig] = useState<TitleDesignConfig | null>(null);
     const [generatingTitle, setGeneratingTitle] = useState(false);
     const [titleHint, setTitleHint] = useState("");
+    const [selectedThemeId, setSelectedThemeId] = useState<MenuThemeId>("noir");
+    const [previewRevision, setPreviewRevision] = useState(0);
+    const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
+    const previewScrollTopRef = useRef(0);
+    const previewSignatureRef = useRef<string | null>(null);
 
     const menuId = params.id as string;
+
+    const resolveThemeId = (themeId?: string | null): MenuThemeId => {
+        if (!themeId) return "noir";
+        return MENU_THEME_BY_ID[themeId as MenuThemeId] ? (themeId as MenuThemeId) : "noir";
+    };
 
     useEffect(() => {
         if (!menuId) return;
@@ -93,14 +84,9 @@ export default function MenuThemesPage() {
     const fetchMenuData = async (id: string) => {
         try {
             const token = await getAuthToken();
-            const [menuRes, catRes] = await Promise.all([
-                fetch(`${apiBase}/menus/${id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                }),
-                fetch(`${apiBase}/categories/${id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                })
-            ]);
+            const menuRes = await fetch(`${apiBase}/menus/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
             if (menuRes.ok) {
                 const menuData = (await menuRes.json()) as Menu;
                 const perms = await fetchOrgPermissions({ apiBase, token, orgId: menuData.org_id });
@@ -111,18 +97,12 @@ export default function MenuThemesPage() {
                 }
                 setMenu(menuData);
             }
-            if (catRes.ok) setCategories(await catRes.json());
         } catch (e) {
             console.error("Failed to load menu theme data", e);
         } finally {
             setLoading(false);
         }
     };
-
-    const sampleItems = useMemo<SampleItem[]>(() => {
-        const items = categories.flatMap((cat) => cat.items.map((item) => ({ ...item, category: cat.name })));
-        return items.slice(0, 3);
-    }, [categories]);
 
     useEffect(() => {
         if (bannerPreviewBlobUrlRef.current) {
@@ -158,7 +138,7 @@ export default function MenuThemesPage() {
     }, [search, selectedTags]);
 
     const orderedThemes = useMemo(() => {
-        const activeId = (menu?.theme || "noir") as MenuThemeId;
+        const activeId = resolveThemeId(menu?.theme);
         return filteredThemes.slice().sort((a, b) => {
             if (a.id === activeId) return -1;
             if (b.id === activeId) return 1;
@@ -166,10 +146,53 @@ export default function MenuThemesPage() {
         });
     }, [filteredThemes, menu?.theme]);
 
-    const activeTheme = useMemo(() => {
-        const activeId = (menu?.theme || "noir") as MenuThemeId;
-        return MENU_THEMES.find((theme) => theme.id === activeId) || MENU_THEMES[0];
-    }, [menu?.theme]);
+    const activeThemeId = useMemo(() => resolveThemeId(menu?.theme), [menu?.theme]);
+    const selectedTheme = useMemo(() => {
+        return MENU_THEME_BY_ID[selectedThemeId] || MENU_THEME_BY_ID.noir;
+    }, [selectedThemeId]);
+    const previewContentSignature = useMemo(
+        () =>
+            [
+                menu?.banner_url ?? "",
+                menu?.logo_url ?? "",
+                menu?.show_item_images === false ? "hide" : "show",
+                JSON.stringify(menu?.title_design_config ?? null),
+            ].join("|"),
+        [menu?.banner_url, menu?.logo_url, menu?.show_item_images, menu?.title_design_config]
+    );
+
+    const capturePreviewScrollPosition = () => {
+        const frameWindow = previewIframeRef.current?.contentWindow;
+        const frameDocument = previewIframeRef.current?.contentDocument;
+        previewScrollTopRef.current =
+            frameWindow?.scrollY ??
+            frameDocument?.documentElement.scrollTop ??
+            frameDocument?.body.scrollTop ??
+            0;
+    };
+
+    const previewHref = useMemo(() => {
+        const params = new URLSearchParams({
+            theme: selectedThemeId,
+            v: String(previewRevision),
+        });
+        return `/r/${menuId}?${params.toString()}`;
+    }, [menuId, selectedThemeId, previewRevision]);
+
+    useEffect(() => {
+        setSelectedThemeId(activeThemeId);
+    }, [activeThemeId]);
+
+    useEffect(() => {
+        if (previewSignatureRef.current === null) {
+            previewSignatureRef.current = previewContentSignature;
+            return;
+        }
+        if (previewSignatureRef.current === previewContentSignature) return;
+        capturePreviewScrollPosition();
+        previewSignatureRef.current = previewContentSignature;
+        setPreviewRevision((prev) => prev + 1);
+    }, [previewContentSignature]);
 
     const resetFilters = () => {
         setSearch("");
@@ -427,7 +450,7 @@ export default function MenuThemesPage() {
             });
             if (res.ok) {
                 const data = await res.json();
-                setMenu({ ...menu, theme: data.theme ?? themeId });
+                setMenu((prev) => (prev ? { ...prev, theme: data.theme ?? themeId } : prev));
                 return;
             }
             const err = await res.json();
@@ -444,6 +467,22 @@ export default function MenuThemesPage() {
         }
     };
 
+    const handleThemeSelection = (themeId: MenuThemeId) => {
+        if (themeId === selectedThemeId) return;
+        capturePreviewScrollPosition();
+        setSelectedThemeId(themeId);
+    };
+
+    const handlePreviewLoad = () => {
+        const frameWindow = previewIframeRef.current?.contentWindow;
+        if (!frameWindow || previewScrollTopRef.current <= 0) return;
+        const scrollTarget = previewScrollTopRef.current;
+        previewScrollTopRef.current = 0;
+        frameWindow.requestAnimationFrame(() => {
+            frameWindow.scrollTo(0, scrollTarget);
+        });
+    };
+
     if (loading) {
         return (
             <div className="text-[var(--cms-muted)] flex items-center gap-2">
@@ -456,8 +495,9 @@ export default function MenuThemesPage() {
         return <div className="text-sm text-[var(--cms-muted)]">{permissionError}</div>;
     }
 
-    const previewCategories = categories.slice(0, 4).map((category) => category.name);
-    const previewItems = sampleItems.slice(0, 3);
+    const hasThemeSelectionChange = selectedThemeId !== activeThemeId;
+    const isApplyingSelectedTheme = savingThemeId === selectedThemeId;
+    const canApplySelectedTheme = hasThemeSelectionChange && !savingThemeId;
 
     return (
         <div className="w-full max-w-[1400px] mr-auto space-y-6">
@@ -479,21 +519,19 @@ export default function MenuThemesPage() {
                             <p className="text-muted">Pick a theme, tune your brand, and preview instantly across every menu scan.</p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <Link
-                                href={`/r/${menu?.id}`}
-                                target="_blank"
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] transition-colors hover:bg-[var(--cms-pill)]"
+                            <button
+                                type="button"
+                                onClick={() => applyTheme(selectedThemeId)}
+                                disabled={!canApplySelectedTheme}
+                                className={`inline-flex h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${
+                                    canApplySelectedTheme
+                                        ? "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"
+                                        : "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]"
+                                }`}
                             >
-                                <ExternalLink className="w-4 h-4" />
-                                Live preview
-                            </Link>
-                            <Link
-                                href={`/dashboard/menus/${menuId}/publish`}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]"
-                            >
-                                <QrCode className="w-4 h-4" />
-                                Publish
-                            </Link>
+                                {isApplyingSelectedTheme ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                {isApplyingSelectedTheme ? "Applying..." : "Apply"}
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -590,53 +628,56 @@ export default function MenuThemesPage() {
                             ) : (
                                 <div className="grid gap-3 md:grid-cols-2">
                                     {orderedThemes.map((theme) => {
-                                        const isActive = (menu?.theme || "noir") === theme.id;
+                                        const isActive = activeThemeId === theme.id;
+                                        const isSelected = selectedThemeId === theme.id;
+                                        const coreColors = [
+                                            { label: "Background", value: theme.palette.bg },
+                                            { label: "Surface", value: theme.palette.surface },
+                                            { label: "Accent", value: theme.palette.accent },
+                                        ];
                                         return (
-                                            <article
+                                            <button
+                                                type="button"
                                                 key={theme.id}
-                                                className={`rounded-2xl border p-4 transition-colors ${
+                                                onClick={() => handleThemeSelection(theme.id)}
+                                                aria-pressed={isSelected}
+                                                className={`w-full overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30 ${
                                                     isActive
                                                         ? "border-white/40 bg-gradient-to-r from-[var(--cms-accent)]/20 to-[var(--cms-accent)]/5"
-                                                        : "border-[var(--cms-border)] bg-[var(--cms-bg)] hover:bg-[var(--cms-panel-strong)]"
+                                                        : isSelected
+                                                          ? "border-[var(--cms-accent)]/40 bg-[var(--cms-panel-strong)]"
+                                                          : "border-[var(--cms-border)] bg-[var(--cms-bg)] hover:bg-[var(--cms-panel-strong)]"
                                                 }`}
                                             >
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                        <h3 className="truncate text-xl font-bold tracking-tight">{theme.name}</h3>
-                                                        <p className="mt-1 text-sm text-[var(--cms-muted)]">{theme.description}</p>
-                                                        <p className="mt-1 text-xs text-[var(--cms-muted)] capitalize">
-                                                            {theme.category} · {theme.layout}
-                                                        </p>
+                                                <div className="px-3 py-3">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <h3 className="truncate text-lg font-bold tracking-tight">{theme.name}</h3>
+                                                            <p className="mt-0.5 line-clamp-1 text-xs text-[var(--cms-muted)]">{theme.description}</p>
+                                                            <p className="mt-1 text-[11px] text-[var(--cms-muted)] capitalize">
+                                                                {theme.category} · {theme.layout}
+                                                            </p>
+                                                        </div>
+                                                        {isActive && (
+                                                            <Badge variant="success" className="shrink-0">
+                                                                Active
+                                                            </Badge>
+                                                        )}
                                                     </div>
-                                                    {isActive && (
-                                                        <Badge variant="success" className="shrink-0">
-                                                            Active
-                                                        </Badge>
-                                                    )}
+                                                    <div className="mt-1.5 flex justify-end gap-1">
+                                                        {coreColors.map((color) => (
+                                                            <span
+                                                                key={color.label}
+                                                                className="h-2.5 w-2.5 rounded-full border border-white/45"
+                                                                style={{ backgroundColor: color.value }}
+                                                            />
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                                <div className="mt-4 flex items-center gap-2">
-                                                    <button
-                                                        onClick={() => applyTheme(theme.id)}
-                                                        disabled={savingThemeId === theme.id || isActive}
-                                                        className={`inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${
-                                                            savingThemeId === theme.id || isActive
-                                                                ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]"
-                                                                : "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"
-                                                        }`}
-                                                    >
-                                                        {savingThemeId === theme.id && <Loader2 className="w-4 h-4 animate-spin" />}
-                                                        {isActive ? "Current theme" : savingThemeId === theme.id ? "Applying..." : "Apply"}
-                                                    </button>
-                                                    <Link
-                                                        href={`/r/${menuId}?theme=${theme.id}`}
-                                                        target="_blank"
-                                                        className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--cms-border)] px-4 text-sm font-semibold text-[var(--cms-muted)] transition-colors hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
-                                                    >
-                                                        <ExternalLink className="w-4 h-4" />
-                                                        Preview
-                                                    </Link>
-                                                </div>
-                                            </article>
+                                                <span className="sr-only">
+                                                    Core colors: {coreColors.map((color) => color.value.toUpperCase()).join(", ")}
+                                                </span>
+                                            </button>
                                         );
                                     })}
                                 </div>
@@ -937,94 +978,42 @@ export default function MenuThemesPage() {
                 </div>
 
                 <aside className="xl:sticky xl:top-6 xl:self-start space-y-4">
-                    <section
-                        className="overflow-hidden rounded-3xl border border-[var(--cms-border)]"
-                        style={{
-                            background: `linear-gradient(140deg, ${activeTheme.preview.bg} 0%, ${activeTheme.preview.card} 100%)`,
-                            color: activeTheme.preview.text,
-                        }}
-                    >
-                        <div
-                            className="px-5 py-4 border-b"
-                            style={{
-                                borderColor: activeTheme.preview.border,
-                                background: `linear-gradient(120deg, ${activeTheme.preview.accent}30 0%, transparent 70%)`
-                            }}
+                    <div className="flex items-center justify-between gap-3 px-1">
+                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
+                            Preview · {selectedTheme.name}
+                        </span>
+                        <Link
+                            href={previewHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--cms-muted)] transition-colors hover:text-[var(--cms-text)]"
                         >
-                            <span
-                                className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold"
-                                style={{ borderColor: `${activeTheme.preview.border}`, backgroundColor: `${activeTheme.preview.bg}` }}
-                            >
-                                Theme · {activeTheme.name}
-                            </span>
-                            <h3 className="mt-4 font-heading text-5xl max-[640px]:text-4xl font-bold tracking-tight">{menu?.name || "Menu Preview"}</h3>
-                            <p className="mt-1 text-sm opacity-80">Scan, order, and view in AR</p>
-                        </div>
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Open preview in new tab
+                        </Link>
+                    </div>
 
-                        <div className="px-5 py-4">
-                            <div className="flex flex-wrap gap-2">
-                                {previewCategories.length > 0 ? (
-                                    previewCategories.map((category) => (
-                                        <span
-                                            key={category}
-                                            className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold"
-                                            style={{ borderColor: activeTheme.preview.border, backgroundColor: activeTheme.preview.card }}
-                                        >
-                                            {category}
-                                        </span>
-                                    ))
-                                ) : (
-                                    <span
-                                        className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold"
-                                        style={{ borderColor: activeTheme.preview.border, backgroundColor: activeTheme.preview.card }}
-                                    >
-                                        Add categories
-                                    </span>
-                                )}
-                            </div>
+                    <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-3 sm:p-4">
+                        <div className="mx-auto w-full max-w-[420px]">
+                            <div className="relative rounded-[2.8rem] bg-gradient-to-b from-white/40 via-zinc-500/35 to-zinc-900/80 p-[9px] shadow-[0_30px_55px_-35px_rgba(0,0,0,0.9)]">
+                                <div className="pointer-events-none absolute left-[3px] top-24 h-12 w-[3px] rounded-full bg-white/40" />
+                                <div className="pointer-events-none absolute left-[3px] top-40 h-16 w-[3px] rounded-full bg-white/25" />
+                                <div className="pointer-events-none absolute right-[3px] top-36 h-20 w-[3px] rounded-full bg-white/30" />
 
-                            <div className="mt-4 space-y-3">
-                                {previewItems.length > 0 ? (
-                                    previewItems.map((item) => {
-                                        const imageUrl = item.photo_url || item.photos?.[0]?.url || null;
-                                        return (
-                                            <article
-                                                key={item.id}
-                                                className="rounded-2xl border px-3 py-2.5"
-                                                style={{ borderColor: activeTheme.preview.border, backgroundColor: activeTheme.preview.card }}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border" style={{ borderColor: activeTheme.preview.border }}>
-                                                        {imageUrl ? (
-                                                            <img src={imageUrl} alt={item.name} className="h-full w-full object-cover" />
-                                                        ) : (
-                                                            <div className="h-full w-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: `${activeTheme.preview.accent}35` }}>
-                                                                {item.name[0]}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="truncate text-lg font-semibold">{item.name}</p>
-                                                        <p className="text-base opacity-70">${item.price.toFixed(2)}</p>
-                                                    </div>
-                                                    <span
-                                                        className="inline-flex rounded-full px-3 py-1 text-sm font-semibold"
-                                                        style={{ backgroundColor: `${activeTheme.preview.accent}33`, color: activeTheme.preview.text }}
-                                                    >
-                                                        View
-                                                    </span>
-                                                </div>
-                                            </article>
-                                        );
-                                    })
-                                ) : (
-                                    <div
-                                        className="rounded-2xl border p-5 text-sm opacity-80"
-                                        style={{ borderColor: activeTheme.preview.border, backgroundColor: activeTheme.preview.card }}
-                                    >
-                                        Add menu items to preview the guest experience here.
+                                <div className="relative overflow-hidden rounded-[2.45rem] border border-black/60 bg-black p-[8px]">
+                                    <div className="pointer-events-none absolute left-1/2 top-2 z-20 h-6 w-28 -translate-x-1/2 rounded-full border border-white/10 bg-black/80" />
+                                    <div className="relative overflow-hidden rounded-[1.95rem] bg-white pt-7">
+                                        <div className="aspect-[9/19.5] w-full overflow-hidden">
+                                            <iframe
+                                                ref={previewIframeRef}
+                                                title={`${menu?.name || "Menu"} preview`}
+                                                src={previewHref}
+                                                onLoad={handlePreviewLoad}
+                                                className="h-full w-full border-0"
+                                            />
+                                        </div>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         </div>
                     </section>

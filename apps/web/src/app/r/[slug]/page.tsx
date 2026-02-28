@@ -17,6 +17,7 @@ export default function PublicMenuPage() {
     const [menu, setMenu] = useState<Menu | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [isMenuInactive, setIsMenuInactive] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [soldOutDisplay, setSoldOutDisplay] = useState<"dim" | "hide">("dim");
     const [filtersOpen, setFiltersOpen] = useState(false);
@@ -238,10 +239,30 @@ export default function PublicMenuPage() {
         try {
             const apiBase = getApiBase();
             const res = await fetch(`${apiBase}/menus/public/${menuId}`);
-            if (!res.ok) throw new Error("Menu not found");
+            if (!res.ok) {
+                let detail = "";
+                try {
+                    const payload = await res.json();
+                    detail = typeof payload?.detail === "string" ? payload.detail : "";
+                } catch {
+                    detail = "";
+                }
+
+                const normalizedDetail = detail.toLowerCase();
+                if (normalizedDetail.includes("not active") || normalizedDetail.includes("inactive")) {
+                    setIsMenuInactive(true);
+                    setError("Menu is marked inactive by the admin.");
+                    return;
+                }
+
+                throw new Error(detail || "Menu not found");
+            }
             const data = await res.json();
             setMenu(data);
-        } catch (e) {
+            setIsMenuInactive(false);
+            setError("");
+        } catch {
+            setIsMenuInactive(false);
             setError("Could not load menu. Please try again later.");
         } finally {
             setLoading(false);
@@ -358,7 +379,7 @@ export default function PublicMenuPage() {
             <div className="min-h-screen bg-black flex items-center justify-center text-white text-center p-6">
                 <div className="max-w-md">
                     <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-                    <h1 className="text-2xl font-bold mb-2">Menu Not Found</h1>
+                    <h1 className="text-2xl font-bold mb-2">{isMenuInactive ? "Menu Inactive" : "Menu Not Found"}</h1>
                     <p className="text-white/50">{error || "This menu does not exist or has been removed."}</p>
                 </div>
             </div>
