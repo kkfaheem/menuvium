@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { ArrowLeft, Check, ChevronDown, ExternalLink, Image, Loader2, Palette, QrCode, Search, SlidersHorizontal, X, Sparkles } from "lucide-react";
+import { ArrowLeft, ChevronDown, ExternalLink, Image, Loader2, Palette, QrCode, Search, X, Sparkles } from "lucide-react";
 import { MENU_THEMES, MenuThemeId } from "@/lib/menuThemes";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
@@ -18,6 +18,9 @@ interface Item {
     name: string;
     description?: string;
     price: number;
+    photo_url?: string | null;
+    photos?: { url: string }[];
+    is_sold_out?: boolean;
 }
 
 interface Category {
@@ -28,15 +31,15 @@ interface Category {
 
 interface TitleDesignConfig {
     enabled: boolean;
-    logoPosition: 'left' | 'center' | 'right';
+    logoPosition: "left" | "center" | "right";
     logoScale: number;
     spacing: {
         top: number;
         bottom: number;
         horizontal: number;
     };
-    layout: 'logo-only' | 'logo-with-text';
-    textPosition: 'beside' | 'below' | 'none';
+    layout: "logo-only" | "logo-with-text";
+    textPosition: "beside" | "below" | "none";
     dominantColors: string[];
     recommendation?: string;
     generatedAt?: string;
@@ -53,6 +56,8 @@ interface Menu {
     title_design_config?: TitleDesignConfig | null;
     org_id: string;
 }
+
+type SampleItem = Item & { category: string };
 
 export default function MenuThemesPage() {
     const params = useParams();
@@ -71,7 +76,7 @@ export default function MenuThemesPage() {
     const [bannerUploading, setBannerUploading] = useState(false);
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
     const [logoUploading, setLogoUploading] = useState(false);
-    const [activeTab, setActiveTab] = useState<'branding' | 'theme'>('branding');
+    const [activeTab, setActiveTab] = useState<"theme" | "branding" | "title">("theme");
     const [bannerCropFile, setBannerCropFile] = useState<File | null>(null);
     const bannerPreviewBlobUrlRef = useRef<string | null>(null);
     const [titleConfig, setTitleConfig] = useState<TitleDesignConfig | null>(null);
@@ -114,7 +119,7 @@ export default function MenuThemesPage() {
         }
     };
 
-    const sampleItems = useMemo(() => {
+    const sampleItems = useMemo<SampleItem[]>(() => {
         const items = categories.flatMap((cat) => cat.items.map((item) => ({ ...item, category: cat.name })));
         return items.slice(0, 3);
     }, [categories]);
@@ -160,6 +165,11 @@ export default function MenuThemesPage() {
             return a.name.localeCompare(b.name);
         });
     }, [filteredThemes, menu?.theme]);
+
+    const activeTheme = useMemo(() => {
+        const activeId = (menu?.theme || "noir") as MenuThemeId;
+        return MENU_THEMES.find((theme) => theme.id === activeId) || MENU_THEMES[0];
+    }, [menu?.theme]);
 
     const resetFilters = () => {
         setSearch("");
@@ -418,14 +428,14 @@ export default function MenuThemesPage() {
             if (res.ok) {
                 const data = await res.json();
                 setMenu({ ...menu, theme: data.theme ?? themeId });
-            } else {
-                const err = await res.json();
-                toast({
-                    variant: "error",
-                    title: "Failed to update theme",
-                    description: err.detail || "Unknown error",
-                });
+                return;
             }
+            const err = await res.json();
+            toast({
+                variant: "error",
+                title: "Failed to update theme",
+                description: err.detail || "Unknown error",
+            });
         } catch (e) {
             console.error(e);
             toast({ variant: "error", title: "Error updating theme" });
@@ -442,226 +452,387 @@ export default function MenuThemesPage() {
         );
     }
 
+    if (permissionError) {
+        return <div className="text-sm text-[var(--cms-muted)]">{permissionError}</div>;
+    }
+
+    const previewCategories = categories.slice(0, 4).map((category) => category.name);
+    const previewItems = sampleItems.slice(0, 3);
+
     return (
-        <div className="w-full max-w-6xl mr-auto space-y-8">
-            <header className="space-y-4">
-                <Link
-                    href={`/dashboard/menus/${menuId}`}
-                    className="inline-flex items-center gap-1 text-sm font-semibold text-muted transition-colors hover:text-foreground"
-                >
-                    <ArrowLeft className="w-4 h-4" /> Back to Menu
-                </Link>
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="space-y-2">
-                        <Badge variant="outline">Design Studio</Badge>
-                        <h1 className="font-heading text-3xl font-bold tracking-tight">Design Studio</h1>
-                        <p className="text-muted">Customize your menu's branding and visual theme.</p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                            href={`/dashboard/menus/${menuId}/publish`}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-pill"
-                        >
-                            <QrCode className="w-4 h-4" />
-                            Publish
-                        </Link>
-                        <Link
-                            href={`/r/${menu?.id}`}
-                            target="_blank"
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-pill"
-                        >
-                            <ExternalLink className="w-4 h-4" />
-                            View Public Page
-                        </Link>
+        <div className="w-full max-w-[1400px] mr-auto space-y-6">
+            <header className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] overflow-hidden">
+                <div className="px-5 py-3 border-b border-[var(--cms-border)] text-center text-xs font-semibold tracking-[0.2em] text-[var(--cms-muted)]">
+                    Menuvium Studio
+                </div>
+                <div className="px-5 py-5 sm:px-6 sm:py-6">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="space-y-2">
+                            <Link
+                                href={`/dashboard/menus/${menuId}`}
+                                className="inline-flex items-center gap-1 text-sm font-semibold text-muted transition-colors hover:text-foreground"
+                            >
+                                <ArrowLeft className="w-4 h-4" /> Back to Menu
+                            </Link>
+                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--cms-muted)]">Menuvium Studio</p>
+                            <h1 className="font-heading text-4xl font-bold tracking-tight">Design Studio</h1>
+                            <p className="text-muted">Pick a theme, tune your brand, and preview instantly across every menu scan.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <Link
+                                href={`/r/${menu?.id}`}
+                                target="_blank"
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] transition-colors hover:bg-[var(--cms-pill)]"
+                            >
+                                <ExternalLink className="w-4 h-4" />
+                                Live preview
+                            </Link>
+                            <Link
+                                href={`/dashboard/menus/${menuId}/publish`}
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]"
+                            >
+                                <QrCode className="w-4 h-4" />
+                                Publish
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </header>
 
-            {/* Tab Navigation */}
-            <div className="flex gap-1 p-1 rounded-2xl bg-[var(--cms-panel)] border border-[var(--cms-border)] w-fit">
-                <button
-                    onClick={() => setActiveTab('branding')}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors inline-flex items-center gap-2 ${activeTab === 'branding' ? 'bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]'}`}
-                >
-                    <Image className="w-4 h-4" />
-                    Branding
-                </button>
-                <button
-                    onClick={() => setActiveTab('theme')}
-                    className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors inline-flex items-center gap-2 ${activeTab === 'theme' ? 'bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]' : 'text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]'}`}
-                >
-                    <Palette className="w-4 h-4" />
-                    Theme
-                </button>
-            </div>
-            {/* Branding Tab */}
-            {activeTab === 'branding' && (
-                <>
-                    {/* Logo Section */}
-                    <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-6">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <h2 className="font-heading text-lg font-bold tracking-tight">Restaurant Logo</h2>
-                                <p className="text-sm text-[var(--cms-muted)]">Your logo will appear on public menus.</p>
-                            </div>
-                            {logoPreview && (
-                                <button
-                                    onClick={removeLogo}
-                                    disabled={logoUploading}
-                                    className="h-9 px-4 rounded-full border border-[var(--cms-border)] text-sm font-semibold text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
-                                >
-                                    Remove logo
-                                </button>
-                            )}
-                        </div>
-
-                        <div className="mt-4 grid gap-4 lg:grid-cols-[0.8fr_1.2fr] items-center">
-                            <div className="rounded-2xl border border-dashed border-[var(--cms-border)] bg-[var(--cms-bg)] p-4 flex items-center justify-center">
-                                {logoPreview ? (
-                                    <img src={logoPreview} alt="Restaurant logo" className="w-32 h-32 object-contain rounded-xl" />
-                                ) : (
-                                    <div className="w-32 h-32 rounded-xl flex items-center justify-center text-sm text-[var(--cms-muted)] text-center">
-                                        No logo uploaded yet.
-                                    </div>
-                                )}
-                            </div>
-                            <div className="space-y-3">
-                                <label className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--cms-text)]">
-                                    Upload your logo
-                                </label>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    disabled={logoUploading}
-                                    onChange={(event) => {
-                                        const file = event.target.files?.[0];
-                                        if (file) {
-                                            const reader = new FileReader();
-                                            reader.onload = (e) => setLogoPreview(e.target?.result as string);
-                                            reader.readAsDataURL(file);
-                                            uploadLogo(file);
-                                        }
-                                        event.currentTarget.value = "";
-                                    }}
-                                    className="block w-full text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--cms-text)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[var(--cms-bg)] hover:file:opacity-90"
-                                />
-                                <p className="text-xs text-[var(--cms-muted)]">Recommended: Square image, 512×512 or larger.</p>
-                            </div>
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.9fr)]">
+                <div className="space-y-6">
+                    <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-2">
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => setActiveTab("theme")}
+                                className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${
+                                    activeTab === "theme"
+                                        ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                        : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
+                                }`}
+                            >
+                                <Palette className="w-4 h-4" />
+                                Themes
+                            </button>
+                            <button
+                                onClick={() => setActiveTab("branding")}
+                                className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${
+                                    activeTab === "branding"
+                                        ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                        : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
+                                }`}
+                            >
+                                <Image className="w-4 h-4" />
+                                Branding
+                            </button>
+                            <button
+                                onClick={() => setActiveTab("title")}
+                                className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${
+                                    activeTab === "title"
+                                        ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                        : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
+                                }`}
+                            >
+                                <Sparkles className="w-4 h-4" />
+                                Title design
+                            </button>
                         </div>
                     </section>
 
-                    {/* Title Area Design Section */}
-                    <section className="relative overflow-hidden rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-6 sm:p-8">
-                        {/* Gradient background accent */}
-                        <div className="absolute inset-0 opacity-[0.03] bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 pointer-events-none" />
-
-                        <div className="relative">
-                            {/* Header with animated sparkle */}
-                            <div className="flex items-start justify-between gap-4 mb-6">
-                                <div className="flex items-start gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center shrink-0">
-                                        <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
+                    {activeTab === "theme" && (
+                        <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 sm:p-6 space-y-5">
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--cms-muted)]">Theme Library</p>
+                                    <h2 className="font-heading text-5xl max-[640px]:text-4xl font-bold tracking-tight mt-1">Choose a look</h2>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--cms-muted)]" />
+                                        <input
+                                            value={search}
+                                            onChange={(event) => setSearch(event.target.value)}
+                                            placeholder="Search..."
+                                            className="h-11 min-w-[220px] w-full rounded-full border border-[var(--cms-border)] bg-[var(--cms-bg)] pl-9 pr-4 text-sm text-[var(--cms-text)] placeholder:text-[var(--cms-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/20"
+                                        />
                                     </div>
+                                    {hasFilters && (
+                                        <button
+                                            onClick={resetFilters}
+                                            className="inline-flex h-11 items-center gap-2 rounded-full border border-[var(--cms-border)] px-4 text-sm font-semibold text-[var(--cms-muted)] transition-colors hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
+                                        >
+                                            <X className="h-4 w-4" /> Clear
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2 overflow-x-auto pb-1">
+                                {tagsList.map((tag) => (
+                                    <button
+                                        key={tag}
+                                        onClick={() => toggleTag(tag)}
+                                        className={`h-8 px-4 rounded-full text-xs font-semibold border whitespace-nowrap ${
+                                            selectedTags.includes(tag)
+                                                ? "bg-[var(--cms-accent)] text-white border-[var(--cms-accent)]"
+                                                : "border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
+                                        }`}
+                                    >
+                                        {tag}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {orderedThemes.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-8 text-center text-[var(--cms-muted)]">
+                                    No themes match those filters. Try clearing or adjusting your search.
+                                </div>
+                            ) : (
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    {orderedThemes.map((theme) => {
+                                        const isActive = (menu?.theme || "noir") === theme.id;
+                                        return (
+                                            <article
+                                                key={theme.id}
+                                                className={`rounded-2xl border p-4 transition-colors ${
+                                                    isActive
+                                                        ? "border-white/40 bg-gradient-to-r from-[var(--cms-accent)]/20 to-[var(--cms-accent)]/5"
+                                                        : "border-[var(--cms-border)] bg-[var(--cms-bg)] hover:bg-[var(--cms-panel-strong)]"
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <h3 className="truncate text-xl font-bold tracking-tight">{theme.name}</h3>
+                                                        <p className="mt-1 text-sm text-[var(--cms-muted)]">{theme.description}</p>
+                                                        <p className="mt-1 text-xs text-[var(--cms-muted)] capitalize">
+                                                            {theme.category} · {theme.layout}
+                                                        </p>
+                                                    </div>
+                                                    {isActive && (
+                                                        <Badge variant="success" className="shrink-0">
+                                                            Active
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <div className="mt-4 flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => applyTheme(theme.id)}
+                                                        disabled={savingThemeId === theme.id || isActive}
+                                                        className={`inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${
+                                                            savingThemeId === theme.id || isActive
+                                                                ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]"
+                                                                : "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"
+                                                        }`}
+                                                    >
+                                                        {savingThemeId === theme.id && <Loader2 className="w-4 h-4 animate-spin" />}
+                                                        {isActive ? "Current theme" : savingThemeId === theme.id ? "Applying..." : "Apply"}
+                                                    </button>
+                                                    <Link
+                                                        href={`/r/${menuId}?theme=${theme.id}`}
+                                                        target="_blank"
+                                                        className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--cms-border)] px-4 text-sm font-semibold text-[var(--cms-muted)] transition-colors hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
+                                                    >
+                                                        <ExternalLink className="w-4 h-4" />
+                                                        Preview
+                                                    </Link>
+                                                </div>
+                                            </article>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </section>
+                    )}
+
+                    {activeTab === "branding" && (
+                        <>
+                            <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 sm:p-6">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                     <div>
-                                        <h2 className="font-heading text-lg font-bold tracking-tight">AI Title Design</h2>
-                                        <p className="text-sm text-[var(--cms-muted)] mt-0.5">
-                                            Generate a stunning title area from your logo
-                                        </p>
+                                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">Branding</p>
+                                        <h2 className="font-heading text-2xl font-bold tracking-tight mt-1">Restaurant logo</h2>
+                                        <p className="text-sm text-[var(--cms-muted)] mt-1">Used in title areas and public menu headers.</p>
+                                    </div>
+                                    {logoPreview && (
+                                        <button
+                                            onClick={removeLogo}
+                                            disabled={logoUploading}
+                                            className="h-9 px-4 rounded-full border border-[var(--cms-border)] text-sm font-semibold text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
+                                        >
+                                            Remove logo
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="mt-5 grid gap-4 lg:grid-cols-[0.8fr_1.2fr] items-center">
+                                    <div className="rounded-2xl border border-dashed border-[var(--cms-border)] bg-[var(--cms-bg)] p-4 flex items-center justify-center min-h-[220px]">
+                                        {logoPreview ? (
+                                            <img src={logoPreview} alt="Restaurant logo" className="w-36 h-36 object-contain rounded-xl" />
+                                        ) : (
+                                            <div className="text-center text-sm text-[var(--cms-muted)]">No logo uploaded yet.</div>
+                                        )}
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--cms-text)]">Upload your logo</label>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            disabled={logoUploading}
+                                            onChange={(event) => {
+                                                const file = event.target.files?.[0];
+                                                if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onload = (e) => setLogoPreview(e.target?.result as string);
+                                                    reader.readAsDataURL(file);
+                                                    uploadLogo(file);
+                                                }
+                                                event.currentTarget.value = "";
+                                            }}
+                                            className="block w-full text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--cms-text)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[var(--cms-bg)] hover:file:opacity-90"
+                                        />
+                                        <p className="text-xs text-[var(--cms-muted)]">Recommended: square image, 512x512 or larger.</p>
                                     </div>
                                 </div>
+                            </section>
 
-                                {/* Toggle switch for public menu */}
-                                {titleConfig && (
+                            <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 sm:p-6">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">Cover</p>
+                                        <h2 className="font-heading text-2xl font-bold tracking-tight mt-1">Menu banner</h2>
+                                        <p className="text-sm text-[var(--cms-muted)] mt-1">Shown at the top of your guest menu.</p>
+                                    </div>
+                                    {bannerPreview && (
+                                        <button
+                                            onClick={removeBanner}
+                                            disabled={bannerUploading}
+                                            className="h-9 px-4 rounded-full border border-[var(--cms-border)] text-sm font-semibold text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
+                                        >
+                                            Remove banner
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="mt-5 grid gap-4 lg:grid-cols-[1.25fr_0.75fr] items-center">
+                                    <div className="rounded-2xl border border-dashed border-[var(--cms-border)] bg-[var(--cms-bg)] p-4">
+                                        {bannerPreview ? (
+                                            <img src={bannerPreview} alt="Menu banner" className="w-full h-48 object-cover rounded-xl" />
+                                        ) : (
+                                            <div className="h-48 rounded-xl flex items-center justify-center text-sm text-[var(--cms-muted)]">No banner uploaded yet.</div>
+                                        )}
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--cms-text)]">Upload a cover photo</label>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            disabled={bannerUploading}
+                                            onChange={(event) => {
+                                                const file = event.target.files?.[0];
+                                                if (file) setBannerCropFile(file);
+                                                event.currentTarget.value = "";
+                                            }}
+                                            className="block w-full text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--cms-text)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[var(--cms-bg)] hover:file:opacity-90"
+                                        />
+                                        <p className="text-xs text-[var(--cms-muted)]">Recommended: 1600x900 or larger (16:9).</p>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 sm:p-6">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">Display</p>
+                                        <h2 className="font-heading text-2xl font-bold tracking-tight mt-1">Item images</h2>
+                                        <p className="text-sm text-[var(--cms-muted)] mt-1">Toggle item photos on the public menu page.</p>
+                                    </div>
                                     <label className="relative inline-flex items-center cursor-pointer group">
                                         <input
                                             type="checkbox"
-                                            checked={titleConfig.enabled}
-                                            onChange={(e) => toggleTitleDesign(e.target.checked)}
+                                            checked={menu?.show_item_images !== false}
+                                            onChange={(e) => toggleItemImages(e.target.checked)}
                                             className="sr-only peer"
                                         />
-                                        <div className="w-11 h-6 bg-[var(--cms-border)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-500/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-pink-500" />
+                                        <div className="w-11 h-6 bg-[var(--cms-border)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500" />
                                         <span className="ms-2 text-xs font-medium text-[var(--cms-muted)] group-hover:text-[var(--cms-text)] transition-colors whitespace-nowrap">
-                                            {titleConfig.enabled ? 'Active' : 'Off'}
+                                            {menu?.show_item_images !== false ? "Visible" : "Hidden"}
                                         </span>
                                     </label>
-                                )}
-                            </div>
-
-                            {!logoPreview ? (
-                                /* No logo uploaded state */
-                                <div className="rounded-2xl border-2 border-dashed border-[var(--cms-border)] bg-gradient-to-b from-[var(--cms-bg)] to-transparent p-10 text-center transition-all hover:border-purple-500/30">
-                                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[var(--cms-panel)] flex items-center justify-center">
-                                        <Image className="w-8 h-8 text-[var(--cms-muted)]" />
-                                    </div>
-                                    <p className="text-sm font-semibold text-[var(--cms-text)]">Upload a logo first</p>
-                                    <p className="text-xs text-[var(--cms-muted)] mt-1 max-w-xs mx-auto">
-                                        Our AI will analyze your logo and generate a beautiful, theme-adaptive title design
-                                    </p>
                                 </div>
-                            ) : (
-                                <div className="space-y-5">
-                                    {/* Generation controls */}
-                                    <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
-                                        <div className="flex-1 max-w-md">
-                                            <label className="mb-1.5 block text-xs font-semibold tracking-wide uppercase text-[var(--cms-muted)]">
-                                                Style hint <span className="normal-case font-normal">(optional)</span>
-                                            </label>
+                            </section>
+                        </>
+                    )}
+
+                    {activeTab === "title" && (
+                        <section className="relative overflow-hidden rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-6 sm:p-8">
+                            <div className="absolute inset-0 opacity-[0.04] bg-gradient-to-br from-amber-500 via-orange-500 to-cyan-500 pointer-events-none" />
+                            <div className="relative">
+                                <div className="flex items-start justify-between gap-4 mb-6">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-500/20 to-cyan-500/20 flex items-center justify-center shrink-0">
+                                            <Sparkles className="w-5 h-5 text-amber-400" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">Title design</p>
+                                            <h2 className="font-heading text-2xl font-bold tracking-tight mt-1">AI title area</h2>
+                                            <p className="text-sm text-[var(--cms-muted)] mt-1">Generate and save a logo-led title treatment for your menu.</p>
+                                        </div>
+                                    </div>
+                                    {titleConfig && (
+                                        <label className="relative inline-flex items-center cursor-pointer group">
                                             <input
-                                                value={titleHint}
-                                                onChange={(e) => setTitleHint(e.target.value)}
-                                                placeholder="e.g. minimalist, elegant, playful, bold"
-                                                className="w-full h-12 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-bg)] px-4 text-sm text-[var(--cms-text)] placeholder:text-[var(--cms-muted)]/60 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                                                type="checkbox"
+                                                checked={titleConfig.enabled}
+                                                onChange={(e) => toggleTitleDesign(e.target.checked)}
+                                                className="sr-only peer"
                                             />
+                                            <div className="w-11 h-6 bg-[var(--cms-border)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-amber-500/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-amber-500 peer-checked:to-orange-500" />
+                                            <span className="ms-2 text-xs font-medium text-[var(--cms-muted)] group-hover:text-[var(--cms-text)] transition-colors whitespace-nowrap">
+                                                {titleConfig.enabled ? "Active" : "Off"}
+                                            </span>
+                                        </label>
+                                    )}
+                                </div>
+
+                                {!logoPreview ? (
+                                    <div className="rounded-2xl border-2 border-dashed border-[var(--cms-border)] bg-[var(--cms-bg)] p-10 text-center">
+                                        <Image className="w-9 h-9 text-[var(--cms-muted)] mx-auto" />
+                                        <p className="text-sm font-semibold mt-3">Upload a logo first</p>
+                                        <p className="text-xs text-[var(--cms-muted)] mt-1">AI title generation requires a logo on your menu.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-5">
+                                        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+                                            <div className="flex-1 max-w-md">
+                                                <label className="mb-1.5 block text-xs font-semibold tracking-wide uppercase text-[var(--cms-muted)]">
+                                                    Style hint <span className="normal-case font-normal">(optional)</span>
+                                                </label>
+                                                <input
+                                                    value={titleHint}
+                                                    onChange={(e) => setTitleHint(e.target.value)}
+                                                    placeholder="e.g. minimalist, elegant, playful, bold"
+                                                    className="w-full h-12 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-bg)] px-4 text-sm text-[var(--cms-text)] placeholder:text-[var(--cms-muted)]/60 focus:outline-none focus:border-amber-500/50 focus:ring-2 focus:ring-amber-500/20"
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={generateTitleDesign}
+                                                disabled={generatingTitle || !menu?.logo_url}
+                                                className="h-12 px-6 rounded-xl font-semibold text-sm inline-flex items-center justify-center gap-2 text-white disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-amber-500 via-orange-500 to-cyan-500"
+                                            >
+                                                {generatingTitle ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                                                {generatingTitle ? "Generating..." : "Generate with AI"}
+                                            </button>
                                         </div>
 
-                                        {/* Animated Generate Button */}
-                                        <button
-                                            onClick={generateTitleDesign}
-                                            disabled={generatingTitle || !menu?.logo_url}
-                                            className="relative group h-12 px-6 rounded-xl font-semibold text-sm inline-flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                            style={{
-                                                background: generatingTitle
-                                                    ? 'linear-gradient(135deg, #8B5CF6, #EC4899)'
-                                                    : 'linear-gradient(135deg, #8B5CF6, #EC4899, #F97316)',
-                                                backgroundSize: '200% 200%',
-                                                animation: generatingTitle ? 'none' : 'gradientShift 3s ease infinite'
-                                            }}
-                                        >
-                                            {/* Shimmer effect */}
-                                            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-
-                                            <span className="relative text-white flex items-center gap-2">
-                                                {generatingTitle ? (
-                                                    <>
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                        Generating...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Sparkles className="w-4 h-4" />
-                                                        Generate with AI
-                                                    </>
-                                                )}
-                                            </span>
-                                        </button>
-                                    </div>
-
-                                    {/* Preview area */}
-                                    {titleConfig ? (
-                                        <div className="space-y-4 animate-fadeIn">
-                                            {/* Preview card with gradient border */}
-                                            <div className="relative rounded-2xl p-[1px] bg-gradient-to-r from-purple-500/30 via-pink-500/30 to-orange-500/30">
-                                                <div className="rounded-2xl bg-[var(--cms-bg)] p-5">
+                                        {titleConfig ? (
+                                            <div className="space-y-4">
+                                                <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-bg)] p-5">
                                                     <div className="flex items-center justify-between mb-3">
                                                         <span className="text-xs font-semibold tracking-wide uppercase text-[var(--cms-muted)]">Preview</span>
-                                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 font-medium">
-                                                            AI Generated
-                                                        </span>
+                                                        <Badge variant="accent">AI Generated</Badge>
                                                     </div>
                                                     <div
-                                                        className="rounded-xl bg-white p-6 flex items-center transition-all duration-500"
+                                                        className="rounded-xl bg-white p-6 flex items-center"
                                                         style={{
-                                                            justifyContent: 'center',
+                                                            justifyContent: "center",
                                                             paddingTop: `${Math.min(titleConfig.spacing.top, 16)}px`,
                                                             paddingBottom: `${Math.min(titleConfig.spacing.bottom, 16)}px`
                                                         }}
@@ -669,371 +840,196 @@ export default function MenuThemesPage() {
                                                         <img
                                                             src={logoPreview}
                                                             alt="Logo preview"
-                                                            className="transition-transform duration-500"
                                                             style={{
                                                                 transform: `scale(${Math.min(titleConfig.logoScale, 1.5)})`,
-                                                                maxHeight: '64px',
-                                                                objectFit: 'contain'
+                                                                maxHeight: "64px",
+                                                                objectFit: "contain"
                                                             }}
                                                         />
                                                     </div>
                                                 </div>
-                                            </div>
-
-                                            {/* AI Recommendation */}
-                                            {titleConfig.recommendation && (
-                                                <div className="rounded-2xl bg-gradient-to-r from-purple-500/5 to-pink-500/5 border border-purple-500/10 p-4 animate-fadeIn">
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
-                                                            <Sparkles className="w-4 h-4 text-purple-400" />
+                                                {titleConfig.recommendation ? (
+                                                    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+                                                        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">AI Insight</p>
+                                                        <p className="mt-1 text-sm text-[var(--cms-muted)]">{titleConfig.recommendation}</p>
+                                                    </div>
+                                                ) : null}
+                                                <details className="group rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-bg)] overflow-hidden">
+                                                    <summary className="px-4 py-3 cursor-pointer text-xs font-semibold text-[var(--cms-muted)] flex items-center justify-between hover:text-[var(--cms-text)] transition-colors">
+                                                        Advanced settings
+                                                        <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
+                                                    </summary>
+                                                    <div className="px-4 pb-4 pt-0 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                        <div className="rounded-xl bg-[var(--cms-panel)] p-3 text-center">
+                                                            <p className="text-[10px] uppercase tracking-wide text-[var(--cms-muted)] mb-1">Position</p>
+                                                            <p className="text-sm font-semibold capitalize">{titleConfig.logoPosition}</p>
                                                         </div>
-                                                        <div className="flex-1">
-                                                            <h4 className="text-xs font-semibold mb-1 text-purple-300">AI Insight</h4>
-                                                            <p className="text-xs text-[var(--cms-muted)] leading-relaxed">{titleConfig.recommendation}</p>
+                                                        <div className="rounded-xl bg-[var(--cms-panel)] p-3 text-center">
+                                                            <p className="text-[10px] uppercase tracking-wide text-[var(--cms-muted)] mb-1">Scale</p>
+                                                            <p className="text-sm font-semibold">{titleConfig.logoScale}x</p>
                                                         </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Design Details - Collapsible */}
-                                            <details className="group rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] overflow-hidden">
-                                                <summary className="px-4 py-3 cursor-pointer text-xs font-semibold text-[var(--cms-muted)] flex items-center justify-between hover:text-[var(--cms-text)] transition-colors">
-                                                    <span>Design Details</span>
-                                                    <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" />
-                                                </summary>
-                                                <div className="px-4 pb-4 pt-0 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                                    <div className="rounded-xl bg-[var(--cms-bg)] p-3 text-center">
-                                                        <p className="text-[10px] uppercase tracking-wide text-[var(--cms-muted)] mb-1">Position</p>
-                                                        <p className="text-sm font-semibold capitalize">{titleConfig.logoPosition}</p>
-                                                    </div>
-                                                    <div className="rounded-xl bg-[var(--cms-bg)] p-3 text-center">
-                                                        <p className="text-[10px] uppercase tracking-wide text-[var(--cms-muted)] mb-1">Scale</p>
-                                                        <p className="text-sm font-semibold">{titleConfig.logoScale}x</p>
-                                                    </div>
-                                                    <div className="rounded-xl bg-[var(--cms-bg)] p-3 text-center">
-                                                        <p className="text-[10px] uppercase tracking-wide text-[var(--cms-muted)] mb-1">Layout</p>
-                                                        <p className="text-sm font-semibold capitalize">{titleConfig.layout.replace('-', ' ')}</p>
-                                                    </div>
-                                                    {titleConfig.dominantColors && titleConfig.dominantColors.length > 0 && (
-                                                        <div className="rounded-xl bg-[var(--cms-bg)] p-3 text-center">
-                                                            <p className="text-[10px] uppercase tracking-wide text-[var(--cms-muted)] mb-1">Colors</p>
-                                                            <div className="flex gap-1 justify-center">
-                                                                {titleConfig.dominantColors.slice(0, 4).map((color, idx) => (
-                                                                    <div
-                                                                        key={idx}
-                                                                        className="w-4 h-4 rounded-full border border-white/10 shadow-sm"
-                                                                        style={{ backgroundColor: color }}
-                                                                        title={color}
-                                                                    />
-                                                                ))}
+                                                        <div className="rounded-xl bg-[var(--cms-panel)] p-3 text-center">
+                                                            <p className="text-[10px] uppercase tracking-wide text-[var(--cms-muted)] mb-1">Layout</p>
+                                                            <p className="text-sm font-semibold capitalize">{titleConfig.layout.replace("-", " ")}</p>
+                                                        </div>
+                                                        {titleConfig.dominantColors && titleConfig.dominantColors.length > 0 ? (
+                                                            <div className="rounded-xl bg-[var(--cms-panel)] p-3 text-center">
+                                                                <p className="text-[10px] uppercase tracking-wide text-[var(--cms-muted)] mb-1">Colors</p>
+                                                                <div className="flex gap-1 justify-center">
+                                                                    {titleConfig.dominantColors.slice(0, 4).map((color, idx) => (
+                                                                        <div
+                                                                            key={idx}
+                                                                            className="w-4 h-4 rounded-full border border-white/10 shadow-sm"
+                                                                            style={{ backgroundColor: color }}
+                                                                            title={color}
+                                                                        />
+                                                                    ))}
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </details>
-                                        </div>
-                                    ) : (
-                                        /* Empty state after logo is uploaded but no generation yet */
-                                        <div className="rounded-2xl border-2 border-dashed border-[var(--cms-border)] bg-gradient-to-b from-[var(--cms-bg)] to-transparent p-8 text-center">
-                                            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 flex items-center justify-center">
-                                                <Sparkles className="w-6 h-6 text-purple-400/60" />
+                                                        ) : null}
+                                                    </div>
+                                                </details>
                                             </div>
-                                            <p className="text-sm font-semibold text-[var(--cms-text)]">Ready to generate</p>
-                                            <p className="text-xs text-[var(--cms-muted)] mt-1 max-w-xs mx-auto">
-                                                Click the button above to let AI create a stunning title design
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* CSS Keyframes for gradient animation */}
-                        <style jsx>{`
-                            @keyframes gradientShift {
-                                0%, 100% { background-position: 0% 50%; }
-                                50% { background-position: 100% 50%; }
-                            }
-                            @keyframes fadeIn {
-                                from { opacity: 0; transform: translateY(8px); }
-                                to { opacity: 1; transform: translateY(0); }
-                            }
-                            .animate-fadeIn {
-                                animation: fadeIn 0.4s ease-out forwards;
-                            }
-                        `}</style>
-                    </section>
-
-                    {/* Banner Section */}
-                    <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-6">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <h2 className="font-heading text-lg font-bold tracking-tight">Menu Cover Banner</h2>
-                                <p className="text-sm text-[var(--cms-muted)]">Shown at the top of the public menu.</p>
-                            </div>
-                            {bannerPreview && (
-                                <button
-                                    onClick={removeBanner}
-                                    disabled={bannerUploading}
-                                    className="h-9 px-4 rounded-full border border-[var(--cms-border)] text-sm font-semibold text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
-                                >
-                                    Remove banner
-                                </button>
-                            )}
-                        </div>
-
-                        <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr] items-center">
-                            <div className="rounded-2xl border border-dashed border-[var(--cms-border)] bg-[var(--cms-bg)] p-4">
-                                {bannerPreview ? (
-                                    <img src={bannerPreview} alt="Menu banner" className="w-full h-44 object-cover rounded-xl" />
-                                ) : (
-                                    <div className="h-44 rounded-xl flex items-center justify-center text-sm text-[var(--cms-muted)]">
-                                        No banner uploaded yet.
+                                        ) : (
+                                            <div className="rounded-2xl border-2 border-dashed border-[var(--cms-border)] bg-[var(--cms-bg)] p-8 text-center">
+                                                <p className="text-sm font-semibold">Ready to generate</p>
+                                                <p className="text-xs text-[var(--cms-muted)] mt-1">Click the button above to generate a title design.</p>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
-                            <div className="space-y-3">
-                                <label className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--cms-text)]">
-                                    Upload a cover photo
-                                </label>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    disabled={bannerUploading}
-                                    onChange={(event) => {
-                                        const file = event.target.files?.[0];
-                                        if (file) setBannerCropFile(file);
-                                        event.currentTarget.value = "";
-                                    }}
-                                    className="block w-full text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--cms-text)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[var(--cms-bg)] hover:file:opacity-90"
-                                />
-                                <p className="text-xs text-[var(--cms-muted)]">Recommended: 1600×900 or larger (16:9 aspect ratio).</p>
-                            </div>
-                        </div>
-                    </section>
-
-                    {/* Item Images Toggle Section */}
-                    <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-6">
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <h2 className="font-heading text-lg font-bold tracking-tight">Item Images</h2>
-                                <p className="text-sm text-[var(--cms-muted)]">
-                                    Show item photos on the public menu page.
-                                </p>
-                            </div>
-                            <label className="relative inline-flex items-center cursor-pointer group">
-                                <input
-                                    type="checkbox"
-                                    checked={menu?.show_item_images !== false}
-                                    onChange={(e) => toggleItemImages(e.target.checked)}
-                                    className="sr-only peer"
-                                />
-                                <div className="w-11 h-6 bg-[var(--cms-border)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500" />
-                                <span className="ms-2 text-xs font-medium text-[var(--cms-muted)] group-hover:text-[var(--cms-text)] transition-colors whitespace-nowrap">
-                                    {menu?.show_item_images !== false ? 'Visible' : 'Hidden'}
-                                </span>
-                            </label>
-                        </div>
-                    </section>
-                </>
-            )}
-
-            <ImageCropperModal
-                open={Boolean(bannerCropFile)}
-                file={bannerCropFile}
-                aspect={16 / 9}
-                title="Crop banner"
-                description="Drag to reposition and adjust zoom. Double-click to reset."
-                confirmLabel="Crop & upload"
-                onCancel={() => setBannerCropFile(null)}
-                onConfirm={async (blob) => {
-                    const original = bannerCropFile;
-                    if (!original) return;
-
-                    const previousPreview = bannerPreview;
-                    const localUrl = URL.createObjectURL(blob);
-                    bannerPreviewBlobUrlRef.current = localUrl;
-                    setBannerPreview(localUrl);
-
-                    const filenameBase = original.name.replace(/\.[^/.]+$/, "");
-                    const croppedFile = new File([blob], `${filenameBase}_banner.jpg`, { type: blob.type });
-
-                    const updated = await uploadBanner(croppedFile);
-                    if (!updated) {
-                        if (bannerPreviewBlobUrlRef.current) {
-                            URL.revokeObjectURL(bannerPreviewBlobUrlRef.current);
-                            bannerPreviewBlobUrlRef.current = null;
-                        }
-                        setBannerPreview(previousPreview);
-                    }
-
-                    setBannerCropFile(null);
-                }}
-            />
-
-            {/* Theme Tab */}
-            {activeTab === 'theme' && (
-                <>
-                    <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-6 space-y-4">
-                        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                            <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--cms-muted)]" />
-                                <input
-                                    value={search}
-                                    onChange={(event) => setSearch(event.target.value)}
-                                    placeholder="Search themes, cuisines, or vibes"
-                                    className="h-10 w-full rounded-full border border-[var(--cms-border)] bg-[var(--cms-bg)] pl-9 pr-4 text-sm text-[var(--cms-text)] placeholder:text-[var(--cms-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--cms-text)]/10"
-                                />
-                            </div>
-                            <div className="flex items-center gap-3">
-                                <span className="text-xs text-[var(--cms-muted)]">{orderedThemes.length} themes</span>
-                                {hasFilters && (
-                                    <button
-                                        onClick={resetFilters}
-                                        className="h-10 px-4 rounded-full border border-[var(--cms-border)] text-sm font-semibold text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)] inline-flex items-center gap-2"
-                                    >
-                                        <X className="w-4 h-4" />
-                                        Clear
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-3">
-                            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">Tags</div>
-                            {selectedTags.length > 0 && (
-                                <span className="text-xs text-[var(--cms-muted)]">
-                                    Filtering: <span className="font-semibold text-[var(--cms-text)]">{selectedTags.join(", ")}</span>
-                                </span>
-                            )}
-                        </div>
-                        <div className="flex gap-2 overflow-x-auto pb-1">
-                            {tagsList.map((tag) => (
-                                <button
-                                    key={tag}
-                                    onClick={() => toggleTag(tag)}
-                                    className={`h-8 px-4 rounded-full text-xs font-semibold border whitespace-nowrap ${selectedTags.includes(tag) ? "bg-[var(--cms-accent)] text-white border-[var(--cms-accent)]" : "border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"}`}
-                                >
-                                    {tag}
-                                </button>
-                            ))}
-                        </div>
-                    </section>
-
-                    {orderedThemes.length === 0 ? (
-                        <div className="rounded-3xl border border-dashed border-[var(--cms-border)] bg-[var(--cms-panel)] p-10 text-center text-[var(--cms-muted)]">
-                            No themes match those filters. Try clearing or adjusting your search.
-                        </div>
-                    ) : (
-                        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3 auto-rows-fr">
-                            {orderedThemes.map((theme) => {
-                                const isActive = (menu?.theme || "noir") === theme.id;
-                                return (
-                                    <div
-                                        key={theme.id}
-                                        className="group rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 flex flex-col gap-4 transition-all hover:-translate-y-1 hover:shadow-xl hover:shadow-black/5 h-full"
-                                    >
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div className="min-w-0 flex-1">
-                                                <h2 className="font-heading text-lg font-bold tracking-tight">{theme.name}</h2>
-                                                <p className="text-sm text-[var(--cms-muted)] line-clamp-2 min-h-[2.5rem]">{theme.description}</p>
-                                                <div className="mt-3 flex gap-2 text-xs text-[var(--cms-muted)] overflow-hidden h-7">
-                                                    {[theme.category, theme.layout, ...theme.cuisines.slice(0, 2)].map((tag, tagIndex) => (
-                                                        <span key={`${theme.id}-${tagIndex}-${tag}`} className="px-2 py-1 rounded-full border border-[var(--cms-border)] whitespace-nowrap flex-shrink-0">
-                                                            {tag}
-                                                        </span>
-                                                    ))}
-                                                    {theme.cuisines.length > 2 && (
-                                                        <span className="px-2 py-1 rounded-full border border-[var(--cms-border)] whitespace-nowrap flex-shrink-0">
-                                                            +{theme.cuisines.length - 2} more
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            {isActive && (
-                                                <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full bg-[var(--cms-pill)] text-[var(--cms-text)]">
-                                                    <Check className="w-3 h-3" /> Active
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        <link
-                                            rel="stylesheet"
-                                            href={`https://fonts.googleapis.com/css2?family=${theme.fonts.heading.replace(/\s+/g, '+')}:wght@${theme.fonts.headingWeights}&family=${theme.fonts.body.replace(/\s+/g, '+')}:wght@${theme.fonts.bodyWeights}&display=swap`}
-                                        />
-                                        <div
-                                            className="theme-preview rounded-2xl p-4 border relative flex-1"
-                                            style={{
-                                                backgroundColor: theme.preview.bg,
-                                                borderColor: theme.preview.border,
-                                                color: theme.preview.text,
-                                                backgroundImage: `radial-gradient(120% 120% at 0% 0%, ${theme.preview.accent}22 0%, transparent 55%), radial-gradient(120% 120% at 100% 0%, ${theme.preview.accent}33 0%, transparent 45%)`
-                                            }}
-                                        >
-                                            <div className="text-sm uppercase tracking-widest opacity-70" style={{ fontFamily: `"${theme.fonts.body}", sans-serif` }}>Preview</div>
-                                            <div className="mt-3 text-xl font-bold" style={{ fontFamily: `"${theme.fonts.heading}", serif` }}>{menu?.name || "Menu Title"}</div>
-                                            <div className="mt-4 space-y-3">
-                                                {sampleItems.length > 0 ? (
-                                                    sampleItems.map((item) => (
-                                                        <div
-                                                            key={item.id}
-                                                            className="flex items-center justify-between rounded-xl px-3 py-2 transition-transform duration-300 group-hover:translate-x-1"
-                                                            style={{ backgroundColor: theme.preview.card, border: `1px solid ${theme.preview.border}` }}
-                                                        >
-                                                            <div>
-                                                                <div className="text-sm font-semibold" style={{ fontFamily: `"${theme.fonts.heading}", sans-serif` }}>{item.name}</div>
-                                                                <div className="text-xs opacity-60" style={{ fontFamily: `"${theme.fonts.body}", sans-serif` }}>{item.category}</div>
-                                                            </div>
-                                                            <div className="text-sm font-semibold" style={{ color: theme.preview.accent }}>
-                                                                ${item.price.toFixed(2)}
-                                                            </div>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="text-sm opacity-60">No items yet.</div>
-                                                )}
-                                            </div>
-                                            <div
-                                                className="absolute inset-x-6 bottom-6 h-1 rounded-full"
-                                                style={{ backgroundColor: theme.preview.accent, opacity: 0.4 }}
-                                            ></div>
-                                        </div>
-
-                                        <div className="flex flex-wrap gap-3">
-                                            <button
-                                                onClick={() => applyTheme(theme.id)}
-                                                disabled={savingThemeId === theme.id}
-                                                className={`h-9 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 transition-colors ${savingThemeId === theme.id ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]" : "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"}`}
-                                            >
-                                                {savingThemeId === theme.id && <Loader2 className="w-4 h-4 animate-spin" />}
-                                                {savingThemeId === theme.id ? "Applying..." : "Apply Theme"}
-                                            </button>
-                                            <Link
-                                                href={`/r/${menuId}?theme=${theme.id}`}
-                                                target="_blank"
-                                                className="h-9 px-4 rounded-full text-sm font-semibold inline-flex items-center gap-2 border border-[var(--cms-border)] text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
-                                            >
-                                                <ExternalLink className="w-4 h-4" />
-                                                Preview
-                                            </Link>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        </section>
                     )}
-                    <style jsx>{`
-                        .theme-preview::after {
-                            content: "";
-                            position: absolute;
-                            inset: -40%;
-                            background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.12), transparent 60%);
-                            opacity: 0.3;
-                            pointer-events: none;
-                        }
-                    `}</style>
-                </>
-            )}
+
+                    <ImageCropperModal
+                        open={Boolean(bannerCropFile)}
+                        file={bannerCropFile}
+                        aspect={16 / 9}
+                        title="Crop banner"
+                        description="Drag to reposition and adjust zoom. Double-click to reset."
+                        confirmLabel="Crop & upload"
+                        onCancel={() => setBannerCropFile(null)}
+                        onConfirm={async (blob) => {
+                            const original = bannerCropFile;
+                            if (!original) return;
+
+                            const previousPreview = bannerPreview;
+                            const localUrl = URL.createObjectURL(blob);
+                            bannerPreviewBlobUrlRef.current = localUrl;
+                            setBannerPreview(localUrl);
+
+                            const filenameBase = original.name.replace(/\.[^/.]+$/, "");
+                            const croppedFile = new File([blob], `${filenameBase}_banner.jpg`, { type: blob.type });
+
+                            const updated = await uploadBanner(croppedFile);
+                            if (!updated) {
+                                if (bannerPreviewBlobUrlRef.current) {
+                                    URL.revokeObjectURL(bannerPreviewBlobUrlRef.current);
+                                    bannerPreviewBlobUrlRef.current = null;
+                                }
+                                setBannerPreview(previousPreview);
+                            }
+
+                            setBannerCropFile(null);
+                        }}
+                    />
+                </div>
+
+                <aside className="xl:sticky xl:top-6 xl:self-start space-y-4">
+                    <section
+                        className="overflow-hidden rounded-3xl border border-[var(--cms-border)]"
+                        style={{
+                            background: `linear-gradient(140deg, ${activeTheme.preview.bg} 0%, ${activeTheme.preview.card} 100%)`,
+                            color: activeTheme.preview.text,
+                        }}
+                    >
+                        <div
+                            className="px-5 py-4 border-b"
+                            style={{
+                                borderColor: activeTheme.preview.border,
+                                background: `linear-gradient(120deg, ${activeTheme.preview.accent}30 0%, transparent 70%)`
+                            }}
+                        >
+                            <span
+                                className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold"
+                                style={{ borderColor: `${activeTheme.preview.border}`, backgroundColor: `${activeTheme.preview.bg}` }}
+                            >
+                                Theme · {activeTheme.name}
+                            </span>
+                            <h3 className="mt-4 font-heading text-5xl max-[640px]:text-4xl font-bold tracking-tight">{menu?.name || "Menu Preview"}</h3>
+                            <p className="mt-1 text-sm opacity-80">Scan, order, and view in AR</p>
+                        </div>
+
+                        <div className="px-5 py-4">
+                            <div className="flex flex-wrap gap-2">
+                                {previewCategories.length > 0 ? (
+                                    previewCategories.map((category) => (
+                                        <span
+                                            key={category}
+                                            className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold"
+                                            style={{ borderColor: activeTheme.preview.border, backgroundColor: activeTheme.preview.card }}
+                                        >
+                                            {category}
+                                        </span>
+                                    ))
+                                ) : (
+                                    <span
+                                        className="inline-flex rounded-full border px-3 py-1 text-xs font-semibold"
+                                        style={{ borderColor: activeTheme.preview.border, backgroundColor: activeTheme.preview.card }}
+                                    >
+                                        Add categories
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="mt-4 space-y-3">
+                                {previewItems.length > 0 ? (
+                                    previewItems.map((item) => {
+                                        const imageUrl = item.photo_url || item.photos?.[0]?.url || null;
+                                        return (
+                                            <article
+                                                key={item.id}
+                                                className="rounded-2xl border px-3 py-2.5"
+                                                style={{ borderColor: activeTheme.preview.border, backgroundColor: activeTheme.preview.card }}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border" style={{ borderColor: activeTheme.preview.border }}>
+                                                        {imageUrl ? (
+                                                            <img src={imageUrl} alt={item.name} className="h-full w-full object-cover" />
+                                                        ) : (
+                                                            <div className="h-full w-full flex items-center justify-center text-sm font-semibold" style={{ backgroundColor: `${activeTheme.preview.accent}35` }}>
+                                                                {item.name[0]}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="truncate text-lg font-semibold">{item.name}</p>
+                                                        <p className="text-base opacity-70">${item.price.toFixed(2)}</p>
+                                                    </div>
+                                                    <span
+                                                        className="inline-flex rounded-full px-3 py-1 text-sm font-semibold"
+                                                        style={{ backgroundColor: `${activeTheme.preview.accent}33`, color: activeTheme.preview.text }}
+                                                    >
+                                                        View
+                                                    </span>
+                                                </div>
+                                            </article>
+                                        );
+                                    })
+                                ) : (
+                                    <div
+                                        className="rounded-2xl border p-5 text-sm opacity-80"
+                                        style={{ borderColor: activeTheme.preview.border, backgroundColor: activeTheme.preview.card }}
+                                    >
+                                        Add menu items to preview the guest experience here.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+                </aside>
+            </div>
         </div>
     );
 }
