@@ -18,7 +18,7 @@ import {
     X,
 } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { useEffect, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -28,6 +28,25 @@ import { cn } from "@/lib/cn";
 
 type ShowcaseTab = "editor" | "themes" | "publish" | "ar";
 type PricingPeriod = "monthly" | "annual";
+type HeroFocusCard = "studio" | "qr" | "guest" | "ar";
+type HeroFocusOffset = { x: number; y: number };
+
+// Keep this sequence aligned with the four `hero-focus-card-*` blocks in the hero mock stack.
+const HERO_FOCUS_CARDS: HeroFocusCard[] = ["studio", "qr", "guest", "ar"];
+const HERO_FOCUS_STEP_MS = 3500;
+const HERO_FOCUS_RESUME_DELAY_MS = 1000;
+const HERO_FOCUS_ACTIVE_SCALES: Record<HeroFocusCard, number> = {
+    studio: 1.2,
+    qr: 1.06,
+    guest: 1.5,
+    ar: 1.5,
+};
+const HERO_FOCUS_ZERO_OFFSETS: Record<HeroFocusCard, HeroFocusOffset> = {
+    studio: { x: 0, y: 0 },
+    qr: { x: 0, y: 0 },
+    guest: { x: 0, y: 0 },
+    ar: { x: 0, y: 0 },
+};
 
 const SHOWCASE_TABS = [
     {
@@ -210,6 +229,46 @@ export default function Home() {
     const [showcaseHovering, setShowcaseHovering] = useState(false);
     const [showcaseFocused, setShowcaseFocused] = useState(false);
     const [pricingPeriod, setPricingPeriod] = useState<PricingPeriod>("monthly");
+    const [heroFocusCard, setHeroFocusCard] = useState<HeroFocusCard>("studio");
+    const [heroFocusPaused, setHeroFocusPaused] = useState(false);
+    const [heroFocusOffsets, setHeroFocusOffsets] = useState<Record<HeroFocusCard, HeroFocusOffset>>(HERO_FOCUS_ZERO_OFFSETS);
+    const heroFocusResumeTimeoutRef = useRef<number | null>(null);
+    const heroSceneRef = useRef<HTMLDivElement | null>(null);
+    const heroCardRefs = useRef<Record<HeroFocusCard, HTMLDivElement | null>>({
+        studio: null,
+        qr: null,
+        guest: null,
+        ar: null,
+    });
+
+    const clearHeroFocusResumeTimeout = () => {
+        if (heroFocusResumeTimeoutRef.current !== null) {
+            window.clearTimeout(heroFocusResumeTimeoutRef.current);
+            heroFocusResumeTimeoutRef.current = null;
+        }
+    };
+
+    const pauseHeroFocus = () => {
+        if (reduceMotion) return;
+        clearHeroFocusResumeTimeout();
+        setHeroFocusPaused(true);
+    };
+
+    const scheduleHeroFocusResume = () => {
+        if (reduceMotion) return;
+        clearHeroFocusResumeTimeout();
+        heroFocusResumeTimeoutRef.current = window.setTimeout(() => {
+            setHeroFocusPaused(false);
+            heroFocusResumeTimeoutRef.current = null;
+        }, HERO_FOCUS_RESUME_DELAY_MS);
+    };
+
+    const engageHeroFocusCard = (card: HeroFocusCard) => {
+        if (reduceMotion) return;
+        clearHeroFocusResumeTimeout();
+        setHeroFocusPaused(true);
+        setHeroFocusCard(card);
+    };
 
     useEffect(() => {
         setMounted(true);
@@ -232,6 +291,81 @@ export default function Home() {
         }, 7000);
         return () => window.clearInterval(interval);
     }, [reduceMotion, showcaseHovering, showcaseFocused]);
+
+    useEffect(() => {
+        if (reduceMotion || heroFocusPaused) return;
+        const interval = window.setInterval(() => {
+            setHeroFocusCard((current) => {
+                const idx = HERO_FOCUS_CARDS.indexOf(current);
+                const next = HERO_FOCUS_CARDS[(idx + 1) % HERO_FOCUS_CARDS.length] ?? HERO_FOCUS_CARDS[0];
+                return next;
+            });
+        }, HERO_FOCUS_STEP_MS);
+        return () => window.clearInterval(interval);
+    }, [reduceMotion, heroFocusPaused]);
+
+    useEffect(() => {
+        return () => {
+            if (heroFocusResumeTimeoutRef.current !== null) {
+                window.clearTimeout(heroFocusResumeTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        const scene = heroSceneRef.current;
+        if (!scene) return;
+
+        let frame = 0;
+        const scheduleRecalc = () => {
+            if (frame) window.cancelAnimationFrame(frame);
+            frame = window.requestAnimationFrame(() => {
+                const studioCard = heroCardRefs.current.studio;
+                if (!studioCard) return;
+
+                const targetX = studioCard.offsetLeft + studioCard.offsetWidth / 2;
+                const targetY = studioCard.offsetTop + studioCard.offsetHeight / 2;
+                const nextOffsets = { ...HERO_FOCUS_ZERO_OFFSETS };
+
+                for (const card of HERO_FOCUS_CARDS) {
+                    const cardNode = heroCardRefs.current[card];
+                    if (!cardNode) continue;
+
+                    const cardX = cardNode.offsetLeft + cardNode.offsetWidth / 2;
+                    const cardY = cardNode.offsetTop + cardNode.offsetHeight / 2;
+                    nextOffsets[card] = {
+                        x: Math.round((targetX - cardX) * 10) / 10,
+                        y: Math.round((targetY - cardY) * 10) / 10,
+                    };
+                }
+
+                setHeroFocusOffsets((prev) => {
+                    const changed = HERO_FOCUS_CARDS.some((card) => {
+                        const dx = Math.abs(prev[card].x - nextOffsets[card].x);
+                        const dy = Math.abs(prev[card].y - nextOffsets[card].y);
+                        return dx > 0.5 || dy > 0.5;
+                    });
+                    return changed ? nextOffsets : prev;
+                });
+            });
+        };
+
+        scheduleRecalc();
+
+        const observer = new ResizeObserver(scheduleRecalc);
+        observer.observe(scene);
+        for (const card of HERO_FOCUS_CARDS) {
+            const cardNode = heroCardRefs.current[card];
+            if (cardNode) observer.observe(cardNode);
+        }
+        window.addEventListener("resize", scheduleRecalc);
+
+        return () => {
+            if (frame) window.cancelAnimationFrame(frame);
+            observer.disconnect();
+            window.removeEventListener("resize", scheduleRecalc);
+        };
+    }, [mounted]);
 
     if (!mounted) {
         return <div className="min-h-screen bg-background" />;
@@ -260,6 +394,18 @@ export default function Home() {
     const heroArDishImage = "/images/hero/wagyu_burger.png";
     const heroQrImage = "/images/hero/qr-reference.png";
     const activeShowcaseImage = `/images/${activeShowcase.imageBase}-${themeSuffix}@2x.png`;
+    const getHeroFocusState = (card: HeroFocusCard): "active" | "inactive" | "static" => {
+        if (reduceMotion) return "static";
+        return heroFocusCard === card ? "active" : "inactive";
+    };
+    const getHeroFocusStyle = (card: HeroFocusCard): CSSProperties => {
+        const activeScale = HERO_FOCUS_ACTIVE_SCALES[card];
+        return {
+            "--focus-shift-x": `${heroFocusOffsets[card].x / activeScale}px`,
+            "--focus-shift-y": `${heroFocusOffsets[card].y / activeScale}px`,
+            "--focus-active-scale": `${activeScale}`,
+        } as CSSProperties;
+    };
 
     return (
         <div className="landing-shell relative isolate min-h-screen overflow-x-hidden bg-transparent text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
@@ -437,30 +583,65 @@ export default function Home() {
                                 transition={{ duration: 0.5, delay: 0.16 }}
                                 className="relative mx-auto w-full max-w-[760px]"
                             >
-                                <div className="hero-live-visual relative">
-                                    <div className="hero-stage relative rounded-[2rem] p-1.5 sm:p-2">
-                                        <div className="hero-mockup-label hero-mockup-label-tablet">Menu Studio</div>
-                                        <div className="hero-stage-screen relative overflow-hidden rounded-[1.6rem] sm:rounded-[1.8rem]">
-                                            <div className="relative aspect-[16/10] lg:aspect-[16/9]">
-                                                <Image
-                                                    src={heroStudioImage}
-                                                    alt="Menuvium Studio editor preview"
-                                                    fill
-                                                    sizes="(min-width: 1024px) 42vw, 84vw"
-                                                    quality={100}
-                                                    className="object-cover object-top"
-                                                    priority
-                                                />
-                                                <div className="hero-stage-screen-overlay" aria-hidden="true" />
-                                                <div className="hero-stage-live-badge absolute right-3 top-3 inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]">
-                                                    <span className="hero-live-dot" />
-                                                    Live
+                                <div
+                                    className="hero-live-visual hero-focus-stack relative"
+                                    data-focus-static={reduceMotion ? "true" : "false"}
+                                    data-active-card={heroFocusCard}
+                                    onMouseEnter={pauseHeroFocus}
+                                    onMouseLeave={scheduleHeroFocusResume}
+                                    onFocusCapture={pauseHeroFocus}
+                                    onBlurCapture={(event) => {
+                                        const nextTarget = event.relatedTarget;
+                                        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+                                            scheduleHeroFocusResume();
+                                        }
+                                    }}
+                                >
+                                    <div ref={heroSceneRef} className="hero-focus-scene relative">
+                                        {/* Focus slideshow cards: keep these keys in sync with HERO_FOCUS_CARDS above when adding/removing slides. */}
+                                        <div
+                                            ref={(node) => {
+                                                heroCardRefs.current.studio = node;
+                                            }}
+                                            className="hero-stage hero-focus-card hero-focus-card-studio relative rounded-[2rem] p-1.5 sm:p-2"
+                                            data-focus-state={getHeroFocusState("studio")}
+                                            style={getHeroFocusStyle("studio")}
+                                            onMouseEnter={() => engageHeroFocusCard("studio")}
+                                            onFocus={() => engageHeroFocusCard("studio")}
+                                            tabIndex={reduceMotion ? -1 : 0}
+                                        >
+                                            <div className="hero-stage-screen relative overflow-hidden rounded-[1.6rem] sm:rounded-[1.8rem]">
+                                                <div className="relative aspect-[16/10] lg:aspect-[16/9]">
+                                                    <Image
+                                                        src={heroStudioImage}
+                                                        alt="Menuvium Studio editor preview"
+                                                        fill
+                                                        sizes="(min-width: 1024px) 42vw, 84vw"
+                                                        quality={100}
+                                                        className="object-cover object-top"
+                                                        priority
+                                                    />
+                                                    <div className="hero-stage-screen-overlay" aria-hidden="true" />
+                                                    <div className="hero-stage-live-badge absolute right-3 top-3 inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]">
+                                                        <span className="hero-live-dot" />
+                                                        Live
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="hero-qr-card absolute left-1/2 top-[10%] z-30 w-[24%] -translate-x-1/2 rounded-[0.34rem] p-[0.2rem] sm:w-[24%]">
-                                            <div className="hero-mockup-label">Dynamic QR</div>
+                                        <div
+                                            ref={(node) => {
+                                                heroCardRefs.current.qr = node;
+                                            }}
+                                            className="hero-qr-card hero-focus-card hero-focus-card-qr absolute left-[35%] top-[-11%] w-[24%] rounded-[0.34rem] p-[0.2rem] sm:w-[24%]"
+                                            data-focus-state={getHeroFocusState("qr")}
+                                            style={getHeroFocusStyle("qr")}
+                                            onMouseEnter={() => engageHeroFocusCard("qr")}
+                                            onFocus={() => engageHeroFocusCard("qr")}
+                                            tabIndex={reduceMotion ? -1 : 0}
+                                        >
+                                            <span className="hero-focus-caption">Dynamic QR</span>
                                             <div className="hero-qr-grid rounded-[0.2rem]">
                                                 <Image
                                                     src={heroQrImage}
@@ -473,8 +654,18 @@ export default function Home() {
                                             </div>
                                         </div>
 
-                                        <div className="hero-stack-phone absolute -bottom-12 left-[7%] z-20 w-[24.6%] rounded-[0.96rem] p-[0.11rem] sm:-bottom-12 sm:w-[24.6%]">
-                                            <div className="hero-mockup-label">Guest View</div>
+                                        <div
+                                            ref={(node) => {
+                                                heroCardRefs.current.guest = node;
+                                            }}
+                                            className="hero-stack-phone hero-focus-card hero-focus-card-guest absolute -bottom-12 left-[7%] w-[24.6%] rounded-[0.96rem] p-[0.11rem] sm:-bottom-12 sm:w-[24.6%]"
+                                            data-focus-state={getHeroFocusState("guest")}
+                                            style={getHeroFocusStyle("guest")}
+                                            onMouseEnter={() => engageHeroFocusCard("guest")}
+                                            onFocus={() => engageHeroFocusCard("guest")}
+                                            tabIndex={reduceMotion ? -1 : 0}
+                                        >
+                                            <span className="hero-focus-caption">Guest View</span>
                                             <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
                                                 <span aria-hidden="true" className="hero-phone-punch" />
                                                 <div className="hero-guest-preview relative aspect-[9/19]">
@@ -490,8 +681,18 @@ export default function Home() {
                                             </div>
                                         </div>
 
-                                        <div className="hero-stack-phone hero-stack-phone-ar absolute -bottom-12 left-[66%] z-20 w-[24.6%] rounded-[0.96rem] p-[0.11rem] sm:-bottom-12 sm:w-[24.6%]">
-                                            <div className="hero-mockup-label">AR Mode</div>
+                                        <div
+                                            ref={(node) => {
+                                                heroCardRefs.current.ar = node;
+                                            }}
+                                            className="hero-stack-phone hero-stack-phone-ar hero-focus-card hero-focus-card-ar absolute -bottom-12 left-[66%] w-[24.6%] rounded-[0.96rem] p-[0.11rem] sm:-bottom-12 sm:w-[24.6%]"
+                                            data-focus-state={getHeroFocusState("ar")}
+                                            style={getHeroFocusStyle("ar")}
+                                            onMouseEnter={() => engageHeroFocusCard("ar")}
+                                            onFocus={() => engageHeroFocusCard("ar")}
+                                            tabIndex={reduceMotion ? -1 : 0}
+                                        >
+                                            <span className="hero-focus-caption hero-focus-caption-left">AR Mode</span>
                                             <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
                                                 <span aria-hidden="true" className="hero-phone-punch" />
                                                 <div className="hero-ar-ui relative aspect-[9/19]">
