@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, QrCode } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -140,7 +140,9 @@ export default function DashboardLayout({
                             onClick={() => setNavOpen(false)}
                             className={cn(
                                 "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
-                                pathname.startsWith("/dashboard/menus") && !pathname.includes("/themes")
+                                pathname.startsWith("/dashboard/menus") &&
+                                    !pathname.includes("/themes") &&
+                                    !pathname.includes("/publish")
                                     ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                     : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
                             )}
@@ -160,6 +162,19 @@ export default function DashboardLayout({
                         >
                             <Palette className="w-5 h-5" />
                             Design Studio
+                        </Link>
+                        <Link
+                            href="/dashboard/publish"
+                            onClick={() => setNavOpen(false)}
+                            className={cn(
+                                "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                pathname.startsWith("/dashboard/publish") || pathname.includes("/publish")
+                                    ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                    : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                            )}
+                        >
+                            <QrCode className="w-5 h-5" />
+                            Publish
                         </Link>
                         {!isManager && (
                             <Link

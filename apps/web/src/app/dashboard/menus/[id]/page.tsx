@@ -1307,6 +1307,12 @@ export default function MenuDetailPage() {
                                     </button>
                                 </>
                             )}
+                            <Link
+                                href={`/dashboard/menus/${menu.id}/publish`}
+                                className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
+                            >
+                                Publish
+                            </Link>
                             <Link href={`/r/${menu.id}`} target="_blank" className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]">
                                 View Public Page
                             </Link>

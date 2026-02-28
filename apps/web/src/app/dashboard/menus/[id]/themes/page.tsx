@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { ArrowLeft, Check, ChevronDown, ExternalLink, Image, Loader2, Palette, Search, SlidersHorizontal, X, Sparkles } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, ExternalLink, Image, Loader2, Palette, QrCode, Search, SlidersHorizontal, X, Sparkles } from "lucide-react";
 import { MENU_THEMES, MenuThemeId } from "@/lib/menuThemes";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
@@ -457,14 +457,23 @@ export default function MenuThemesPage() {
                         <h1 className="font-heading text-3xl font-bold tracking-tight">Design Studio</h1>
                         <p className="text-muted">Customize your menu's branding and visual theme.</p>
                     </div>
-                    <Link
-                        href={`/r/${menu?.id}`}
-                        target="_blank"
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-pill"
-                    >
-                        <ExternalLink className="w-4 h-4" />
-                        View Public Page
-                    </Link>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                            href={`/dashboard/menus/${menuId}/publish`}
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-pill"
+                        >
+                            <QrCode className="w-4 h-4" />
+                            Publish
+                        </Link>
+                        <Link
+                            href={`/r/${menu?.id}`}
+                            target="_blank"
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-pill"
+                        >
+                            <ExternalLink className="w-4 h-4" />
+                            View Public Page
+                        </Link>
+                    </div>
                 </div>
             </header>
 
