@@ -86,7 +86,6 @@ export default function ModeSelectPage() {
         <div className="w-full max-w-4xl mr-auto space-y-8">
             <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                    <Badge variant="outline">Account</Badge>
                     <h1 className="font-heading text-3xl sm:text-4xl font-bold tracking-tight">
                         Welcome,{" "}
                         {displayName ? (

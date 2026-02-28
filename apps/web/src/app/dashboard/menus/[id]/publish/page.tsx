@@ -186,11 +186,7 @@ export default function MenuPublishPage() {
                     <ArrowLeft className="w-4 h-4" /> Back to Menu
                 </Link>
 
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                    <div className="space-y-2">
-                        <Badge variant="outline">Publish</Badge>
-                    </div>
-
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-end">
                     <div className="flex flex-wrap items-center gap-2">
                         <Link
                             href={`/dashboard/menus/${menuId}/themes`}

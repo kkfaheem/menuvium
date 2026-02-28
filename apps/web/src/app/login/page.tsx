@@ -16,7 +16,14 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (authStatus !== 'authenticated') return;
-        // Always redirect to mode selection page after login
+        // Keep current mode sticky across refresh/reloads.
+        if (typeof window !== "undefined") {
+            const stored = localStorage.getItem("menuvium_user_mode");
+            if (stored === "admin" || stored === "manager") {
+                router.push("/dashboard/menus");
+                return;
+            }
+        }
         router.push("/dashboard/mode");
     }, [authStatus, router]);
 

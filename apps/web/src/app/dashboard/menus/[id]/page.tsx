@@ -29,7 +29,6 @@ import { SortableItemRow } from "@/components/menus/SortableItemRow";
 import { useMenuEditor } from "@/hooks/useMenuEditor";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { useToast } from "@/components/ui/ToastProvider";
-import { Badge } from "@/components/ui/Badge";
 
 export default function MenuDetailPage() {
     const params = useParams();
@@ -1192,7 +1191,6 @@ export default function MenuDetailPage() {
                 </Link>
                 <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                     <div className="space-y-2">
-                        <Badge variant="outline">Menus</Badge>
                         {isEditingMenuName ? (
                             <div className="flex items-center gap-2">
                                 <input

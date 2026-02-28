@@ -10,7 +10,6 @@ import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
 import { useConfirm } from "@/components/ui/ConfirmProvider";
 import { useToast } from "@/components/ui/ToastProvider";
-import { Badge } from "@/components/ui/Badge";
 
 type Company = { id: string; name: string };
 
@@ -265,7 +264,6 @@ export default function CompanyDetailPage() {
                     <ArrowLeft className="w-4 h-4" /> Back to Companies
                 </Link>
                 <div className="space-y-2">
-                    <Badge variant="outline">Companies</Badge>
                     <h1 className="font-heading text-3xl font-bold tracking-tight">{headerName}</h1>
                     <p className="text-muted">Add teammates by email and set what they can do.</p>
                 </div>

@@ -7,9 +7,16 @@ import { Building2, ChevronDown, ArrowRight, Loader2, QrCode } from "lucide-reac
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
+import { getCachedOrFetch, getCachedValue } from "@/lib/dashboardCache";
 import type { Menu, Organization } from "@/types";
-import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+
+type OrgCachePayload = {
+    visibleOrgs: Organization[];
+};
+
+const ORG_CACHE_TTL_MS = 45_000;
+const MENUS_CACHE_TTL_MS = 20_000;
 
 export default function PublishPage() {
     const router = useRouter();
@@ -18,21 +25,28 @@ export default function PublishPage() {
     const [loading, setLoading] = useState(true);
     const [organizations, setOrganizations] = useState<Organization[]>([]);
     const [selectedOrg, setSelectedOrg] = useState<string>("");
+    const [menusLoadedOrgId, setMenusLoadedOrgId] = useState<string | null>(null);
     const [selectedMenu, setSelectedMenu] = useState<string>("");
     const [mode, setMode] = useState<"admin" | "manager" | null>(null);
+    const [modeReady, setModeReady] = useState(false);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
         setMode((localStorage.getItem("menuvium_user_mode") as "admin" | "manager" | null) || null);
+        setModeReady(true);
     }, []);
 
     useEffect(() => {
-        fetchOrganizations();
-    }, [user, mode]);
+        if (!user || !modeReady || !mode) return;
+        void fetchOrganizations();
+    }, [user, modeReady, mode]);
 
     useEffect(() => {
         if (selectedOrg) {
-            fetchMenus();
+            void fetchMenus(selectedOrg);
+        } else {
+            setMenus([]);
+            setMenusLoadedOrgId(null);
         }
     }, [selectedOrg]);
 
@@ -47,68 +61,110 @@ export default function PublishPage() {
         localStorage.setItem("menuvium_last_org_id", selectedOrg);
     }, [selectedOrg]);
 
+    const applyOrganizations = (visibleOrgs: Organization[]) => {
+        if (visibleOrgs.length === 0) {
+            setOrganizations([]);
+            setSelectedOrg("");
+            setMenusLoadedOrgId(null);
+            return;
+        }
+
+        const preferredOrgId =
+            typeof window !== "undefined" ? localStorage.getItem("menuvium_last_org_id") : null;
+
+        setOrganizations(visibleOrgs);
+        setSelectedOrg((current) => {
+            if (current && visibleOrgs.some((org) => org.id === current)) {
+                return current;
+            }
+            if (preferredOrgId && visibleOrgs.some((org) => org.id === preferredOrgId)) {
+                return preferredOrgId;
+            }
+            return visibleOrgs[0].id;
+        });
+    };
+
     const fetchOrganizations = async () => {
+        if (!mode) return;
         try {
             const token = await getAuthToken();
             const apiBase = getApiBase();
-            const orgRes = await fetch(`${apiBase}/organizations/`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const userSub = getJwtSub(token) || "unknown";
+            const orgCacheKey = `dashboard:orgs:${mode}:${userSub}`;
+            const cached = getCachedValue<OrgCachePayload>(orgCacheKey, ORG_CACHE_TTL_MS);
 
-            if (!orgRes.ok) {
-                setOrganizations([]);
-                setSelectedOrg("");
-                return;
+            if (!cached) {
+                setLoading(true);
+            } else {
+                applyOrganizations(cached.visibleOrgs);
+                setLoading(false);
             }
-            const orgs = (await orgRes.json()) as Organization[];
-            const userSub = getJwtSub(token);
-            const isAdminMode = mode === "admin";
-            const visibleOrgs = isAdminMode && userSub ? orgs.filter((org) => org.owner_id === userSub) : orgs;
 
-            if (visibleOrgs.length === 0) {
-                setOrganizations([]);
-                setSelectedOrg("");
-                return;
-            }
-            const preferredOrgId =
-                typeof window !== "undefined" ? localStorage.getItem("menuvium_last_org_id") : null;
+            const { value: orgPayload } = await getCachedOrFetch<OrgCachePayload>(
+                orgCacheKey,
+                async () => {
+                    const orgRes = await fetch(`${apiBase}/organizations/`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (!orgRes.ok) {
+                        throw new Error("Failed to load organizations");
+                    }
+                    const orgs = (await orgRes.json()) as Organization[];
+                    const visibleOrgs = mode === "admin" ? orgs.filter((org) => org.owner_id === userSub) : orgs;
+                    return { visibleOrgs };
+                },
+                ORG_CACHE_TTL_MS
+            );
 
-            setOrganizations(visibleOrgs);
-            if (visibleOrgs.length > 0) {
-                const preferredOrg = preferredOrgId
-                    ? visibleOrgs.find((org) => org.id === preferredOrgId)
-                    : null;
-                setSelectedOrg(preferredOrg ? preferredOrg.id : visibleOrgs[0].id);
-            }
+            applyOrganizations(orgPayload.visibleOrgs);
         } catch (e) {
             console.error(e);
+            setOrganizations([]);
+            setSelectedOrg("");
+            setMenusLoadedOrgId(null);
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchMenus = async () => {
-        if (!selectedOrg) return;
-        setLoading(true);
+    const fetchMenus = async (orgId: string) => {
+        if (!orgId) return;
+
+        const menusCacheKey = `dashboard:menus:${orgId}`;
+        const cachedMenus = getCachedValue<Menu[]>(menusCacheKey, MENUS_CACHE_TTL_MS);
+        if (cachedMenus) {
+            setMenus(cachedMenus);
+            setMenusLoadedOrgId(orgId);
+            return;
+        }
+
+        setMenusLoadedOrgId(null);
         try {
             const token = await getAuthToken();
             const apiBase = getApiBase();
-            const res = await fetch(`${apiBase}/menus/?org_id=${selectedOrg}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setMenus(data);
-                return;
-            }
-            setMenus([]);
+            const { value: data } = await getCachedOrFetch<Menu[]>(
+                menusCacheKey,
+                async () => {
+                    const res = await fetch(`${apiBase}/menus/?org_id=${orgId}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (!res.ok) {
+                        throw new Error("Failed to load menus");
+                    }
+                    return (await res.json()) as Menu[];
+                },
+                MENUS_CACHE_TTL_MS
+            );
+            setMenus(data);
         } catch (e) {
             console.error(e);
             setMenus([]);
         } finally {
-            setLoading(false);
+            setMenusLoadedOrgId(orgId);
         }
     };
+
+    const waitingForMenus = Boolean(selectedOrg) && menusLoadedOrgId !== selectedOrg;
 
     if (loading && !organizations.length) {
         return (
@@ -119,12 +175,11 @@ export default function PublishPage() {
     }
 
     const hasNoOrgs = !loading && organizations.length === 0;
-    const hasNoMenus = !loading && selectedOrg && menus.length === 0;
+    const hasNoMenus = !loading && selectedOrg && menusLoadedOrgId === selectedOrg && menus.length === 0;
 
     return (
         <div className="max-w-3xl space-y-8">
             <header className="space-y-2">
-                <Badge variant="outline">Publish</Badge>
                 <h1 className="font-heading text-3xl font-bold tracking-tight">Publish</h1>
                 <p className="text-muted">Choose a menu to manage its public link and QR publishing setup.</p>
             </header>
@@ -173,7 +228,12 @@ export default function PublishPage() {
                     )}
 
                     <CardContent className="pt-0">
-                        {hasNoMenus ? (
+                        {waitingForMenus ? (
+                            <div className="rounded-2xl border border-border bg-panelStrong p-6 text-center text-sm text-muted flex items-center justify-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Loading menus...
+                            </div>
+                        ) : hasNoMenus ? (
                             <div className="rounded-2xl border border-dashed border-border bg-panelStrong p-6 text-center">
                                 <p className="text-sm text-muted">No menus found for this company. Create a menu first.</p>
                                 <button

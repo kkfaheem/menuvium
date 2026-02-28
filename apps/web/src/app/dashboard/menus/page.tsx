@@ -9,9 +9,19 @@ import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
+import { getCachedOrFetch, getCachedValue } from "@/lib/dashboardCache";
 import type { Menu, Organization, OrgPermissions } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
+
+type OrgCachePayload = {
+    visibleOrgs: Organization[];
+    hiddenByMode: boolean;
+};
+
+const ORG_CACHE_TTL_MS = 45_000;
+const MENUS_CACHE_TTL_MS = 20_000;
+const ORG_PERMISSIONS_CACHE_TTL_MS = 20_000;
 
 export default function MenusPage() {
     const router = useRouter();
@@ -24,22 +34,30 @@ export default function MenusPage() {
 
     const [organizations, setOrganizations] = useState<Organization[]>([]);
     const [selectedOrg, setSelectedOrg] = useState<string>("");
+    const [menusLoadedOrgId, setMenusLoadedOrgId] = useState<string | null>(null);
     const [mode, setMode] = useState<"admin" | "manager" | null>(null);
+    const [modeReady, setModeReady] = useState(false);
     const [orgPermissions, setOrgPermissions] = useState<OrgPermissions | null>(null);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
         setMode((localStorage.getItem("menuvium_user_mode") as "admin" | "manager" | null) || null);
+        setModeReady(true);
     }, []);
 
     useEffect(() => {
-        fetchOrganizations();
-    }, [user, mode]);
+        if (!user || !modeReady || !mode) return;
+        void fetchOrganizations();
+    }, [user, modeReady, mode]);
 
     useEffect(() => {
         if (selectedOrg) {
-            fetchMenus();
-            fetchPermissions();
+            void fetchMenus(selectedOrg);
+            void fetchPermissions(selectedOrg);
+        } else {
+            setMenus([]);
+            setMenusLoadedOrgId(null);
+            setOrgPermissions(null);
         }
     }, [selectedOrg]);
 
@@ -48,58 +66,101 @@ export default function MenusPage() {
         localStorage.setItem("menuvium_last_org_id", selectedOrg);
     }, [selectedOrg]);
 
+    const applyOrganizations = (visibleOrgs: Organization[], hiddenByMode: boolean) => {
+        setOrgsHiddenByMode(hiddenByMode);
+        if (visibleOrgs.length === 0) {
+            setOrganizations([]);
+            setSelectedOrg("");
+            setMenusLoadedOrgId(null);
+            return;
+        }
+
+        const preferredOrgId =
+            typeof window !== "undefined" ? localStorage.getItem("menuvium_last_org_id") : null;
+
+        setOrganizations(visibleOrgs);
+        setSelectedOrg((current) => {
+            if (current && visibleOrgs.some((org) => org.id === current)) {
+                return current;
+            }
+            if (preferredOrgId && visibleOrgs.some((org) => org.id === preferredOrgId)) {
+                return preferredOrgId;
+            }
+            return visibleOrgs[0].id;
+        });
+    };
+
     const fetchOrganizations = async () => {
+        if (!mode) return;
+
         setOrgError(null);
         setOrgsHiddenByMode(false);
         try {
             const token = await getAuthToken();
             const apiBase = getApiBase();
-            const orgRes = await fetch(`${apiBase}/organizations/`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const userSub = getJwtSub(token) || "unknown";
+            const orgCacheKey = `dashboard:orgs:${mode}:${userSub}`;
+            const cached = getCachedValue<OrgCachePayload>(orgCacheKey, ORG_CACHE_TTL_MS);
 
-            if (!orgRes.ok) {
-                setOrganizations([]);
-                setSelectedOrg("");
-                setOrgError("Could not load companies. Please refresh and try again.");
-                return;
+            if (!cached) {
+                setLoading(true);
+            } else {
+                applyOrganizations(cached.visibleOrgs, cached.hiddenByMode);
+                setLoading(false);
             }
-            const orgs = (await orgRes.json()) as Organization[];
-            const userSub = getJwtSub(token);
-            const isAdminMode = mode === "admin";
-            const visibleOrgs = isAdminMode && userSub ? orgs.filter((org) => org.owner_id === userSub) : orgs;
 
-            if (visibleOrgs.length === 0) {
-                if (isAdminMode && orgs.length > 0) {
-                    setOrgsHiddenByMode(true);
-                }
-                setOrganizations([]);
-                setSelectedOrg("");
-                return;
-            }
-            const preferredOrgId =
-                typeof window !== "undefined" ? localStorage.getItem("menuvium_last_org_id") : null;
+            const { value: orgPayload } = await getCachedOrFetch<OrgCachePayload>(
+                orgCacheKey,
+                async () => {
+                    const orgRes = await fetch(`${apiBase}/organizations/`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (!orgRes.ok) {
+                        throw new Error("Failed to load organizations");
+                    }
+                    const orgs = (await orgRes.json()) as Organization[];
+                    const isAdminMode = mode === "admin";
+                    const visibleOrgs = isAdminMode ? orgs.filter((org) => org.owner_id === userSub) : orgs;
+                    return {
+                        visibleOrgs,
+                        hiddenByMode: isAdminMode && orgs.length > 0 && visibleOrgs.length === 0,
+                    };
+                },
+                ORG_CACHE_TTL_MS
+            );
 
-            setOrganizations(visibleOrgs);
-            if (visibleOrgs.length > 0) {
-                const preferredOrg = preferredOrgId
-                    ? visibleOrgs.find((org) => org.id === preferredOrgId)
-                    : null;
-                setSelectedOrg(preferredOrg ? preferredOrg.id : visibleOrgs[0].id);
-            }
+            applyOrganizations(orgPayload.visibleOrgs, orgPayload.hiddenByMode);
         } catch (e) {
             console.error(e);
+            setOrganizations([]);
+            setSelectedOrg("");
+            setMenusLoadedOrgId(null);
+            setOrgError("Could not load companies. Please refresh and try again.");
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchPermissions = async () => {
-        if (!selectedOrg) return;
+    const fetchPermissions = async (orgId: string) => {
+        if (!orgId || mode !== "admin") {
+            setOrgPermissions(null);
+            return;
+        }
+        const permissionsCacheKey = `dashboard:org-perms:${orgId}`;
+        const cachedPermissions = getCachedValue<OrgPermissions>(permissionsCacheKey, ORG_PERMISSIONS_CACHE_TTL_MS);
+        if (cachedPermissions) {
+            setOrgPermissions(cachedPermissions);
+            return;
+        }
+
         try {
             const token = await getAuthToken();
             const apiBase = getApiBase();
-            const perms = await fetchOrgPermissions({ apiBase, token, orgId: selectedOrg });
+            const { value: perms } = await getCachedOrFetch<OrgPermissions>(
+                permissionsCacheKey,
+                () => fetchOrgPermissions({ apiBase, token, orgId }),
+                ORG_PERMISSIONS_CACHE_TTL_MS
+            );
             setOrgPermissions(perms);
         } catch (e) {
             console.error(e);
@@ -107,33 +168,48 @@ export default function MenusPage() {
         }
     };
 
-    const fetchMenus = async () => {
-        if (!selectedOrg) return;
-        setLoading(true);
+    const fetchMenus = async (orgId: string) => {
+        if (!orgId) return;
+
         setMenusError(null);
+        const menusCacheKey = `dashboard:menus:${orgId}`;
+        const cachedMenus = getCachedValue<Menu[]>(menusCacheKey, MENUS_CACHE_TTL_MS);
+        if (cachedMenus) {
+            setMenus(cachedMenus);
+            setMenusLoadedOrgId(orgId);
+            return;
+        }
+
+        setMenusLoadedOrgId(null);
         try {
             const token = await getAuthToken();
             const apiBase = getApiBase();
-            const res = await fetch(`${apiBase}/menus/?org_id=${selectedOrg}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setMenus(data);
-                return;
-            }
-            setMenus([]);
-            setMenusError("Could not load menus for this company.");
+            const { value: data } = await getCachedOrFetch<Menu[]>(
+                menusCacheKey,
+                async () => {
+                    const res = await fetch(`${apiBase}/menus/?org_id=${orgId}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (!res.ok) {
+                        throw new Error("Failed to load menus");
+                    }
+                    return (await res.json()) as Menu[];
+                },
+                MENUS_CACHE_TTL_MS
+            );
+            setMenus(data);
         } catch (e) {
             console.error(e);
             setMenus([]);
             setMenusError("Could not reach the API. Make sure the backend is running.");
         } finally {
-            setLoading(false);
+            setMenusLoadedOrgId(orgId);
         }
     };
 
-    if (loading && !menus.length && !selectedOrg) return <div className="text-muted">Loading context...</div>;
+    const waitingForMenus = Boolean(selectedOrg) && menusLoadedOrgId !== selectedOrg;
+
+    if (loading && !selectedOrg) return <div className="text-muted">Loading context...</div>;
 
     const isManager = mode === "manager";
     const canCreateMenu = mode === "admin" && Boolean(orgPermissions?.can_manage_menus);
@@ -142,7 +218,6 @@ export default function MenusPage() {
         return (
             <div className="max-w-2xl space-y-6">
                 <header className="space-y-2">
-                    <Badge variant="outline">Menus</Badge>
                     <h1 className="font-heading text-3xl font-bold tracking-tight">Menus</h1>
                     <p className="text-muted">
                         {orgError
@@ -195,7 +270,6 @@ export default function MenusPage() {
         <div className="space-y-6">
             <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">
-                    <Badge variant="outline">Menus</Badge>
                     <h1 className="font-heading text-3xl font-bold tracking-tight">Menus</h1>
                     <p className="text-muted">Manage your restaurant's menus.</p>
                 </div>
@@ -233,7 +307,7 @@ export default function MenusPage() {
                 </div>
             </header>
 
-            {!loading && menus.length === 0 && selectedOrg && (
+            {!loading && menusLoadedOrgId === selectedOrg && menus.length === 0 && selectedOrg && (
                 <Card>
                     <CardHeader className="flex flex-row items-start justify-between gap-4">
                         <div>
@@ -259,26 +333,34 @@ export default function MenusPage() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-                {menus.map(menu => (
-                    <Link
-                        key={menu.id}
-                        href={`/dashboard/menus/${menu.id}`}
-                        className="group block rounded-2xl border border-border bg-panel p-6 shadow-sm transition-colors hover:bg-panelStrong"
-                    >
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-pill text-lg font-bold text-foreground">
-                                {menu.name[0]}
-                            </div>
-                            <Badge variant={menu.is_active ? "success" : "outline"}>
-                                {menu.is_active ? "Active" : "Inactive"}
-                            </Badge>
+                {waitingForMenus
+                    ? Array.from({ length: 3 }).map((_, idx) => (
+                        <div key={idx} className="rounded-2xl border border-border bg-panel p-6 shadow-sm">
+                            <div className="h-12 w-12 rounded-2xl bg-pill animate-pulse" />
+                            <div className="mt-4 h-6 w-32 rounded bg-pill animate-pulse" />
+                            <div className="mt-2 h-4 w-20 rounded bg-pill animate-pulse" />
                         </div>
-                        <h3 className="mt-4 text-lg font-semibold tracking-tight group-hover:text-foreground">
-                            {menu.name}
-                        </h3>
-                        <p className="mt-1 text-sm text-muted">Open editor</p>
-                    </Link>
-                ))}
+                    ))
+                    : menus.map(menu => (
+                        <Link
+                            key={menu.id}
+                            href={`/dashboard/menus/${menu.id}`}
+                            className="group block rounded-2xl border border-border bg-panel p-6 shadow-sm transition-colors hover:bg-panelStrong"
+                        >
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-pill text-lg font-bold text-foreground">
+                                    {menu.name[0]}
+                                </div>
+                                <Badge variant={menu.is_active ? "success" : "outline"}>
+                                    {menu.is_active ? "Active" : "Inactive"}
+                                </Badge>
+                            </div>
+                            <h3 className="mt-4 text-lg font-semibold tracking-tight group-hover:text-foreground">
+                                {menu.name}
+                            </h3>
+                            <p className="mt-1 text-sm text-muted">Open editor</p>
+                        </Link>
+                    ))}
             </div>
         </div>
     );

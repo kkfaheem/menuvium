@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, QrCode } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/cn";
@@ -16,29 +16,34 @@ export default function DashboardLayout({
 }) {
     const pathname = usePathname();
     const router = useRouter();
-    const { user, signOut } = useAuthenticator((context) => [context.user]);
+    const { user, signOut, authStatus } = useAuthenticator((context) => [context.user, context.authStatus]);
     const [mounted, setMounted] = useState(false);
     const [navOpen, setNavOpen] = useState(false);
     const [mode, setMode] = useState<"admin" | "manager" | null>(null);
+    const [modeReady, setModeReady] = useState(false);
     const isModePage = pathname.startsWith("/dashboard/mode");
 
     useEffect(() => {
         setMounted(true);
-        if (typeof window !== "undefined") {
-            // REMOVED legacy theme logic
-            if (!user) {
-                router.replace("/login");
-            }
-        }
-    }, [user, router]);
+    }, []);
 
-    useLayoutEffect(() => {
+    useEffect(() => {
+        if (!mounted) return;
+        if (authStatus === "unauthenticated") {
+            router.replace("/login");
+        }
+    }, [mounted, authStatus, router]);
+
+    useEffect(() => {
         if (typeof window === "undefined") return;
-        setMode((localStorage.getItem("menuvium_user_mode") as "admin" | "manager" | null) || null);
+        const stored = localStorage.getItem("menuvium_user_mode");
+        const resolvedMode = stored === "admin" || stored === "manager" ? stored : null;
+        setMode(resolvedMode);
+        setModeReady(true);
     }, [pathname]);
 
     useEffect(() => {
-        if (!mounted || !user) return;
+        if (!mounted || !user || !modeReady) return;
         if (mode === null && !isModePage) {
             router.replace("/dashboard/mode");
             return;
@@ -52,7 +57,7 @@ export default function DashboardLayout({
                 router.replace("/dashboard/menus");
             }
         }
-    }, [mounted, user, mode, pathname, router, isModePage]);
+    }, [mounted, user, mode, pathname, router, isModePage, modeReady]);
 
     if (!mounted) return <div className="min-h-screen bg-background" suppressHydrationWarning />;
     if (!user) return null;
@@ -238,7 +243,7 @@ export default function DashboardLayout({
                 {/* Main Content */}
                 <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 md:px-0 md:py-0">
                     <div className="mx-auto w-full max-w-7xl">
-                        {mode ? (
+                        {modeReady && mode ? (
                             children
                         ) : (
                             <div className="w-full max-w-2xl space-y-3">

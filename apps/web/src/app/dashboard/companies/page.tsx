@@ -169,7 +169,6 @@ export default function CompaniesPage() {
 	    return (
 	        <div className="w-full max-w-6xl mr-auto space-y-8">
 	            <header className="space-y-2">
-	                <Badge variant="outline">Companies</Badge>
 	                <h1 className="font-heading text-3xl font-bold tracking-tight">Companies</h1>
 	                <p className="text-muted">Invite teammates and manage access.</p>
 	            </header>

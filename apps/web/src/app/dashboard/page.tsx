@@ -8,73 +8,130 @@ import { useEffect, useMemo, useState } from "react";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
+import { getCachedOrFetch, getCachedValue } from "@/lib/dashboardCache";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+
+type OverviewData = {
+    companyCount: number;
+    menuCount: number;
+    activeMenuCount: number;
+    itemCount: number;
+    recentMenus: { id: string; name: string; is_active: boolean }[];
+};
+
+const OVERVIEW_CACHE_TTL_MS = 20_000;
 
 export default function DashboardPage() {
     const { user } = useAuthenticator(context => [context.user]);
     const [displayName, setDisplayName] = useState("");
     const [loading, setLoading] = useState(true);
-    const [companyCount, setCompanyCount] = useState(0);
-    const [menuCount, setMenuCount] = useState(0);
-    const [activeMenuCount, setActiveMenuCount] = useState(0);
-    const [itemCount, setItemCount] = useState(0);
-    const [recentMenus, setRecentMenus] = useState<{ id: string; name: string; is_active: boolean }[]>([]);
+    const [overview, setOverview] = useState<OverviewData | null>(null);
 
     useEffect(() => {
+        let cancelled = false;
         const loadOverview = async () => {
             if (!user) return;
-            setLoading(true);
             try {
                 const apiBase = getApiBase();
                 const token = await getAuthToken();
-                const orgRes = await fetch(`${apiBase}/organizations/`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                if (!orgRes.ok) return;
-                const orgs = await orgRes.json();
                 const userSub = getJwtSub(token);
-                const ownedOrgs = userSub ? orgs.filter((org: { owner_id?: string }) => org.owner_id === userSub) : [];
-                setCompanyCount(ownedOrgs.length);
-                if (!ownedOrgs.length) {
-                    setMenuCount(0);
-                    setActiveMenuCount(0);
-                    setItemCount(0);
-                    setRecentMenus([]);
+                const overviewCacheKey = `dashboard:overview:${userSub || "unknown"}`;
+                const cached = getCachedValue<OverviewData>(overviewCacheKey, OVERVIEW_CACHE_TTL_MS);
+                if (cached) {
+                    if (!cancelled) {
+                        setOverview(cached);
+                        setLoading(false);
+                    }
                     return;
                 }
 
-                const menuLists = await Promise.all(
-                    ownedOrgs.map((org: { id: string }) =>
-                        fetch(`${apiBase}/menus/?org_id=${org.id}`, {
-                            headers: { Authorization: `Bearer ${token}` }
-                        }).then((res) => (res.ok ? res.json() : []))
-                    )
-                );
-                const menus = menuLists.flat();
-                setMenuCount(menus.length);
-                setActiveMenuCount(menus.filter((menu: { is_active: boolean }) => menu.is_active).length);
-                setRecentMenus(menus.slice(0, 4));
+                if (!cancelled) {
+                    setLoading(true);
+                }
 
-                const categoryLists = await Promise.all(
-                    menus.map((menu: { id: string }) =>
-                        fetch(`${apiBase}/categories/${menu.id}`, {
+                const { value: nextOverview } = await getCachedOrFetch<OverviewData>(
+                    overviewCacheKey,
+                    async () => {
+                        const orgRes = await fetch(`${apiBase}/organizations/`, {
                             headers: { Authorization: `Bearer ${token}` }
-                        }).then((res) => (res.ok ? res.json() : []))
-                    )
+                        });
+                        if (!orgRes.ok) {
+                            throw new Error("Failed to load organizations");
+                        }
+                        const orgs = (await orgRes.json()) as { id: string; owner_id?: string }[];
+                        const ownedOrgs = userSub ? orgs.filter((org) => org.owner_id === userSub) : [];
+                        const nextCompanyCount = ownedOrgs.length;
+                        if (!ownedOrgs.length) {
+                            return {
+                                companyCount: nextCompanyCount,
+                                menuCount: 0,
+                                activeMenuCount: 0,
+                                itemCount: 0,
+                                recentMenus: [],
+                            };
+                        }
+
+                        const menuLists = await Promise.all(
+                            ownedOrgs.map((org) =>
+                                fetch(`${apiBase}/menus/?org_id=${org.id}`, {
+                                    headers: { Authorization: `Bearer ${token}` }
+                                }).then((res) => (res.ok ? (res.json() as Promise<{ id: string; name: string; is_active: boolean }[]>) : []))
+                            )
+                        );
+                        const menus = menuLists.flat();
+                        const nextMenuCount = menus.length;
+                        const nextActiveMenuCount = menus.filter((menu) => menu.is_active).length;
+                        const nextRecentMenus = menus.slice(0, 4);
+
+                        const categoryLists = await Promise.all(
+                            menus.map((menu) =>
+                                fetch(`${apiBase}/categories/${menu.id}`, {
+                                    headers: { Authorization: `Bearer ${token}` }
+                                }).then((res) => (res.ok ? (res.json() as Promise<{ items?: unknown[] }[]>) : []))
+                            )
+                        );
+                        const categories = categoryLists.flat();
+                        const totalItems = categories.reduce((sum, category) => {
+                            return sum + (Array.isArray(category.items) ? category.items.length : 0);
+                        }, 0);
+
+                        return {
+                            companyCount: nextCompanyCount,
+                            menuCount: nextMenuCount,
+                            activeMenuCount: nextActiveMenuCount,
+                            itemCount: totalItems,
+                            recentMenus: nextRecentMenus,
+                        };
+                    },
+                    OVERVIEW_CACHE_TTL_MS
                 );
-                const categories = categoryLists.flat();
-                const totalItems = categories.reduce((sum: number, category: { items?: any[] }) => {
-                    return sum + (category.items?.length || 0);
-                }, 0);
-                setItemCount(totalItems);
+
+                if (!cancelled) {
+                    setOverview(nextOverview);
+                }
             } catch (e) {
                 console.error(e);
+                if (!cancelled) {
+                    setOverview((current) => current || {
+                        companyCount: 0,
+                        menuCount: 0,
+                        activeMenuCount: 0,
+                        itemCount: 0,
+                        recentMenus: [],
+                    });
+                }
             } finally {
-                setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                }
             }
         };
-        loadOverview();
+        void loadOverview();
+
+        return () => {
+            cancelled = true;
+        };
     }, [user]);
 
     useEffect(() => {
@@ -91,6 +148,12 @@ export default function DashboardPage() {
         loadProfile();
     }, [user]);
 
+    const companyCount = overview?.companyCount ?? 0;
+    const menuCount = overview?.menuCount ?? 0;
+    const activeMenuCount = overview?.activeMenuCount ?? 0;
+    const itemCount = overview?.itemCount ?? 0;
+    const recentMenus = overview?.recentMenus ?? [];
+    const isInitialLoading = loading && overview === null;
     const hasMenus = menuCount > 0;
     const emptyStateTitle = useMemo(
         () => (companyCount ? "Create your first menu" : "Create your company"),
@@ -107,7 +170,6 @@ export default function DashboardPage() {
     return (
         <div className="space-y-8">
             <header className="space-y-2">
-                <Badge variant="outline">Overview</Badge>
                 <h1 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">
                     Welcome back,{" "}
                     {displayName ? (
@@ -128,7 +190,11 @@ export default function DashboardPage() {
                         <CardDescription className="sr-only">Total companies you own</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <p className={`text-3xl font-bold ${loading ? "opacity-40 animate-pulse" : ""}`}>{companyCount}</p>
+                        {isInitialLoading ? (
+                            <div className="h-9 w-12 rounded-lg bg-pill animate-pulse" />
+                        ) : (
+                            <p className="text-3xl font-bold">{companyCount}</p>
+                        )}
                     </CardContent>
                 </Card>
                 <Card>
@@ -139,8 +205,17 @@ export default function DashboardPage() {
                         <CardDescription className="sr-only">Total menus</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <p className={`text-3xl font-bold ${loading ? "opacity-40 animate-pulse" : ""}`}>{menuCount}</p>
-                        <p className="mt-2 text-xs text-muted">{activeMenuCount} active</p>
+                        {isInitialLoading ? (
+                            <>
+                                <div className="h-9 w-14 rounded-lg bg-pill animate-pulse" />
+                                <div className="mt-2 h-3 w-16 rounded bg-pill animate-pulse" />
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-3xl font-bold">{menuCount}</p>
+                                <p className="mt-2 text-xs text-muted">{activeMenuCount} active</p>
+                            </>
+                        )}
                     </CardContent>
                 </Card>
                 <Card>
@@ -151,12 +226,35 @@ export default function DashboardPage() {
                         <CardDescription className="sr-only">Total menu items</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <p className={`text-3xl font-bold ${loading ? "opacity-40 animate-pulse" : ""}`}>{itemCount}</p>
+                        {isInitialLoading ? (
+                            <div className="h-9 w-16 rounded-lg bg-pill animate-pulse" />
+                        ) : (
+                            <p className="text-3xl font-bold">{itemCount}</p>
+                        )}
                     </CardContent>
                 </Card>
             </div>
 
-            {hasMenus ? (
+            {isInitialLoading ? (
+                <Card className="mt-2">
+                    <CardHeader className="flex flex-row items-start justify-between gap-4">
+                        <div className="space-y-2">
+                            <div className="h-5 w-48 rounded bg-pill animate-pulse" />
+                            <div className="h-4 w-56 rounded bg-pill animate-pulse" />
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            {Array.from({ length: 2 }).map((_, idx) => (
+                                <div key={idx} className="rounded-2xl border border-border bg-panelStrong p-4">
+                                    <div className="h-5 w-40 rounded bg-pill animate-pulse" />
+                                    <div className="mt-2 h-3 w-24 rounded bg-pill animate-pulse" />
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            ) : hasMenus ? (
                 <Card className="mt-2">
                     <CardHeader className="flex flex-row items-start justify-between gap-4">
                         <div>

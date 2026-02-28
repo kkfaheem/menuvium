@@ -7,7 +7,6 @@ import { getApiBase } from "@/lib/apiBase";
 import type { DietaryTag, Allergen } from "@/types";
 import { useTheme } from "@/components/ThemeProvider";
 import { useToast } from "@/components/ui/ToastProvider";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -38,6 +37,9 @@ export default function SettingsPage() {
     const [newSpiceTag, setNewSpiceTag] = useState("");
     const [newHighlightTag, setNewHighlightTag] = useState("");
     const [newAllergenTag, setNewAllergenTag] = useState("");
+    const activeOptionClasses = "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]";
+    const activeOptionButtonClasses =
+        "border-[var(--cms-accent)] bg-[var(--cms-accent-subtle)] text-[var(--cms-text)] hover:bg-[var(--cms-accent-subtle)]";
 
     const normalize = (value: string) => value.trim().toLowerCase();
     const normalizeKey = (value: string) => value.trim();
@@ -325,7 +327,6 @@ export default function SettingsPage() {
 	    return (
 	        <div className="max-w-4xl space-y-8">
 	            <header className="space-y-2">
-	                <Badge variant="outline">Settings</Badge>
 	                <h1 className="font-heading text-3xl font-bold tracking-tight">Settings</h1>
 	                <p className="text-muted">Keep the control surface clean and fast.</p>
 	            </header>
@@ -336,7 +337,7 @@ export default function SettingsPage() {
                     onClick={() => setActiveTab("general")}
                     className={cn(
                         "h-9 rounded-lg px-4 text-xs font-semibold transition-colors",
-                        activeTab === "general" ? "bg-panel text-foreground shadow-sm" : "text-muted hover:text-foreground"
+                        activeTab === "general" ? activeOptionClasses : "text-muted hover:text-foreground"
                     )}
                 >
                     General
@@ -346,7 +347,7 @@ export default function SettingsPage() {
                     onClick={() => setActiveTab("tags")}
                     className={cn(
                         "h-9 rounded-lg px-4 text-xs font-semibold transition-colors",
-                        activeTab === "tags" ? "bg-panel text-foreground shadow-sm" : "text-muted hover:text-foreground"
+                        activeTab === "tags" ? activeOptionClasses : "text-muted hover:text-foreground"
                     )}
                 >
                     Tags
@@ -364,7 +365,8 @@ export default function SettingsPage() {
                             <div className="flex flex-wrap gap-2">
                                 <Button
                                     type="button"
-                                    variant={theme === "light" ? "secondary" : "outline"}
+                                    variant="outline"
+                                    className={theme === "light" ? activeOptionButtonClasses : undefined}
                                     onClick={() => setTheme("light")}
                                 >
                                     <Sun className="h-4 w-4" />
@@ -372,7 +374,8 @@ export default function SettingsPage() {
                                 </Button>
                                 <Button
                                     type="button"
-                                    variant={theme === "dark" ? "secondary" : "outline"}
+                                    variant="outline"
+                                    className={theme === "dark" ? activeOptionButtonClasses : undefined}
                                     onClick={() => setTheme("dark")}
                                 >
                                     <Moon className="h-4 w-4" />
@@ -380,7 +383,8 @@ export default function SettingsPage() {
                                 </Button>
                                 <Button
                                     type="button"
-                                    variant={theme === "system" ? "secondary" : "outline"}
+                                    variant="outline"
+                                    className={theme === "system" ? activeOptionButtonClasses : undefined}
                                     onClick={() => setTheme("system")}
                                 >
                                     <Monitor className="h-4 w-4" />
@@ -402,14 +406,16 @@ export default function SettingsPage() {
                             <div className="flex flex-wrap gap-2">
                                 <Button
                                     type="button"
-                                    variant={soldOutDisplay === "dim" ? "secondary" : "outline"}
+                                    variant="outline"
+                                    className={soldOutDisplay === "dim" ? activeOptionButtonClasses : undefined}
                                     onClick={() => setSoldOutDisplayAndPersist("dim")}
                                 >
                                     Dim items
                                 </Button>
                                 <Button
                                     type="button"
-                                    variant={soldOutDisplay === "hide" ? "secondary" : "outline"}
+                                    variant="outline"
+                                    className={soldOutDisplay === "hide" ? activeOptionButtonClasses : undefined}
                                     onClick={() => setSoldOutDisplayAndPersist("hide")}
                                 >
                                     Hide items
