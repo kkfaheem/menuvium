@@ -415,6 +415,11 @@ export default function Home() {
     const activeShowcase = SHOWCASE_TABS.find((tab) => tab.id === showcaseTab) ?? SHOWCASE_TABS[0];
     const ActiveShowcaseIcon = activeShowcase.icon;
     const activeShowcaseIndex = Math.max(0, SHOWCASE_TABS.findIndex((tab) => tab.id === activeShowcase.id));
+    const resetHowItWorksShowcase = () => {
+        setShowcaseTab("editor");
+        setShowcaseHovering(false);
+        setShowcaseFocused(false);
+    };
     const stepShowcase = (delta: number) => {
         const total = SHOWCASE_TABS.length;
         const nextIndex = (activeShowcaseIndex + delta + total) % total;
@@ -508,7 +513,13 @@ export default function Home() {
                     <Logo size="lg" />
 
                     <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-muted">
-                        <Link href="#how-it-works" className="transition-colors hover:text-foreground">How it works</Link>
+                        <Link
+                            href="#how-it-works"
+                            onClick={resetHowItWorksShowcase}
+                            className="transition-colors hover:text-foreground"
+                        >
+                            How it works
+                        </Link>
                         <Link href="#pricing" className="transition-colors hover:text-foreground">Pricing</Link>
                         <Link href="#faq" className="transition-colors hover:text-foreground">FAQ</Link>
                     </nav>
@@ -584,7 +595,12 @@ export default function Home() {
                                     <Link
                                         key={item.href}
                                         href={item.href}
-                                        onClick={() => setMobileNavOpen(false)}
+                                        onClick={() => {
+                                            if (item.href === "#how-it-works") {
+                                                resetHowItWorksShowcase();
+                                            }
+                                            setMobileNavOpen(false);
+                                        }}
                                         className="flex h-11 items-center justify-between rounded-2xl px-3 text-sm font-semibold text-foreground transition-colors hover:bg-pill"
                                     >
                                         {item.label}
@@ -837,16 +853,13 @@ export default function Home() {
                         className="space-y-8"
                     >
                         <motion.div variants={sectionReveal} className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                            <div className="max-w-2xl space-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">How it works</p>
-                                <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">From menu edits to guest view in one smooth loop.</h2>
-                                <p className="max-w-[64ch] text-sm leading-relaxed text-muted sm:text-base">
-                                    Pick a step to preview how teams update, style, and publish without slowing down service.
-                                </p>
+                            <div className="max-w-2xl space-y-1">
+                                <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">How it works</h2>
+                                <p className="text-sm text-muted sm:text-base">From menu edits to guest view in one smooth loop.</p>
                             </div>
 
                             <div className="w-full sm:hidden">
-                                <div className="relative overflow-hidden rounded-2xl border border-border bg-panel/88 p-1.5 backdrop-blur-xl">
+                                <div className="relative overflow-hidden rounded-2xl border border-border bg-panel/88 p-1.5 backdrop-blur-xl dark:border-[#2a3346]/80 dark:bg-[#11131c]/84">
                                     <div className="grid grid-cols-[2.5rem,1fr,2.5rem] items-center gap-1">
                                         <button
                                             type="button"
@@ -904,7 +917,7 @@ export default function Home() {
                                 </div>
                             </div>
 
-                            <div className="hidden w-full items-center gap-1 overflow-x-auto rounded-2xl border border-border bg-panel/88 p-1 text-xs font-semibold backdrop-blur-xl sm:inline-flex sm:w-auto">
+                            <div className="hidden w-full items-center gap-1 overflow-x-auto rounded-2xl border border-border bg-panel/88 p-1 text-xs font-semibold backdrop-blur-xl dark:border-[#2a3346]/80 dark:bg-[#11131c]/84 sm:inline-flex sm:w-auto">
                                 {SHOWCASE_TABS.map((tab) => {
                                     const Icon = tab.icon;
                                     const active = tab.id === showcaseTab;
@@ -942,7 +955,7 @@ export default function Home() {
                             }}
                             className="mt-8"
                         >
-                            <div className="relative overflow-hidden rounded-[1.85rem] border border-border/70 bg-[#05070f] shadow-[var(--cms-shadow-md)]">
+                            <div className="relative overflow-hidden rounded-[1.85rem] border border-black/10 bg-[#05070f] shadow-[var(--cms-shadow-md)] dark:border-[#2a3346]/85">
                                 <AnimatePresence mode="wait" initial={false}>
                                     <motion.div
                                         key={activeShowcase.id}
@@ -961,24 +974,30 @@ export default function Home() {
                                                 quality={100}
                                                 className="object-cover object-top"
                                             />
+                                            <div
+                                                aria-hidden="true"
+                                                className={cn(
+                                                    "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-[24%] min-h-[112px] bg-gradient-to-t to-transparent backdrop-blur-[3px] sm:min-h-[126px]",
+                                                    resolvedTheme === "dark"
+                                                        ? "from-[rgba(5,7,15,0.96)] via-[rgba(5,7,15,0.72)]"
+                                                        : "from-[rgba(255,255,255,0.92)] via-[rgba(255,255,255,0.68)]"
+                                                )}
+                                            />
+                                            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-4 sm:p-5 lg:p-6">
+                                                <p className="text-sm font-semibold text-slate-900 dark:text-white sm:text-base">{activeShowcase.title}</p>
+                                                <p className="mt-1 text-xs text-slate-700 dark:text-white/[0.8] sm:text-sm">{activeShowcase.description}</p>
+                                                <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] font-medium text-slate-800 dark:text-white/[0.9] sm:text-xs">
+                                                    {activeShowcase.highlights.map((line) => (
+                                                        <li key={line} className="flex items-center gap-1.5">
+                                                            <Check className="h-3.5 w-3.5 text-emerald-500 dark:text-emerald-400" />
+                                                            <span>{line}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
                                         </div>
                                     </motion.div>
                                 </AnimatePresence>
-                            </div>
-
-                            <div className="mt-5 grid gap-4 lg:grid-cols-[1fr,1fr] lg:items-start">
-                                <div>
-                                    <p className="text-sm font-semibold text-foreground">{activeShowcase.title}</p>
-                                    <p className="mt-2 max-w-[64ch] text-sm text-muted sm:text-base">{activeShowcase.description}</p>
-                                </div>
-                                <ul className="grid gap-2 text-sm text-muted sm:grid-cols-3 lg:grid-cols-1">
-                                    {activeShowcase.highlights.map((line) => (
-                                        <li key={line} className="flex items-start gap-2">
-                                            <Check className="mt-0.5 h-4 w-4 text-emerald-400" />
-                                            <span>{line}</span>
-                                        </li>
-                                    ))}
-                                </ul>
                             </div>
                         </motion.div>
                     </motion.div>
@@ -992,12 +1011,9 @@ export default function Home() {
                         variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
                     >
                         <motion.div variants={sectionReveal} className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                            <div className="max-w-3xl space-y-2">
-                                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">Pricing</p>
-                                <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">Simple plans, clear upgrade path.</h2>
-                                <p className="max-w-[62ch] text-sm leading-relaxed text-muted sm:text-base">
-                                    Start lean, then move to Studio when your team needs faster collaboration and richer guest experiences.
-                                </p>
+                            <div className="max-w-3xl space-y-1">
+                                <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">Pricing</h2>
+                                <p className="text-sm text-muted sm:text-base">Simple plans, clear upgrade path.</p>
                             </div>
 
                             <div className="inline-flex w-full rounded-2xl border border-border bg-panelStrong/72 p-1 text-xs font-semibold backdrop-blur-xl sm:w-auto">
@@ -1099,9 +1115,9 @@ export default function Home() {
                         viewport={{ once: true, margin: "-120px" }}
                         variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
                     >
-                        <motion.div variants={sectionReveal} className="text-center">
-                            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">FAQ</p>
-                            <h2 className="mt-2 font-heading text-3xl font-bold tracking-tight sm:text-4xl">Questions, answered clearly.</h2>
+                        <motion.div variants={sectionReveal} className="space-y-1 text-center">
+                            <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">FAQs</h2>
+                            <p className="text-sm text-muted sm:text-base">Questions, answered clearly.</p>
                         </motion.div>
 
                         <motion.div variants={sectionReveal} className="mt-10 divide-y divide-border rounded-3xl border border-border bg-panel/78 shadow-sm backdrop-blur-xl">
