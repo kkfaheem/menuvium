@@ -76,13 +76,16 @@ html {
 }
 
 .landing-shell {
-  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 90%, transparent);
-  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 86%, transparent);
-  --cms-border: color-mix(in srgb, var(--cms-border-solid) 64%, transparent);
-  --cms-glass-highlight: rgba(255, 255, 255, 0.9);
-  --cms-shadow-sm: 0 10px 24px rgba(37, 99, 235, 0.08);
-  --cms-shadow-md: 0 20px 50px rgba(56, 189, 248, 0.12);
-  --cms-shadow-lg: 0 34px 96px rgba(37, 99, 235, 0.14);
+  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 84%, transparent);
+  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 80%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 58%, transparent);
+  --cms-glass-highlight: rgba(255, 255, 255, 0.84);
+  --cms-glass-lowlight: rgba(15, 23, 42, 0.08);
+  --cms-glass-sheen-a: rgba(255, 255, 255, 0.16);
+  --cms-glass-sheen-b: rgba(148, 163, 184, 0.05);
+  --cms-shadow-sm: 0 8px 20px rgba(37, 99, 235, 0.08);
+  --cms-shadow-md: 0 18px 44px rgba(37, 99, 235, 0.12);
+  --cms-shadow-lg: 0 30px 84px rgba(30, 64, 175, 0.14);
   --landing-emerald: rgba(16, 185, 129, 0.34);
   --landing-teal: rgba(20, 184, 166, 0.3);
   --landing-blue: rgba(59, 130, 246, 0.34);
@@ -142,13 +145,16 @@ html {
 }
 
 .dark .landing-shell {
-  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 74%, transparent);
-  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 70%, transparent);
-  --cms-border: color-mix(in srgb, var(--cms-border-solid) 72%, transparent);
-  --cms-glass-highlight: rgba(255, 255, 255, 0.12);
-  --cms-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.45);
-  --cms-shadow-md: 0 16px 50px rgba(0, 0, 0, 0.62);
-  --cms-shadow-lg: 0 28px 100px rgba(0, 0, 0, 0.78);
+  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 70%, transparent);
+  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 64%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 62%, transparent);
+  --cms-glass-highlight: rgba(255, 255, 255, 0.15);
+  --cms-glass-lowlight: rgba(0, 0, 0, 0.46);
+  --cms-glass-sheen-a: rgba(255, 255, 255, 0.08);
+  --cms-glass-sheen-b: rgba(14, 165, 233, 0.04);
+  --cms-shadow-sm: 0 10px 24px rgba(0, 0, 0, 0.46);
+  --cms-shadow-md: 0 18px 50px rgba(0, 0, 0, 0.62);
+  --cms-shadow-lg: 0 30px 96px rgba(0, 0, 0, 0.76);
   --landing-vignette-end: rgba(2, 4, 9, 0.78);
   --landing-fade-top: rgba(3, 5, 9, 0.88);
   --landing-fade-mid-top: rgba(3, 5, 9, 0.16);
@@ -951,6 +957,35 @@ html {
   pointer-events: none;
   background: linear-gradient(180deg, var(--cms-glass-highlight), transparent 70%);
   opacity: 0.08;
+}
+
+.glass-surface {
+  position: relative;
+  isolation: isolate;
+}
+
+.glass-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, var(--cms-glass-highlight) 0%, transparent 42%),
+    radial-gradient(120% 78% at 0% 0%, var(--cms-glass-sheen-a) 0%, var(--cms-glass-sheen-b) 36%, transparent 66%);
+  opacity: 0.34;
+}
+
+.glass-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--cms-glass-highlight) 88%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--cms-glass-lowlight) 84%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--cms-border) 78%, transparent);
 }
 
 /* Auth wrapper - constrain Amplify Authenticator */

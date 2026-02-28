@@ -508,7 +508,7 @@ export default function Home() {
                 <span className="landing-bg-fade" />
             </div>
 
-            <header className="fixed inset-x-0 top-0 z-50 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/75 backdrop-blur-xl">
+            <header className="glass-surface fixed inset-x-0 top-0 z-50 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/75 backdrop-blur-xl">
                 <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
                     <Logo size="lg" />
 
@@ -565,7 +565,7 @@ export default function Home() {
                             onClick={() => setMobileNavOpen(false)}
                         />
                         <motion.div
-                            className="relative mx-4 mt-4 rounded-3xl border border-border bg-panel p-4 shadow-[var(--cms-shadow-lg)]"
+                            className="glass-surface relative mx-4 mt-4 rounded-3xl border border-border bg-panel p-4 shadow-[var(--cms-shadow-lg)]"
                             initial={reduceMotion ? undefined : { opacity: 0, y: -8, scale: 0.98 }}
                             animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
                             exit={reduceMotion ? undefined : { opacity: 0, y: -8, scale: 0.98 }}
@@ -625,7 +625,7 @@ export default function Home() {
                             >
                                 <motion.div
                                     variants={fadeUp}
-                                    className="inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-panel/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted shadow-[var(--cms-shadow-sm)] backdrop-blur-xl dark:border-white/[0.12]"
+                                    className="glass-surface inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-panel/70 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted shadow-[var(--cms-shadow-sm)] backdrop-blur-xl dark:border-white/[0.12]"
                                 >
                                     <Sparkles className="h-3.5 w-3.5 text-[var(--cms-accent-strong)]" />
                                     Built for modern restaurants
@@ -830,7 +830,7 @@ export default function Home() {
                                         key={title}
                                         variants={sectionReveal}
                                         whileHover={reduceMotion ? undefined : { y: -3 }}
-                                        className="rounded-2xl border border-border bg-panel/78 p-5 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl transition-colors hover:bg-panelStrong/78"
+                                        className="glass-surface rounded-2xl border border-border bg-panel/78 p-5 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl transition-colors hover:bg-panelStrong/78"
                                     >
                                         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-pill">
                                             <Icon className="h-4.5 w-4.5 text-[var(--cms-accent)]" />
@@ -859,7 +859,7 @@ export default function Home() {
                             </div>
 
                             <div className="w-full sm:hidden">
-                                <div className="relative overflow-hidden rounded-2xl border border-border bg-panel/88 p-1.5 backdrop-blur-xl dark:border-[#2a3346]/80 dark:bg-[#11131c]/84">
+                                <div className="glass-surface relative overflow-hidden rounded-2xl border border-border bg-panel/88 p-1.5 backdrop-blur-xl dark:border-[#2a3346]/80 dark:bg-[#11131c]/84">
                                     <div className="grid grid-cols-[2.5rem,1fr,2.5rem] items-center gap-1">
                                         <button
                                             type="button"
@@ -879,7 +879,7 @@ export default function Home() {
                                                 animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
                                                 exit={reduceMotion ? undefined : { opacity: 0, y: -4 }}
                                                 transition={{ duration: 0.22, ease: "easeOut" }}
-                                                className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-xl bg-panelStrong px-3 text-sm font-semibold text-foreground shadow-[var(--cms-shadow-sm)]"
+                                                className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-xl bg-panelStrong px-3 text-sm font-semibold text-foreground shadow-[var(--cms-shadow-sm)] dark:bg-white/[0.16] dark:text-white dark:ring-1 dark:ring-white/25 dark:shadow-[0_10px_24px_rgba(0,0,0,0.42)]"
                                                 aria-label="Next step"
                                             >
                                                 <ActiveShowcaseIcon className="h-4 w-4 flex-none text-[var(--cms-accent-strong)]" />
@@ -917,7 +917,7 @@ export default function Home() {
                                 </div>
                             </div>
 
-                            <div className="hidden w-full items-center gap-1 overflow-x-auto rounded-2xl border border-border bg-panel/88 p-1 text-xs font-semibold backdrop-blur-xl dark:border-[#2a3346]/80 dark:bg-[#11131c]/84 sm:inline-flex sm:w-auto">
+                            <div className="glass-surface hidden w-full items-center gap-1 overflow-x-auto rounded-2xl border border-border bg-panel/88 p-1 text-xs font-semibold backdrop-blur-xl dark:border-[#2a3346]/80 dark:bg-[#11131c]/84 sm:inline-flex sm:w-auto">
                                 {SHOWCASE_TABS.map((tab) => {
                                     const Icon = tab.icon;
                                     const active = tab.id === showcaseTab;
@@ -929,7 +929,7 @@ export default function Home() {
                                             className={cn(
                                                 "inline-flex h-10 items-center gap-2 rounded-xl px-3 whitespace-nowrap transition-colors",
                                                 active
-                                                    ? "bg-panelStrong text-foreground shadow-[var(--cms-shadow-sm)]"
+                                                    ? "bg-panelStrong text-foreground shadow-[var(--cms-shadow-sm)] dark:bg-white/[0.16] dark:text-white dark:ring-1 dark:ring-white/25"
                                                     : "text-muted hover:bg-pill hover:text-foreground"
                                             )}
                                             aria-pressed={active}
@@ -1016,7 +1016,7 @@ export default function Home() {
                                 <p className="text-sm text-muted sm:text-base">Simple plans, clear upgrade path.</p>
                             </div>
 
-                            <div className="inline-flex w-full rounded-2xl border border-border bg-panelStrong/72 p-1 text-xs font-semibold backdrop-blur-xl sm:w-auto">
+                            <div className="glass-surface inline-flex w-full rounded-2xl border border-border bg-panelStrong/72 p-1 text-xs font-semibold backdrop-blur-xl sm:w-auto">
                                 {[
                                     { id: "monthly" as const, label: "Monthly" },
                                     { id: "annual" as const, label: "Annual (2 months free)" },
@@ -1030,7 +1030,7 @@ export default function Home() {
                                             className={cn(
                                                 "h-10 rounded-xl px-3 whitespace-nowrap transition-colors",
                                                 active
-                                                    ? "bg-panel text-foreground shadow-[var(--cms-shadow-sm)]"
+                                                    ? "bg-panel text-foreground shadow-[var(--cms-shadow-sm)] dark:bg-white/[0.16] dark:text-white dark:ring-1 dark:ring-white/25"
                                                     : "text-muted hover:bg-pill hover:text-foreground"
                                             )}
                                             aria-pressed={active}
@@ -1057,7 +1057,7 @@ export default function Home() {
                                         key={tier.name}
                                         variants={sectionReveal}
                                         className={cn(
-                                            "relative rounded-[2rem] border p-6 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl",
+                                            "glass-surface relative rounded-[2rem] border p-6 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl",
                                             tier.highlight
                                                 ? "border-[var(--cms-accent)] bg-[var(--cms-accent-subtle)]"
                                                 : "border-border bg-panel/78"
@@ -1120,7 +1120,7 @@ export default function Home() {
                             <p className="text-sm text-muted sm:text-base">Questions, answered clearly.</p>
                         </motion.div>
 
-                        <motion.div variants={sectionReveal} className="mt-10 divide-y divide-border rounded-3xl border border-border bg-panel/78 shadow-sm backdrop-blur-xl">
+                        <motion.div variants={sectionReveal} className="glass-surface mt-10 divide-y divide-border rounded-3xl border border-border bg-panel/78 shadow-sm backdrop-blur-xl">
                             {FAQ_ITEMS.map(({ q, a }) => (
                                 <details key={q} className="group p-6">
                                     <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left">
