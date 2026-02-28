@@ -89,8 +89,22 @@ html {
   --landing-blue-deep: rgba(37, 99, 235, 0.2);
   --landing-orange: rgba(251, 146, 60, 0.2);
   --landing-orange-warm: rgba(245, 158, 11, 0.2);
-  --hero-frame-border: rgba(107, 114, 128, 0.34);
-  --hero-frame-border-strong: rgba(107, 114, 128, 0.48);
+  --hero-frame-border: rgba(64, 69, 77, 0.86);
+  --hero-frame-border-strong: rgba(52, 56, 64, 0.96);
+  --hero-frame-highlight: rgba(214, 219, 226, 0.18);
+  --hero-frame-lowlight: rgba(2, 6, 23, 0.76);
+  --hero-frame-gloss: rgba(148, 163, 184, 0.08);
+  --hero-tablet-shell-top: #565c64;
+  --hero-tablet-shell-mid: #444a52;
+  --hero-tablet-shell-bottom: #353a42;
+  --hero-phone-shell-top: #5d626a;
+  --hero-phone-shell-mid: #474c54;
+  --hero-phone-shell-bottom: #373c44;
+  --hero-shell-edge-light: rgba(255, 255, 255, 0.18);
+  --hero-shell-edge-dark: rgba(0, 0, 0, 0.58);
+  --hero-shell-metal-line: rgba(17, 24, 39, 0.6);
+  --hero-screen-bezel: #05070d;
+  --hero-screen-bezel-soft: rgba(0, 0, 0, 0.5);
   --hero-surface: color-mix(in srgb, var(--cms-panel-solid) 88%, transparent);
   --hero-surface-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 86%, transparent);
   --hero-stage-screen-bg: #edf2f8;
@@ -120,8 +134,22 @@ html {
   --cms-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.45);
   --cms-shadow-md: 0 16px 50px rgba(0, 0, 0, 0.62);
   --cms-shadow-lg: 0 28px 100px rgba(0, 0, 0, 0.78);
-  --hero-frame-border: rgba(255, 255, 255, 0.055);
-  --hero-frame-border-strong: rgba(255, 255, 255, 0.09);
+  --hero-frame-border: rgba(64, 69, 77, 0.86);
+  --hero-frame-border-strong: rgba(52, 56, 64, 0.96);
+  --hero-frame-highlight: rgba(214, 219, 226, 0.18);
+  --hero-frame-lowlight: rgba(2, 6, 23, 0.76);
+  --hero-frame-gloss: rgba(148, 163, 184, 0.08);
+  --hero-tablet-shell-top: #565c64;
+  --hero-tablet-shell-mid: #444a52;
+  --hero-tablet-shell-bottom: #353a42;
+  --hero-phone-shell-top: #5d626a;
+  --hero-phone-shell-mid: #474c54;
+  --hero-phone-shell-bottom: #373c44;
+  --hero-shell-edge-light: rgba(255, 255, 255, 0.18);
+  --hero-shell-edge-dark: rgba(0, 0, 0, 0.58);
+  --hero-shell-metal-line: rgba(17, 24, 39, 0.6);
+  --hero-screen-bezel: #05070d;
+  --hero-screen-bezel-soft: rgba(0, 0, 0, 0.5);
   --hero-surface: color-mix(in srgb, var(--cms-panel-solid) 74%, transparent);
   --hero-surface-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 72%, transparent);
   --hero-stage-screen-bg: #05070f;
@@ -234,26 +262,43 @@ html {
 }
 
 .hero-phone-screen {
-  border: 0.55px solid var(--hero-frame-border);
-  background: var(--hero-stage-screen-bg);
+  border: 0.8px solid color-mix(in srgb, var(--hero-screen-bezel) 62%, var(--hero-frame-border));
+  background: linear-gradient(180deg, var(--hero-screen-bezel) 0%, color-mix(in srgb, var(--hero-screen-bezel) 78%, #0b0f18) 100%);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, white 16%, transparent),
-    inset 0 -8px 14px -11px rgba(0, 0, 0, 0.3);
+    inset 0 0 0 1px var(--hero-screen-bezel-soft),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.42),
+    inset 0 -8px 14px -11px rgba(0, 0, 0, 0.34);
+}
+
+.hero-phone-screen::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0.18rem;
+  z-index: 38;
+  width: 26%;
+  height: 0.055rem;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--hero-shell-metal-line) 82%, #0f172a);
+  box-shadow: 0 0 0 0.45px rgba(255, 255, 255, 0.08);
 }
 
 .hero-phone-punch {
   position: absolute;
   left: 50%;
-  top: 0.36rem;
+  top: 0.31rem;
   z-index: 40;
-  width: 0.34rem;
-  height: 0.34rem;
+  width: 0.24rem;
+  height: 0.24rem;
   transform: translateX(-50%);
   border-radius: 9999px;
-  background: rgba(4, 7, 13, 0.92);
+  background: radial-gradient(circle at 34% 34%, rgba(96, 104, 116, 0.38) 0%, rgba(8, 10, 14, 0.98) 58%, #020306 100%);
   box-shadow:
-    0 0 0 0.55px rgba(255, 255, 255, 0.18),
-    0 1px 1.4px rgba(0, 0, 0, 0.5);
+    0 0 0 0.6px rgba(255, 255, 255, 0.14),
+    0 0 0 1.3px rgba(2, 6, 23, 0.45),
+    0 1px 1.8px rgba(0, 0, 0, 0.52);
 }
 
 .hero-live-panel {
@@ -276,16 +321,68 @@ html {
 }
 
 .hero-stage {
-  border: 0.5px solid var(--hero-frame-border);
-  background: var(--hero-surface);
+  border: 0.85px solid var(--hero-frame-border-strong);
+  border-radius: 1.28rem;
+  padding: 0.34rem;
+  background: linear-gradient(160deg, var(--hero-tablet-shell-top) 0%, var(--hero-tablet-shell-mid) 46%, var(--hero-tablet-shell-bottom) 100%);
   backdrop-filter: blur(16px);
-  box-shadow: var(--hero-stage-shadow);
+  box-shadow:
+    var(--hero-stage-shadow),
+    inset 0 1px 0 var(--hero-shell-edge-light),
+    inset 0 -1px 0 var(--hero-shell-edge-dark),
+    inset 0 0 0 0.45px color-mix(in srgb, var(--hero-shell-metal-line) 72%, transparent);
+}
+
+.hero-stage::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0.44rem;
+  z-index: 4;
+  width: 0.28rem;
+  height: 0.28rem;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 35%, rgba(133, 142, 154, 0.5) 0%, rgba(8, 11, 17, 0.96) 65%, #04060a 100%);
+  box-shadow:
+    0 0 0 0.7px rgba(255, 255, 255, 0.18),
+    0 0 0 1.8px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.hero-stage::after {
+  content: "";
+  position: absolute;
+  right: -1.6px;
+  top: 28%;
+  width: 2.6px;
+  height: 10%;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, var(--hero-shell-edge-light) 0%, var(--hero-shell-metal-line) 45%, var(--hero-shell-edge-dark) 100%);
+  opacity: 0.9;
+  pointer-events: none;
 }
 
 .hero-stage-screen {
-  border: 0.5px solid var(--hero-frame-border);
-  background: var(--hero-stage-screen-bg);
-  box-shadow: inset 0 -14px 22px -16px rgba(0, 0, 0, 0.32);
+  border: 0.85px solid color-mix(in srgb, var(--hero-screen-bezel) 64%, var(--hero-frame-border));
+  border-radius: 0.82rem;
+  background: var(--hero-screen-bezel);
+  box-shadow:
+    inset 0 0 0 1px var(--hero-screen-bezel-soft),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+    inset 0 -14px 22px -16px rgba(0, 0, 0, 0.34);
+}
+
+@media (min-width: 640px) {
+  .hero-stage {
+    border-radius: 1.38rem;
+    padding: 0.42rem;
+  }
+
+  .hero-stage-screen {
+    border-radius: 0.9rem;
+  }
 }
 
 .hero-stage-screen-overlay {
@@ -315,6 +412,7 @@ html {
 .hero-focus-card {
   --focus-shift-x: 0px;
   --focus-shift-y: 0px;
+  --focus-active-z: 80;
   --focus-inactive-z: 12;
   --focus-inactive-scale: 0.98;
   --focus-active-scale: 1.04;
@@ -340,7 +438,7 @@ html {
   scale: var(--focus-active-scale);
   opacity: 1;
   filter: blur(0) brightness(1) saturate(1);
-  z-index: 80;
+  z-index: var(--focus-active-z);
   box-shadow: var(--focus-active-shadow);
 }
 
@@ -379,16 +477,21 @@ html {
 }
 
 .hero-focus-card-qr {
+  --focus-active-z: 81;
   --focus-inactive-z: 24;
-  --focus-inactive-scale: 0.97;
+  --focus-inactive-scale: 1;
 }
 
 .hero-focus-card-guest {
+  --focus-active-z: 82;
   --focus-inactive-z: 19;
+  --focus-inactive-scale: 1;
 }
 
 .hero-focus-card-ar {
+  --focus-active-z: 81;
   --focus-inactive-z: 19;
+  --focus-inactive-scale: 1;
 }
 
 .hero-focus-card-studio[data-focus-state="inactive"] {
@@ -449,17 +552,56 @@ html {
 }
 
 .hero-stack-phone {
-  border: 0.55px solid var(--hero-frame-border-strong);
-  background: var(--hero-surface-strong);
-  box-shadow: var(--hero-phone-shadow);
+  border: 1px solid var(--hero-frame-border-strong);
+  background: linear-gradient(160deg, var(--hero-phone-shell-top) 0%, var(--hero-phone-shell-mid) 52%, var(--hero-phone-shell-bottom) 100%);
+  box-shadow:
+    var(--hero-phone-shadow),
+    inset 0 1px 0 var(--hero-shell-edge-light),
+    inset 0 -1px 0 var(--hero-shell-edge-dark),
+    inset 0 0 0 0.4px color-mix(in srgb, var(--hero-shell-metal-line) 70%, transparent);
   backdrop-filter: blur(13px);
   transform: translate3d(0, 0, 0);
   will-change: transform, box-shadow;
   animation: heroPhoneLift 18s ease-in-out infinite;
 }
 
+.hero-stack-phone::before {
+  content: "";
+  position: absolute;
+  left: -1.55px;
+  top: 21%;
+  width: 2.35px;
+  height: 15%;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, var(--hero-shell-edge-light) 0%, var(--hero-shell-metal-line) 50%, var(--hero-shell-edge-dark) 100%);
+  box-shadow: 0 2.65rem 0 0 color-mix(in srgb, var(--hero-shell-metal-line) 84%, transparent);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.hero-stack-phone::after {
+  content: "";
+  position: absolute;
+  right: -1.6px;
+  top: 26%;
+  width: 2.4px;
+  height: 11%;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, var(--hero-shell-edge-light) 0%, var(--hero-shell-metal-line) 50%, var(--hero-shell-edge-dark) 100%);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.hero-stack-phone.hero-focus-card[data-focus-state="active"] {
+  animation: none;
+}
+
 .hero-stack-phone-ar {
   animation-delay: 1.1s;
+}
+
+.hero-stack-phone-qr {
+  animation-delay: 0.55s;
 }
 
 .hero-focus-caption {
