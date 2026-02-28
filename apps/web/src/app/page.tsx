@@ -5,6 +5,8 @@ import Image from "next/image";
 import {
     ArrowRight,
     ArrowUpRight,
+    ChevronLeft,
+    ChevronRight,
     Check,
     Clock,
     Layers,
@@ -38,7 +40,6 @@ const HERO_FOCUS_CARDS: HeroFocusCard[] = ["studio", "qr", "guest", "ar"];
 const HERO_PHONE_CARDS: HeroPhoneCard[] = ["qr", "guest", "ar"];
 const HERO_FOCUS_SLIDES: HeroFocusSlide[] = ["studio", "trio"];
 const HERO_FOCUS_STEP_MS = 3500;
-const HERO_FOCUS_RESUME_DELAY_MS = 1000;
 const HERO_FOCUS_ACTIVE_SCALES: Record<HeroFocusCard, number> = {
     studio: 1.03,
     qr: 1,
@@ -279,10 +280,8 @@ export default function Home() {
     const [showcaseFocused, setShowcaseFocused] = useState(false);
     const [pricingPeriod, setPricingPeriod] = useState<PricingPeriod>("monthly");
     const [heroFocusSlide, setHeroFocusSlide] = useState<HeroFocusSlide>("studio");
-    const [heroFocusPaused, setHeroFocusPaused] = useState(false);
     const [heroFocusOffsets, setHeroFocusOffsets] = useState<Record<HeroFocusCard, HeroFocusOffset>>(HERO_FOCUS_ZERO_OFFSETS);
     const [heroPhoneLayout, setHeroPhoneLayout] = useState<Record<HeroPhoneCard, HeroPhoneFrame>>(HERO_PHONE_ZERO_LAYOUT);
-    const heroFocusResumeTimeoutRef = useRef<number | null>(null);
     const heroSceneRef = useRef<HTMLDivElement | null>(null);
     const heroCardRefs = useRef<Record<HeroFocusCard, HTMLDivElement | null>>({
         studio: null,
@@ -290,35 +289,6 @@ export default function Home() {
         guest: null,
         ar: null,
     });
-
-    const clearHeroFocusResumeTimeout = () => {
-        if (heroFocusResumeTimeoutRef.current !== null) {
-            window.clearTimeout(heroFocusResumeTimeoutRef.current);
-            heroFocusResumeTimeoutRef.current = null;
-        }
-    };
-
-    const pauseHeroFocus = () => {
-        if (reduceMotion) return;
-        clearHeroFocusResumeTimeout();
-        setHeroFocusPaused(true);
-    };
-
-    const scheduleHeroFocusResume = () => {
-        if (reduceMotion) return;
-        clearHeroFocusResumeTimeout();
-        heroFocusResumeTimeoutRef.current = window.setTimeout(() => {
-            setHeroFocusPaused(false);
-            heroFocusResumeTimeoutRef.current = null;
-        }, HERO_FOCUS_RESUME_DELAY_MS);
-    };
-
-    const engageHeroFocusSlide = (slide: HeroFocusSlide) => {
-        if (reduceMotion) return;
-        clearHeroFocusResumeTimeout();
-        setHeroFocusPaused(true);
-        setHeroFocusSlide(slide);
-    };
 
     useEffect(() => {
         setMounted(true);
@@ -343,7 +313,7 @@ export default function Home() {
     }, [reduceMotion, showcaseHovering, showcaseFocused]);
 
     useEffect(() => {
-        if (reduceMotion || heroFocusPaused) return;
+        if (reduceMotion) return;
         const interval = window.setInterval(() => {
             setHeroFocusSlide((current) => {
                 const idx = HERO_FOCUS_SLIDES.indexOf(current);
@@ -352,15 +322,7 @@ export default function Home() {
             });
         }, HERO_FOCUS_STEP_MS);
         return () => window.clearInterval(interval);
-    }, [reduceMotion, heroFocusPaused]);
-
-    useEffect(() => {
-        return () => {
-            if (heroFocusResumeTimeoutRef.current !== null) {
-                window.clearTimeout(heroFocusResumeTimeoutRef.current);
-            }
-        };
-    }, []);
+    }, [reduceMotion]);
 
     useEffect(() => {
         const scene = heroSceneRef.current;
@@ -451,6 +413,14 @@ export default function Home() {
     }, [mounted]);
 
     const activeShowcase = SHOWCASE_TABS.find((tab) => tab.id === showcaseTab) ?? SHOWCASE_TABS[0];
+    const ActiveShowcaseIcon = activeShowcase.icon;
+    const activeShowcaseIndex = Math.max(0, SHOWCASE_TABS.findIndex((tab) => tab.id === activeShowcase.id));
+    const stepShowcase = (delta: number) => {
+        const total = SHOWCASE_TABS.length;
+        const nextIndex = (activeShowcaseIndex + delta + total) % total;
+        const next = SHOWCASE_TABS[nextIndex];
+        if (next) setShowcaseTab(next.id);
+    };
     const themeSuffix = resolvedTheme === "dark" ? "dark" : "light";
 
     const heroStudioImage = `/images/tour-editor-v6-${themeSuffix}@2x.png`;
@@ -526,6 +496,8 @@ export default function Home() {
                 <span className="landing-bg-blob landing-bg-blob-blue" />
                 <span className="landing-bg-blob landing-bg-blob-orange" />
                 <span className="landing-bg-blob landing-bg-blob-teal" />
+                <span className="landing-bg-sheen" />
+                <span className="landing-bg-prism" />
                 <span className="landing-bg-noise" />
                 <span className="landing-bg-vignette" />
                 <span className="landing-bg-fade" />
@@ -695,15 +667,6 @@ export default function Home() {
                                     className="hero-live-visual hero-focus-stack relative"
                                     data-focus-static={reduceMotion ? "true" : "false"}
                                     data-active-slide={heroFocusSlide}
-                                    onMouseEnter={pauseHeroFocus}
-                                    onMouseLeave={scheduleHeroFocusResume}
-                                    onFocusCapture={pauseHeroFocus}
-                                    onBlurCapture={(event) => {
-                                        const nextTarget = event.relatedTarget;
-                                        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-                                            scheduleHeroFocusResume();
-                                        }
-                                    }}
                                 >
                                     <div ref={heroSceneRef} className="hero-focus-scene relative">
                                         {/* Focus slideshow cards: keep these keys in sync with HERO_FOCUS_CARDS above when adding/removing slides. */}
@@ -714,9 +677,6 @@ export default function Home() {
                                             className="hero-stage hero-focus-card hero-focus-card-studio relative top-2 mx-auto w-full sm:left-3 sm:top-3"
                                             data-focus-state={getHeroFocusState("studio")}
                                             style={getHeroFocusStyle("studio")}
-                                            onMouseEnter={() => engageHeroFocusSlide("studio")}
-                                            onFocus={() => engageHeroFocusSlide("studio")}
-                                            tabIndex={reduceMotion ? -1 : 0}
                                         >
                                             <div className="hero-stage-screen relative overflow-hidden">
                                                 <div className="relative aspect-[16/10] lg:aspect-[16/9]">
@@ -741,9 +701,6 @@ export default function Home() {
                                             className="hero-stack-phone hero-stack-phone-qr hero-focus-card hero-focus-card-qr absolute rounded-[0.96rem] p-[0.11rem]"
                                             data-focus-state={getHeroFocusState("qr")}
                                             style={{ ...getHeroFocusStyle("qr"), ...getHeroPhoneLayoutStyle("qr") }}
-                                            onMouseEnter={() => engageHeroFocusSlide("trio")}
-                                            onFocus={() => engageHeroFocusSlide("trio")}
-                                            tabIndex={reduceMotion ? -1 : 0}
                                         >
                                             <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
                                                 <span aria-hidden="true" className="hero-phone-punch" />
@@ -769,9 +726,6 @@ export default function Home() {
                                             className="hero-stack-phone hero-focus-card hero-focus-card-guest absolute rounded-[0.96rem] p-[0.11rem]"
                                             data-focus-state={getHeroFocusState("guest")}
                                             style={{ ...getHeroFocusStyle("guest"), ...getHeroPhoneLayoutStyle("guest") }}
-                                            onMouseEnter={() => engageHeroFocusSlide("trio")}
-                                            onFocus={() => engageHeroFocusSlide("trio")}
-                                            tabIndex={reduceMotion ? -1 : 0}
                                         >
                                             <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
                                                 <span aria-hidden="true" className="hero-phone-punch" />
@@ -797,9 +751,6 @@ export default function Home() {
                                             className="hero-stack-phone hero-stack-phone-ar hero-focus-card hero-focus-card-ar absolute rounded-[0.96rem] p-[0.11rem]"
                                             data-focus-state={getHeroFocusState("ar")}
                                             style={{ ...getHeroFocusStyle("ar"), ...getHeroPhoneLayoutStyle("ar") }}
-                                            onMouseEnter={() => engageHeroFocusSlide("trio")}
-                                            onFocus={() => engageHeroFocusSlide("trio")}
-                                            tabIndex={reduceMotion ? -1 : 0}
                                         >
                                             <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
                                                 <span aria-hidden="true" className="hero-phone-punch" />
@@ -855,7 +806,7 @@ export default function Home() {
                             whileInView="visible"
                             viewport={{ once: true, margin: "-120px" }}
                             variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
-                            className="mt-8 sm:mt-9 lg:mt-10"
+                            className="mt-14 sm:mt-16 lg:mt-20"
                         >
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                                 {BENEFITS.map(({ icon: Icon, title, detail }) => (
@@ -883,18 +834,77 @@ export default function Home() {
                         whileInView="visible"
                         viewport={{ once: true, margin: "-120px" }}
                         variants={sectionReveal ? { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } } : undefined}
-                        className="rounded-[2.1rem] border border-border bg-panel/72 p-6 shadow-[var(--cms-shadow-sm)] backdrop-blur-xl sm:p-10"
+                        className="space-y-8"
                     >
                         <motion.div variants={sectionReveal} className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                             <div className="max-w-2xl space-y-2">
                                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted">How it works</p>
-                                <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">How Menuvium works in real service.</h2>
+                                <h2 className="font-heading text-3xl font-bold tracking-tight sm:text-4xl">From menu edits to guest view in one smooth loop.</h2>
                                 <p className="max-w-[64ch] text-sm leading-relaxed text-muted sm:text-base">
-                                    Explore the core workflow with large, readable screens and smooth transitions.
+                                    Pick a step to preview how teams update, style, and publish without slowing down service.
                                 </p>
                             </div>
 
-                            <div className="inline-flex w-full items-center gap-1 overflow-x-auto rounded-2xl border border-border bg-panel/88 p-1 text-xs font-semibold backdrop-blur-xl sm:w-auto">
+                            <div className="w-full sm:hidden">
+                                <div className="relative overflow-hidden rounded-2xl border border-border bg-panel/88 p-1.5 backdrop-blur-xl">
+                                    <div className="grid grid-cols-[2.5rem,1fr,2.5rem] items-center gap-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => stepShowcase(-1)}
+                                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-panel text-muted transition-colors hover:bg-pill hover:text-foreground"
+                                            aria-label="Previous step"
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                        </button>
+
+                                        <AnimatePresence mode="wait" initial={false}>
+                                            <motion.button
+                                                key={activeShowcase.id}
+                                                type="button"
+                                                onClick={() => stepShowcase(1)}
+                                                initial={reduceMotion ? undefined : { opacity: 0, y: 4 }}
+                                                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                                                exit={reduceMotion ? undefined : { opacity: 0, y: -4 }}
+                                                transition={{ duration: 0.22, ease: "easeOut" }}
+                                                className="inline-flex h-10 min-w-0 items-center justify-center gap-2 rounded-xl bg-panelStrong px-3 text-sm font-semibold text-foreground shadow-[var(--cms-shadow-sm)]"
+                                                aria-label="Next step"
+                                            >
+                                                <ActiveShowcaseIcon className="h-4 w-4 flex-none text-[var(--cms-accent-strong)]" />
+                                                <span className="truncate">{activeShowcase.label}</span>
+                                            </motion.button>
+                                        </AnimatePresence>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => stepShowcase(1)}
+                                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-panel text-muted transition-colors hover:bg-pill hover:text-foreground"
+                                            aria-label="Next step"
+                                        >
+                                            <ChevronRight className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 flex items-center justify-center gap-1.5">
+                                    {SHOWCASE_TABS.map((tab, idx) => (
+                                        <button
+                                            key={tab.id}
+                                            type="button"
+                                            onClick={() => setShowcaseTab(tab.id)}
+                                            className={cn(
+                                                "h-1.5 rounded-full transition-all",
+                                                idx === activeShowcaseIndex
+                                                    ? "w-7 bg-[var(--cms-accent)]"
+                                                    : "w-2.5 bg-border hover:bg-muted/60"
+                                            )}
+                                            aria-label={`Go to ${tab.label}`}
+                                            aria-pressed={idx === activeShowcaseIndex}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="hidden w-full items-center gap-1 overflow-x-auto rounded-2xl border border-border bg-panel/88 p-1 text-xs font-semibold backdrop-blur-xl sm:inline-flex sm:w-auto">
                                 {SHOWCASE_TABS.map((tab) => {
                                     const Icon = tab.icon;
                                     const active = tab.id === showcaseTab;
@@ -932,30 +942,28 @@ export default function Home() {
                             }}
                             className="mt-8"
                         >
-                            <div className="relative overflow-hidden rounded-[2rem] border border-border bg-panelStrong/76 p-3 shadow-[var(--cms-shadow-md)] sm:p-4">
-                                <div className="relative overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[#05070f] sm:rounded-[1.8rem]">
-                                    <AnimatePresence mode="wait" initial={false}>
-                                        <motion.div
-                                            key={activeShowcase.id}
-                                            initial={reduceMotion ? undefined : { opacity: 0 }}
-                                            animate={reduceMotion ? undefined : { opacity: 1 }}
-                                            exit={reduceMotion ? undefined : { opacity: 0 }}
-                                            transition={{ duration: 0.42, ease: "easeInOut" }}
-                                            className="relative"
-                                        >
-                                            <div className="relative aspect-[16/10] lg:aspect-[16/9]">
-                                                <Image
-                                                    src={activeShowcaseImage}
-                                                    alt={`${activeShowcase.label} view in Menuvium Studio`}
-                                                    fill
-                                                    sizes="(min-width: 1280px) 74vw, (min-width: 1024px) 86vw, 100vw"
-                                                    quality={100}
-                                                    className="object-cover object-top"
-                                                />
-                                            </div>
-                                        </motion.div>
-                                    </AnimatePresence>
-                                </div>
+                            <div className="relative overflow-hidden rounded-[1.85rem] border border-border/70 bg-[#05070f] shadow-[var(--cms-shadow-md)]">
+                                <AnimatePresence mode="wait" initial={false}>
+                                    <motion.div
+                                        key={activeShowcase.id}
+                                        initial={reduceMotion ? undefined : { opacity: 0 }}
+                                        animate={reduceMotion ? undefined : { opacity: 1 }}
+                                        exit={reduceMotion ? undefined : { opacity: 0 }}
+                                        transition={{ duration: 0.42, ease: "easeInOut" }}
+                                        className="relative"
+                                    >
+                                        <div className="relative aspect-[16/10] lg:aspect-[16/9]">
+                                            <Image
+                                                src={activeShowcaseImage}
+                                                alt={`${activeShowcase.label} view in Menuvium Studio`}
+                                                fill
+                                                sizes="(min-width: 1280px) 74vw, (min-width: 1024px) 86vw, 100vw"
+                                                quality={100}
+                                                className="object-cover object-top"
+                                            />
+                                        </div>
+                                    </motion.div>
+                                </AnimatePresence>
                             </div>
 
                             <div className="mt-5 grid gap-4 lg:grid-cols-[1fr,1fr] lg:items-start">

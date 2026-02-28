@@ -76,19 +76,29 @@ html {
 }
 
 .landing-shell {
-  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 84%, transparent);
-  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 78%, transparent);
-  --cms-border: color-mix(in srgb, var(--cms-border-solid) 80%, transparent);
-  --cms-glass-highlight: rgba(255, 255, 255, 0.76);
-  --cms-shadow-sm: 0 10px 26px rgba(17, 24, 39, 0.10);
-  --cms-shadow-md: 0 18px 44px rgba(17, 24, 39, 0.14);
-  --cms-shadow-lg: 0 30px 90px rgba(17, 24, 39, 0.18);
-  --landing-emerald: rgba(16, 185, 129, 0.24);
-  --landing-teal: rgba(20, 184, 166, 0.2);
-  --landing-blue: rgba(59, 130, 246, 0.22);
-  --landing-blue-deep: rgba(37, 99, 235, 0.2);
-  --landing-orange: color-mix(in srgb, var(--cms-accent) 22%, transparent);
-  --landing-orange-warm: color-mix(in srgb, var(--cms-accent-strong) 22%, transparent);
+  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 90%, transparent);
+  --cms-panel-strong: color-mix(in srgb, var(--cms-panel-strong-solid) 86%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 64%, transparent);
+  --cms-glass-highlight: rgba(255, 255, 255, 0.9);
+  --cms-shadow-sm: 0 10px 24px rgba(37, 99, 235, 0.08);
+  --cms-shadow-md: 0 20px 50px rgba(56, 189, 248, 0.12);
+  --cms-shadow-lg: 0 34px 96px rgba(37, 99, 235, 0.14);
+  --landing-emerald: rgba(16, 185, 129, 0.34);
+  --landing-teal: rgba(20, 184, 166, 0.3);
+  --landing-blue: rgba(59, 130, 246, 0.34);
+  --landing-blue-deep: rgba(37, 99, 235, 0.28);
+  --landing-orange: color-mix(in srgb, var(--cms-accent) 32%, transparent);
+  --landing-orange-warm: color-mix(in srgb, var(--cms-accent-strong) 28%, transparent);
+  --landing-vignette-end: rgba(148, 163, 184, 0.22);
+  --landing-fade-top: rgba(255, 255, 255, 0.8);
+  --landing-fade-mid-top: rgba(255, 255, 255, 0.24);
+  --landing-fade-mid: rgba(248, 250, 252, 0.08);
+  --landing-fade-lower: rgba(15, 23, 42, 0.1);
+  --landing-fade-bottom: rgba(15, 23, 42, 0.28);
+  --landing-sheen-a: color-mix(in srgb, var(--cms-accent-light) 64%, transparent);
+  --landing-sheen-b: rgba(56, 189, 248, 0.22);
+  --landing-prism-a: rgba(20, 184, 166, 0.2);
+  --landing-prism-b: rgba(59, 130, 246, 0.2);
   --hero-frame-border: rgba(64, 69, 77, 0.86);
   --hero-frame-border-strong: rgba(52, 56, 64, 0.96);
   --hero-frame-highlight: rgba(214, 219, 226, 0.18);
@@ -139,6 +149,16 @@ html {
   --cms-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.45);
   --cms-shadow-md: 0 16px 50px rgba(0, 0, 0, 0.62);
   --cms-shadow-lg: 0 28px 100px rgba(0, 0, 0, 0.78);
+  --landing-vignette-end: rgba(2, 4, 9, 0.78);
+  --landing-fade-top: rgba(3, 5, 9, 0.88);
+  --landing-fade-mid-top: rgba(3, 5, 9, 0.16);
+  --landing-fade-mid: rgba(3, 5, 9, 0.08);
+  --landing-fade-lower: rgba(3, 5, 9, 0.2);
+  --landing-fade-bottom: rgba(3, 5, 9, 0.9);
+  --landing-sheen-a: rgba(251, 146, 60, 0.1);
+  --landing-sheen-b: rgba(56, 189, 248, 0.08);
+  --landing-prism-a: rgba(16, 185, 129, 0.08);
+  --landing-prism-b: rgba(59, 130, 246, 0.08);
   --hero-frame-border: rgba(64, 69, 77, 0.86);
   --hero-frame-border-strong: rgba(52, 56, 64, 0.96);
   --hero-frame-highlight: rgba(214, 219, 226, 0.18);
@@ -232,6 +252,40 @@ html {
   opacity: 0.8;
 }
 
+.landing-bg-sheen {
+  position: absolute;
+  inset: -22%;
+  background:
+    radial-gradient(60% 48% at 16% 18%, var(--landing-sheen-a) 0%, transparent 74%),
+    radial-gradient(52% 44% at 82% 26%, var(--landing-sheen-b) 0%, transparent 78%);
+  filter: blur(72px) saturate(126%);
+  opacity: 0.68;
+  mix-blend-mode: screen;
+  transform: translate3d(0, 0, 0);
+  animation: landingSheenDrift 30s ease-in-out infinite alternate;
+}
+
+.landing-bg-prism {
+  position: absolute;
+  inset: -20%;
+  background:
+    conic-gradient(from 120deg at 30% 30%, var(--landing-prism-a), transparent 44%, var(--landing-prism-b) 72%, transparent 100%),
+    radial-gradient(68% 54% at 68% 74%, color-mix(in srgb, var(--landing-prism-a) 72%, transparent) 0%, transparent 72%);
+  filter: blur(64px) saturate(120%);
+  opacity: 0.54;
+  mix-blend-mode: soft-light;
+  transform: translate3d(0, 0, 0);
+  animation: landingPrismDrift 36s ease-in-out infinite alternate;
+}
+
+.dark .landing-bg-sheen {
+  opacity: 0.22;
+}
+
+.dark .landing-bg-prism {
+  opacity: 0.18;
+}
+
 .landing-bg-noise {
   position: absolute;
   inset: 0;
@@ -245,18 +299,18 @@ html {
 .landing-bg-vignette {
   position: absolute;
   inset: -4%;
-  background: radial-gradient(118% 112% at 50% 46%, transparent 48%, rgba(2, 4, 9, 0.78) 100%);
+  background: radial-gradient(118% 112% at 50% 46%, transparent 48%, var(--landing-vignette-end) 100%);
 }
 
 .landing-bg-fade {
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg,
-      rgba(3, 5, 9, 0.88) 0%,
-      rgba(3, 5, 9, 0.16) 18%,
-      rgba(3, 5, 9, 0.08) 50%,
-      rgba(3, 5, 9, 0.2) 82%,
-      rgba(3, 5, 9, 0.9) 100%);
+      var(--landing-fade-top) 0%,
+      var(--landing-fade-mid-top) 18%,
+      var(--landing-fade-mid) 50%,
+      var(--landing-fade-lower) 82%,
+      var(--landing-fade-bottom) 100%);
 }
 
 .hero-live-visual {
@@ -1082,6 +1136,26 @@ body:has(.landing-shell)::after {
   }
 }
 
+@keyframes landingSheenDrift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  100% {
+    transform: translate3d(3.4%, -2.2%, 0) scale(1.06);
+  }
+}
+
+@keyframes landingPrismDrift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  100% {
+    transform: translate3d(-2.8%, 2.6%, 0) scale(1.05);
+  }
+}
+
 @keyframes heroLiveFloat {
   0%,
   100% {
@@ -1173,6 +1247,8 @@ body:has(.landing-shell)::after {
   .dark body::before,
   .dark body::after,
   .landing-bg-blob,
+  .landing-bg-sheen,
+  .landing-bg-prism,
   .hero-live-visual,
   .hero-phone-shell,
   .hero-qr-card,
