@@ -20,7 +20,7 @@ from database import get_engine
 from models import ImportJob
 
 from importer.website_resolver import resolve_website
-from importer.menu_extractor import extract_menu, enrich_items_with_ai
+from importer.menu_extractor import extract_menu, enrich_items_with_ai, generate_style_template
 from importer.image_collector import find_dish_image, _html_cache
 from importer.image_enhancer import enhance_image
 from importer.manifest_builder import build_manifest
@@ -211,10 +211,18 @@ async def _process_job(job_id):
             },
         )
 
-        # ---- Step 3: AI-enrich items (35 → 45%) ----
+        # ---- Step 3: AI-enrich items (35 → 42%) ----
         _log_and_update(job_id, "Enriching items with AI (descriptions, tags, allergens)...", 35, "AI enrichment")
 
         parsed_menu = await enrich_items_with_ai(parsed_menu, log_fn=log)
+        _update_job(job_id, progress=42, current_step="Creating style template")
+
+        # ---- Step 3b: Generate consistent style template (42 → 45%) ----
+        # Determine cuisine from category names
+        category_names = ", ".join(cat.name for cat in parsed_menu.categories[:5])
+        style_template = await generate_style_template(
+            restaurant_name, category_names, log_fn=log
+        )
         _update_job(job_id, progress=45, current_step="Finding dish images")
 
         # ---- Step 4: Per-dish image search (45 → 80%) ----
@@ -243,6 +251,7 @@ async def _process_job(job_id):
                 restaurant_name=restaurant_name,
                 page_urls=page_urls,
                 seen_hashes=seen_hashes,
+                style_template=style_template,
                 log_fn=log,
             )
 

@@ -3,8 +3,8 @@ Per-dish image finder: searches for an image matching each menu item.
 
 Strategy (per dish):
 1. Search restaurant website HTML for <img> near the dish name
-2. Google Images via SerpAPI (if configured)
-3. AI-generate a studio food photo via DALL-E (if configured)
+2. Google Images via SerpAPI with consistent style keywords
+3. If nothing found, skip (no AI generation)
 """
 
 import json
@@ -83,7 +83,6 @@ def _score_image_for_dish(
         if dish_name_lower in parent_text:
             score += 5
             break
-        # Check word overlap in parent text
         parent_words = set(parent_text.split())
         if len(dish_words & parent_words) >= 2:
             score += 2
@@ -98,11 +97,12 @@ async def find_dish_image(
     restaurant_name: str,
     page_urls: list[str],
     seen_hashes: set[str],
+    style_template: str = "",
     log_fn=None,
 ) -> Optional[dict]:
     """Find an image for a specific dish.
 
-    Returns {filename: str, data: bytes} or None.
+    Returns {data: bytes, ext: str, source: str} or None.
     """
     if log_fn is None:
         log_fn = lambda msg: None
@@ -146,26 +146,21 @@ async def find_dish_image(
         except Exception:
             pass
 
-    # --- Strategy 2: Google Images via SerpAPI ---
+    # --- Strategy 2: Google Images via SerpAPI with style template ---
     serp_key = os.getenv("SERPAPI_KEY")
     if serp_key:
-        img_data = await _search_google_image(dish_name, restaurant_name, serp_key, seen_hashes)
+        # Build search query using the style template for consistency
+        search_query = f"{dish_name} {style_template}"
+        img_data = await _search_google_image(search_query, serp_key, seen_hashes)
         if img_data:
             return img_data
 
-    # --- Strategy 3: AI-generate image via DALL-E ---
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if openai_key:
-        img_data = await _generate_dish_image(dish_name, restaurant_name, openai_key, log_fn)
-        if img_data:
-            return img_data
-
+    # --- No image found — skip (no AI generation) ---
     return None
 
 
 async def _search_google_image(
-    dish_name: str,
-    restaurant_name: str,
+    query: str,
     api_key: str,
     seen_hashes: set[str],
 ) -> Optional[dict]:
@@ -177,20 +172,20 @@ async def _search_google_image(
             resp = await client.get(
                 "https://serpapi.com/search",
                 params={
-                    "q": f"{dish_name} {restaurant_name} food",
+                    "q": query,
                     "tbm": "isch",
                     "api_key": api_key,
-                    "num": 3,
+                    "num": 5,
                 },
             )
             data = resp.json()
-            for result in data.get("images_results", [])[:3]:
+            for result in data.get("images_results", [])[:5]:
                 img_url = result.get("original")
                 if not img_url:
                     continue
                 try:
                     img_data = await fetch_url_bytes(img_url, timeout=10.0)
-                    if len(img_data) > 3000:
+                    if len(img_data) > 5000:
                         h = image_hash(img_data)
                         if h not in seen_hashes:
                             seen_hashes.add(h)
@@ -200,47 +195,6 @@ async def _search_google_image(
                     continue
     except Exception:
         pass
-    return None
-
-
-async def _generate_dish_image(
-    dish_name: str,
-    restaurant_name: str,
-    api_key: str,
-    log_fn,
-) -> Optional[dict]:
-    """Generate a studio-quality food photo using DALL-E."""
-    try:
-        from openai import OpenAI
-        import httpx
-
-        client = OpenAI(api_key=api_key)
-        prompt = (
-            f"Professional studio food photography of \"{dish_name}\", "
-            f"beautifully plated on an elegant dish, "
-            f"shot from a 45-degree angle, soft natural lighting, "
-            f"shallow depth of field, clean white or dark slate background, "
-            f"restaurant-quality presentation, high resolution, appetizing"
-        )
-
-        response = client.images.generate(
-            model="dall-e-3",
-            prompt=prompt,
-            size="1024x1024",
-            quality="standard",
-            n=1,
-        )
-
-        image_url = response.data[0].url
-        if image_url:
-            async with httpx.AsyncClient(timeout=30) as http_client:
-                img_resp = await http_client.get(image_url)
-                img_resp.raise_for_status()
-                return {"data": img_resp.content, "ext": ".png", "source": "ai_generated"}
-
-    except Exception as e:
-        log_fn(f"DALL-E generation failed for '{dish_name}': {e}")
-
     return None
 
 

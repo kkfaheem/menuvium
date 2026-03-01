@@ -494,3 +494,65 @@ async def enrich_items_with_ai(parsed_menu: ParsedMenu, log_fn=None) -> ParsedMe
 
     return parsed_menu
 
+
+async def generate_style_template(
+    restaurant_name: str,
+    cuisine_hint: str,
+    log_fn=None,
+) -> str:
+    """Use AI to create a consistent image search style template for a restaurant.
+
+    Returns a comma-separated string of search keywords to append to every dish
+    image search, ensuring visual consistency across all images.
+    """
+    if log_fn is None:
+        log_fn = lambda msg: None
+
+    default_style = "professional food photography, plated dish, clean background, appetizing"
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        log_fn("OPENAI_API_KEY not set — using default style template")
+        return default_style
+
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    try:
+        from openai import OpenAI
+        import json
+
+        client = OpenAI(api_key=api_key)
+
+        prompt = (
+            f"You are a food photography art director. A restaurant called \"{restaurant_name}\" "
+            f"serves {cuisine_hint or 'various'} cuisine.\n\n"
+            "Create a SHORT, consistent image search style that will be appended to every dish name "
+            "when searching for food images online. The goal is that all images retrieved look like "
+            "they belong to the same photo set / menu design.\n\n"
+            "Return valid JSON: {\"style\": \"comma separated keywords\", \"background\": \"white\" or \"dark\"}\n\n"
+            "Rules:\n"
+            "- Keep it to 5-8 keywords max\n"
+            "- Include: photography style, plating style, background preference, angle, lighting\n"
+            "- Match the cuisine vibe (e.g., Indian = warm tones, Japanese = minimal/clean)\n"
+            "- ONLY return JSON, no markdown\n\n"
+            "Example output: {\"style\": \"professional food photography, ceramic plate, dark wood background, "
+            "warm lighting, 45 degree angle, shallow depth of field\", \"background\": \"dark\"}"
+        )
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            response_format={"type": "json_object"},
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        style = result.get("style", default_style)
+        log_fn(f"Generated style template: {style}")
+        return style
+
+    except Exception as e:
+        log_fn(f"Style template generation failed: {e}")
+        return default_style
+
+

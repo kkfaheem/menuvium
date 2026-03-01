@@ -1,26 +1,37 @@
 """
-Image enhancer: processes raw dish images into "studio quality" output.
+Image enhancer: processes raw dish images into consistent, premium output.
 
-Two modes:
-  LOCAL_ONLY  — Pillow-based: normalize orientation, resize, sharpen, contrast, pad, export WebP
-  AI_ENHANCE  — External API (e.g., Replicate) for upscale + enhance, falls back to LOCAL_ONLY
+All images get the same treatment for visual consistency:
+1. EXIF orientation fix
+2. Convert to RGB
+3. Center-crop to square (1:1) — best for menu displays
+4. Resize to consistent dimensions
+5. Auto brightness/contrast normalization
+6. Consistent color saturation
+7. Mild sharpening for food detail
+8. Subtle vignette for premium feel
+9. Export as WebP
 """
 
 import io
-import os
+import math
 from typing import Optional
 
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-MAX_DIMENSION = 1600
-TARGET_ASPECT_RATIO = 4 / 3  # 4:3 landscape
-OUTPUT_QUALITY = 82
-PAD_COLOR = (245, 245, 245)  # Light neutral gray
+TARGET_SIZE = 800           # Square output: 800x800
+OUTPUT_QUALITY = 82         # WebP quality
+SHARPEN_RADIUS = 1.2
+SHARPEN_PERCENT = 70
+SHARPEN_THRESHOLD = 3
+CONTRAST_FACTOR = 1.10      # Slightly boost contrast
+SATURATION_FACTOR = 1.12    # Slightly boost color vibrance
+VIGNETTE_STRENGTH = 0.15    # Subtle vignette (0 = none, 1 = max)
 
 
 # ---------------------------------------------------------------------------
@@ -32,148 +43,135 @@ async def enhance_image(
     filename: str,
     log_fn=None,
 ) -> bytes:
-    """Enhance an image, choosing AI or local mode based on config.
+    """Enhance a dish image with consistent styling.
 
     Returns WebP bytes of the enhanced image.
     """
     if log_fn is None:
         log_fn = lambda msg: None
 
-    provider = os.getenv("IMAGE_ENHANCE_PROVIDER")
-    if provider:
-        try:
-            log_fn(f"AI-enhancing {filename} via {provider}")
-            result = await _ai_enhance(data, provider)
-            if result:
-                # Apply local finishing pass (consistent sizing/format)
-                return _local_enhance(result, apply_corrections=False)
-        except Exception as e:
-            log_fn(f"AI enhance failed for {filename}: {e}, falling back to local")
-
-    log_fn(f"Local-enhancing {filename}")
-    return _local_enhance(data, apply_corrections=True)
+    log_fn(f"Enhancing {filename}")
+    return _local_enhance(data)
 
 
 # ---------------------------------------------------------------------------
-# LOCAL_ONLY processing
+# Enhancement pipeline
 # ---------------------------------------------------------------------------
 
-def _local_enhance(data: bytes, apply_corrections: bool = True) -> bytes:
-    """Process an image with Pillow for studio-quality output.
+def _local_enhance(data: bytes) -> bytes:
+    """Process an image with Pillow for consistent, premium output.
 
-    Steps:
-    1. Fix EXIF orientation
-    2. Convert to RGB
-    3. Resize to max dimension
-    4. Apply corrections (sharpen, contrast, denoise) if requested
-    5. Pad to consistent aspect ratio
-    6. Export as WebP
+    All images go through identical treatment for visual cohesion.
     """
     img = Image.open(io.BytesIO(data))
 
-    # Fix EXIF orientation
+    # 1. Fix EXIF orientation
     img = ImageOps.exif_transpose(img)
 
-    # Convert to RGB (handles RGBA, palette, etc.)
+    # 2. Convert to RGB
     if img.mode != "RGB":
         img = img.convert("RGB")
 
-    # Resize to max dimension, maintaining aspect ratio
-    img.thumbnail((MAX_DIMENSION, MAX_DIMENSION), Image.LANCZOS)
+    # 3. Center-crop to square
+    img = _center_crop_square(img)
 
-    if apply_corrections:
-        # Mild sharpening
-        img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=80, threshold=3))
+    # 4. Resize to target size
+    img = img.resize((TARGET_SIZE, TARGET_SIZE), Image.LANCZOS)
 
-        # Slight contrast boost
-        enhancer = ImageEnhance.Contrast(img)
-        img = enhancer.enhance(1.08)
+    # 5. Auto brightness normalization (bring all images to similar exposure)
+    img = _auto_brightness(img)
 
-        # Slight color saturation boost
-        enhancer = ImageEnhance.Color(img)
-        img = enhancer.enhance(1.05)
+    # 6. Contrast boost
+    img = ImageEnhance.Contrast(img).enhance(CONTRAST_FACTOR)
 
-        # Slight brightness normalization
-        enhancer = ImageEnhance.Brightness(img)
-        img = enhancer.enhance(1.02)
+    # 7. Color saturation boost (makes food look more appetizing)
+    img = ImageEnhance.Color(img).enhance(SATURATION_FACTOR)
 
-    # Pad to consistent aspect ratio (4:3)
-    img = _pad_to_aspect_ratio(img, TARGET_ASPECT_RATIO)
+    # 8. Sharpening (crisp food detail)
+    img = img.filter(ImageFilter.UnsharpMask(
+        radius=SHARPEN_RADIUS,
+        percent=SHARPEN_PERCENT,
+        threshold=SHARPEN_THRESHOLD,
+    ))
 
-    # Export as WebP
+    # 9. Subtle vignette for premium feel
+    if VIGNETTE_STRENGTH > 0:
+        img = _apply_vignette(img, VIGNETTE_STRENGTH)
+
+    # 10. Export as WebP
     output = io.BytesIO()
     img.save(output, format="WEBP", quality=OUTPUT_QUALITY, method=4)
     return output.getvalue()
 
 
-def _pad_to_aspect_ratio(img: Image.Image, target_ratio: float) -> Image.Image:
-    """Pad image with neutral background to match target aspect ratio.
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
 
-    Uses the wider orientation (landscape) for the target ratio.
+def _center_crop_square(img: Image.Image) -> Image.Image:
+    """Center-crop image to a square using the shorter dimension."""
+    w, h = img.size
+    if w == h:
+        return img
+
+    size = min(w, h)
+    left = (w - size) // 2
+    top = (h - size) // 2
+    return img.crop((left, top, left + size, top + size))
+
+
+def _auto_brightness(img: Image.Image, target_mean: float = 128.0) -> Image.Image:
+    """Normalize brightness so all images have similar exposure.
+
+    Calculates the mean brightness and adjusts to target.
+    Clamps adjustment to avoid extreme changes.
+    """
+    stat = ImageStat.Stat(img)
+    # Average brightness across R, G, B channels
+    current_mean = sum(stat.mean[:3]) / 3.0
+
+    if current_mean < 10:  # Nearly black image, skip
+        return img
+
+    factor = target_mean / current_mean
+    # Clamp factor to prevent extreme adjustments
+    factor = max(0.7, min(1.5, factor))
+
+    return ImageEnhance.Brightness(img).enhance(factor)
+
+
+def _apply_vignette(img: Image.Image, strength: float = 0.15) -> Image.Image:
+    """Apply a subtle radial vignette effect for a premium look.
+
+    Creates a dark gradient overlay that's transparent in the center
+    and darkens toward the edges.
     """
     w, h = img.size
-    current_ratio = w / h
+    # Create a radial gradient mask
+    mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)
 
-    if abs(current_ratio - target_ratio) < 0.05:
-        return img  # Close enough
+    # Fill with concentric ellipses from center (white) to edges (black)
+    cx, cy = w // 2, h // 2
+    max_radius = math.sqrt(cx * cx + cy * cy)
+    steps = 60
 
-    if current_ratio > target_ratio:
-        # Image is wider than target — pad height
-        new_h = int(w / target_ratio)
-        new_img = Image.new("RGB", (w, new_h), PAD_COLOR)
-        paste_y = (new_h - h) // 2
-        new_img.paste(img, (0, paste_y))
-    else:
-        # Image is taller than target — pad width
-        new_w = int(h * target_ratio)
-        new_img = Image.new("RGB", (new_w, h), PAD_COLOR)
-        paste_x = (new_w - w) // 2
-        new_img.paste(img, (paste_x, 0))
+    for i in range(steps, 0, -1):
+        ratio = i / steps
+        radius_x = int(cx * ratio * 1.4)  # Wider than image center
+        radius_y = int(cy * ratio * 1.4)
+        # Brightness: 255 at center → darker at edges
+        brightness = int(255 * (1 - strength * (1 - ratio) ** 1.5))
+        draw.ellipse(
+            [cx - radius_x, cy - radius_y, cx + radius_x, cy + radius_y],
+            fill=brightness,
+        )
 
-    return new_img
+    # Apply mask as a multiplicative blend
+    import numpy as np
+    img_array = np.array(img, dtype=np.float32)
+    mask_array = np.array(mask, dtype=np.float32) / 255.0
+    mask_3d = np.stack([mask_array] * 3, axis=-1)
 
-
-# ---------------------------------------------------------------------------
-# AI_ENHANCE processing
-# ---------------------------------------------------------------------------
-
-async def _ai_enhance(data: bytes, provider: str) -> Optional[bytes]:
-    """Send image to external AI enhancement API.
-
-    Currently supports:
-    - "replicate": Uses Replicate's image upscaling models
-    - "openai": Uses OpenAI's image editing API
-
-    More providers can be added by implementing the pattern below.
-    """
-    provider = provider.lower().strip()
-
-    if provider == "replicate":
-        return await _enhance_via_replicate(data)
-    elif provider == "openai":
-        return await _enhance_via_openai(data)
-    else:
-        raise ValueError(f"Unknown IMAGE_ENHANCE_PROVIDER: {provider}")
-
-
-async def _enhance_via_replicate(data: bytes) -> Optional[bytes]:
-    """Enhance image using Replicate API."""
-    api_token = os.getenv("REPLICATE_API_TOKEN")
-    if not api_token:
-        return None
-
-    # TODO: Implement Replicate upscaling API call
-    # This would use a model like "nightmareai/real-esrgan" for upscaling
-    # For now, return None to fall back to local processing
-    return None
-
-
-async def _enhance_via_openai(data: bytes) -> Optional[bytes]:
-    """Enhance image using OpenAI Image API."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        return None
-
-    # TODO: Implement OpenAI image editing API call
-    # For now, return None to fall back to local processing
-    return None
+    result_array = (img_array * mask_3d).clip(0, 255).astype(np.uint8)
+    return Image.fromarray(result_array)
