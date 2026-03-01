@@ -26,6 +26,7 @@ class ParsedItem:
     description: Optional[str] = None
     price: Optional[float] = None
     category: Optional[str] = None
+    source_image_url: Optional[str] = None
     dietary_tags: list[str] = field(default_factory=list)
     allergens: list[str] = field(default_factory=list)
     image_filename: Optional[str] = None
@@ -53,9 +54,17 @@ MENU_PATH_PATTERNS = [
 
 
 async def extract_menu(website_url: str, log_fn=None) -> ParsedMenu:
-    """Main entry point: discover menu sources on a website and extract structured data."""
+    """Extract menu categories and items from a restaurant website.
+
+    Prioritizes specific known platforms (like Mealsy), then falls back to general
+    HTML scraping, PDF parsing, and OCR. AI fallback is used if structured parsing fails.
+    """
     if log_fn is None:
         log_fn = lambda msg: None
+
+    if "mealsy.ca" in website_url.lower() or "mymealsy.com" in website_url.lower():
+        log_fn("Detected Mealsy platform, using direct API extractor...")
+        return await _extract_mealsy_menu(website_url, log_fn)
 
     log_fn(f"Fetching homepage: {website_url}")
 
@@ -243,6 +252,122 @@ def _extract_menu_text_from_html(html: str | bytes) -> str:
                     lines.append(text)
 
     return "\n".join(lines)
+
+
+async def _extract_mealsy_menu(url: str, log_fn) -> ParsedMenu:
+    """Extract menu directly from Mealsy's backend JSON API.
+    
+    Mealsy is a SPA, so HTML scraping yields empty results.
+    The URL usually looks like: https://onlineordering.mealsy.ca/en/#/Afraa/online/menus
+    The xRefCode is 'Afraa'.
+    """
+    import json
+    import base64
+    import gzip
+    import httpx
+    
+    # 1. Extract xRefCode (restaurant ID slug)
+    xref_code = None
+    if "#/" in url:
+        parts = url.split("#/")[1].split("/")
+        if parts:
+            xref_code = parts[0]
+            
+    if not xref_code:
+        log_fn("Could not determine Mealsy xRefCode from URL")
+        return ParsedMenu(categories=[], source_urls=[url])
+        
+    log_fn(f"Extracted Mealsy xRefCode: {xref_code}")
+    
+    parsed_menu = ParsedMenu(categories=[], source_urls=[url])
+    
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        # 2. Get businessLocationId
+        try:
+            r = await client.get(f"https://prod1.api.mymealsy.com/online-ordering/api/v1/BusinessAccounts?xRefCode={xref_code}")
+            r.raise_for_status()
+            accounts = r.json()
+            if not accounts:
+                return parsed_menu
+            location_id = accounts[0].get("BusinessLocationId")
+            if not location_id:
+                return parsed_menu
+        except Exception as e:
+            log_fn(f"Failed to fetch Mealsy BusinessAccounts: {e}")
+            return parsed_menu
+            
+        # 3. Get Menu Data Payload
+        try:
+            r = await client.get(f"https://prod1.api.mymealsy.com/online-ordering/api/v1/Data?businessLocationId={location_id}&dataCategory=1&isPreview=false")
+            r.raise_for_status()
+            data_resp = r.json()
+            
+            # 4. Decode Base64 and GZIP
+            encoded_data = data_resp.get("Data")
+            if not encoded_data:
+                return parsed_menu
+                
+            compressed_bytes = base64.b64decode(encoded_data)
+            json_str = gzip.decompress(compressed_bytes).decode("utf-8")
+            menu_data = json.loads(json_str)
+            
+            menus = menu_data.get("Menus", [])
+            if not menus:
+                return parsed_menu
+                
+            # Usually the first menu is the active one
+            active_menu = menus[0]
+            sections = active_menu.get("MenuSections", [])
+            
+            def _get_locale(val):
+                if not val: return None
+                if val.startswith("{") and val.endswith("}"):
+                    try:
+                        d = json.loads(val)
+                        return d.get("En", d.get(list(d.keys())[0], val))
+                    except: pass
+                return val
+            
+            # 5. Build ParsedMenu structure
+            for section in sections:
+                cat_name = _get_locale(section.get("Name"))
+                if not cat_name:
+                    continue
+                    
+                cat = ParsedCategory(name=cat_name, items=[])
+                
+                for item_data in section.get("MenuItems", []):
+                    item_name = _get_locale(item_data.get("Name"))
+                    if not item_name:
+                        continue
+                        
+                    item_desc = _get_locale(item_data.get("Description"))
+                    item_price = item_data.get("Price")
+                    if item_price is not None:
+                        try:
+                            item_price = float(item_price)
+                        except:
+                            item_price = None
+                            
+                    item_photo = _get_locale(item_data.get("PhotoPathOnline"))
+                    
+                    cat.items.append(ParsedItem(
+                        name=item_name,
+                        description=item_desc,
+                        price=item_price,
+                        category=cat_name,
+                        source_image_url=item_photo
+                    ))
+                    
+                if cat.items:
+                    parsed_menu.categories.append(cat)
+                    
+            log_fn(f"Successfully extracted Mealsy menu: {len(parsed_menu.categories)} categories")
+            return parsed_menu
+            
+        except Exception as e:
+            log_fn(f"Mealsy menu extraction failed: {e}")
+            return parsed_menu
 
 
 def _looks_like_menu(text: str) -> bool:

@@ -21,11 +21,11 @@ from models import ImportJob
 
 from importer.website_resolver import resolve_website
 from importer.menu_extractor import extract_menu, enrich_items_with_ai, generate_style_template
-from importer.image_collector import find_dish_image, _html_cache
+from importer.image_collector import find_dish_image, _html_cache, _get_image_extension
 from importer.image_enhancer import enhance_image
 from importer.manifest_builder import build_manifest
 from importer.zipper import create_zip, store_zip
-from importer.utils import slugify
+from importer.utils import slugify, fetch_url_bytes
 
 
 POLL_INTERVAL = 5  # seconds
@@ -245,15 +245,30 @@ async def _process_job(job_id):
         images_data: list[dict] = []  # {filename, data}
 
         for i, (cat, item) in enumerate(all_items):
-            img_result = await find_dish_image(
-                dish_name=item.name,
-                website_url=website_url,
-                restaurant_name=restaurant_name,
-                page_urls=page_urls,
-                seen_hashes=seen_hashes,
-                style_template=style_template,
-                log_fn=log,
-            )
+            img_result = None
+            
+            # 1. Direct source image URL (from specific extractors like Mealsy)
+            if item.source_image_url:
+                try:
+                    data = await fetch_url_bytes(item.source_image_url)
+                    if len(data) > 3000:
+                        ext = _get_image_extension(item.source_image_url, data)
+                        img_result = {"data": data, "ext": ext, "source": "native"}
+                        log(f"Downloaded native image for '{item.name}'")
+                except Exception as e:
+                    log(f"Failed to download native image for '{item.name}': {e}")
+                    
+            # 2. General fallback: search website HTML then Google
+            if not img_result:
+                img_result = await find_dish_image(
+                    dish_name=item.name,
+                    website_url=website_url,
+                    restaurant_name=restaurant_name,
+                    page_urls=page_urls,
+                    seen_hashes=seen_hashes,
+                    style_template=style_template,
+                    log_fn=log,
+                )
 
             if img_result:
                 fname = f"dish_{i + 1:03d}{img_result['ext']}"
