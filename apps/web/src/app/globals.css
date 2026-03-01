@@ -102,6 +102,16 @@ html {
   --landing-sheen-b: rgba(56, 189, 248, 0.22);
   --landing-prism-a: rgba(20, 184, 166, 0.2);
   --landing-prism-b: rgba(59, 130, 246, 0.2);
+  --landing-glass-border: color-mix(in srgb, rgba(255, 255, 255, 0.72) 56%, rgba(15, 23, 42, 0.22));
+  --landing-glass-edge-top: rgba(255, 255, 255, 0.64);
+  --landing-glass-edge-bottom: rgba(15, 23, 42, 0.12);
+  --landing-glass-shadow:
+    0 24px 62px -42px rgba(15, 23, 42, 0.42),
+    0 10px 28px -20px rgba(30, 41, 59, 0.3);
+  --landing-glass-glow-a: rgba(255, 255, 255, 0.34);
+  --landing-glass-glow-b: rgba(148, 163, 184, 0.16);
+  --landing-glass-reflect: rgba(56, 189, 248, 0.12);
+  --landing-glass-reflect-warm: rgba(251, 146, 60, 0.09);
   --hero-frame-border: rgba(64, 69, 77, 0.86);
   --hero-frame-border-strong: rgba(52, 56, 64, 0.96);
   --hero-frame-highlight: rgba(214, 219, 226, 0.18);
@@ -165,6 +175,16 @@ html {
   --landing-sheen-b: rgba(56, 189, 248, 0.08);
   --landing-prism-a: rgba(16, 185, 129, 0.08);
   --landing-prism-b: rgba(59, 130, 246, 0.08);
+  --landing-glass-border: rgba(203, 213, 225, 0.22);
+  --landing-glass-edge-top: rgba(255, 255, 255, 0.2);
+  --landing-glass-edge-bottom: rgba(1, 4, 9, 0.78);
+  --landing-glass-shadow:
+    0 22px 52px -40px rgba(0, 0, 0, 0.72),
+    0 10px 24px -18px rgba(2, 6, 23, 0.58);
+  --landing-glass-glow-a: rgba(255, 255, 255, 0.08);
+  --landing-glass-glow-b: rgba(148, 163, 184, 0.04);
+  --landing-glass-reflect: rgba(56, 189, 248, 0.03);
+  --landing-glass-reflect-warm: rgba(251, 146, 60, 0.02);
   --hero-frame-border: rgba(64, 69, 77, 0.86);
   --hero-frame-border-strong: rgba(52, 56, 64, 0.96);
   --hero-frame-highlight: rgba(214, 219, 226, 0.18);
@@ -986,6 +1006,53 @@ html {
     inset 0 1px 0 color-mix(in srgb, var(--cms-glass-highlight) 88%, transparent),
     inset 0 -1px 0 color-mix(in srgb, var(--cms-glass-lowlight) 84%, transparent),
     inset 0 0 0 1px color-mix(in srgb, var(--cms-border) 78%, transparent);
+}
+
+.landing-shell .glass-surface {
+  border-width: 0.75px;
+  border-color: var(--landing-glass-border);
+  backdrop-filter: blur(24px) saturate(172%) contrast(104%);
+  -webkit-backdrop-filter: blur(24px) saturate(172%) contrast(104%);
+  box-shadow:
+    var(--landing-glass-shadow),
+    inset 0 1px 0 var(--landing-glass-edge-top),
+    inset 0 -1px 0 var(--landing-glass-edge-bottom);
+}
+
+.landing-shell .glass-surface::before {
+  background:
+    linear-gradient(175deg, var(--landing-glass-glow-a) 0%, transparent 36%),
+    radial-gradient(108% 76% at -4% -18%, var(--landing-glass-glow-b) 0%, transparent 62%),
+    radial-gradient(92% 78% at 108% 124%, var(--landing-glass-reflect) 0%, transparent 68%);
+  opacity: 0.5;
+}
+
+.landing-shell .glass-surface::after {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--landing-glass-edge-top) 94%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--landing-glass-edge-bottom) 90%, transparent),
+    inset 0 0 0 0.75px color-mix(in srgb, var(--landing-glass-border) 84%, transparent),
+    inset 0 20px 28px -24px color-mix(in srgb, var(--landing-glass-glow-a) 56%, transparent);
+}
+
+.dark .landing-shell .glass-surface {
+  background-color: color-mix(in srgb, #111827 46%, transparent);
+  backdrop-filter: blur(22px) saturate(118%) contrast(103%);
+  -webkit-backdrop-filter: blur(22px) saturate(118%) contrast(103%);
+}
+
+.dark .landing-shell .glass-surface::before {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.02) 28%, transparent 52%),
+    radial-gradient(96% 66% at -8% -26%, var(--landing-glass-glow-b) 0%, transparent 64%);
+  opacity: 0.22;
+}
+
+.dark .landing-shell .glass-surface::after {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--landing-glass-edge-top) 90%, transparent),
+    inset 0 -1px 0 color-mix(in srgb, var(--landing-glass-edge-bottom) 90%, transparent),
+    inset 0 0 0 0.7px color-mix(in srgb, var(--landing-glass-border) 78%, transparent);
 }
 
 /* Auth wrapper - constrain Amplify Authenticator */

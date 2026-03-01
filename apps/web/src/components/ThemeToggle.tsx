@@ -9,39 +9,39 @@ export function ThemeToggle() {
     const isDark = resolvedTheme === "dark";
 
     return (
-        <button
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            aria-pressed={isDark}
-            className="group relative inline-flex h-10 w-[86px] items-center rounded-full border border-[var(--cms-border)] bg-[color-mix(in_srgb,var(--cms-panel)_86%,transparent)] p-1 text-[var(--cms-muted)] shadow-sm transition-colors duration-200 hover:border-[var(--cms-text)]/30 hover:text-[var(--cms-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent-strong)]/25 motion-reduce:transition-none"
-            aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
-            title={`Switch to ${isDark ? "light" : "dark"} mode`}
+        <div
+            role="group"
+            aria-label="Theme mode"
+            className="inline-flex h-9 items-center rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-1 shadow-sm"
         >
-            <span
-                aria-hidden="true"
+            <button
+                type="button"
+                onClick={() => setTheme("light")}
+                aria-pressed={!isDark}
+                aria-label="Switch to light mode"
                 className={cn(
-                    "pointer-events-none absolute left-1 top-1 h-8 w-8 rounded-full bg-[var(--cms-panel)] ring-1 ring-[var(--cms-border)] shadow-[0_6px_16px_rgba(0,0,0,0.26)] transition-transform duration-200 motion-reduce:transition-none",
-                    isDark ? "translate-x-[44px]" : "translate-x-0"
-                )}
-            />
-            <span
-                aria-hidden="true"
-                className={cn(
-                    "relative z-10 flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-200 motion-reduce:transition-none",
-                    !isDark ? "text-amber-500" : "text-[var(--cms-muted)]"
+                    "inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 motion-reduce:transition-none",
+                    !isDark
+                        ? "bg-[var(--cms-panel)] text-amber-500 ring-1 ring-[var(--cms-border)] shadow-[0_4px_10px_rgba(0,0,0,0.2)]"
+                        : "text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
                 )}
             >
-                <Sun className="h-4 w-4" />
-            </span>
-            <span
-                aria-hidden="true"
+                <Sun className="h-3.5 w-3.5" />
+            </button>
+            <button
+                type="button"
+                onClick={() => setTheme("dark")}
+                aria-pressed={isDark}
+                aria-label="Switch to dark mode"
                 className={cn(
-                    "relative z-10 flex h-8 w-8 items-center justify-center rounded-full transition-colors duration-200 motion-reduce:transition-none",
-                    isDark ? "text-[var(--cms-accent)]" : "text-[var(--cms-muted)]"
+                    "inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 motion-reduce:transition-none",
+                    isDark
+                        ? "bg-[var(--cms-panel)] text-[var(--cms-accent)] ring-1 ring-[var(--cms-border)] shadow-[0_4px_10px_rgba(0,0,0,0.2)]"
+                        : "text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
                 )}
             >
-                <MoonStar className="h-4 w-4" />
-            </span>
-            <span className="sr-only">Toggle theme</span>
-        </button>
+                <MoonStar className="h-3.5 w-3.5" />
+            </button>
+        </div>
     );
 }

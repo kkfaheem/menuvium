@@ -7,8 +7,8 @@ import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useParams, useRouter } from "next/navigation";
 import {
     DndContext,
+    MeasuringStrategy,
     PointerSensor,
-    DragOverlay,
     closestCenter,
     type DragEndEvent,
     useSensor,
@@ -65,7 +65,6 @@ export default function MenuDetailPage() {
     const [isDragging, setIsDragging] = useState(false);
     const [isEditingMenuName, setIsEditingMenuName] = useState(false);
     const [menuNameDraft, setMenuNameDraft] = useState("");
-    const [activeDragId, setActiveDragId] = useState<string | null>(null);
     const [collapsedCategoryIds, setCollapsedCategoryIds] = useState<Set<string>>(new Set());
     const [tagLabels, setTagLabels] = useState(TAG_LABELS_DEFAULTS);
     const [tagGroups, setTagGroups] = useState<Record<string, "diet" | "spice" | "highlights">>({});
@@ -525,7 +524,6 @@ export default function MenuDetailPage() {
 
     const handleDragEnd = async (event: DragEndEvent) => {
         setIsDragging(false);
-        setActiveDragId(null);
         document.body.style.cursor = "";
         if (!orgPermissions?.can_manage_menus) return;
         if (!menu || !event.over) return;
@@ -1088,13 +1086,11 @@ export default function MenuDetailPage() {
     };
 
     const handleToggleMenuActive = () => {
-        setMenuActive((prev) => {
-            const next = !prev;
-            toast({
-                variant: "success",
-                title: next ? "Menu set to active" : "Menu set to inactive",
-            });
-            return next;
+        const next = !menuActive;
+        setMenuActive(next);
+        toast({
+            variant: "success",
+            title: next ? "Menu set to active" : "Menu set to inactive",
         });
         setPageDirty(true);
     };
@@ -1210,18 +1206,10 @@ export default function MenuDetailPage() {
     const canEditItems = Boolean(orgPermissions?.can_edit_items);
     const canManageAvailability = Boolean(orgPermissions?.can_manage_availability);
     const canOpenItemModal = canEditItems || canManageAvailability;
-    const activeDraggedCategory = activeDragId?.startsWith("cat-")
-        ? menu.categories.find((category) => `cat-${category.id}` === activeDragId) ?? null
-        : null;
-    const activeDraggedItem = activeDragId?.startsWith("item-")
-        ? menu.categories.flatMap((category) => category.items || []).find((item) => `item-${item.id}` === activeDragId) ?? null
-        : null;
-    const activeDraggedItemPhotoUrl =
-        activeDraggedItem?.photo_url || (activeDraggedItem as any)?.photos?.[0]?.url || null;
 
     return (
         <div className="w-full max-w-5xl mx-auto">
-            <div className="cms-surface-0 rounded-[28px] p-4 sm:p-6">
+            <div className="cms-surface-0 rounded-2xl p-4 sm:p-6">
             <header className="mb-6 space-y-3 sm:mb-8">
                 <Link
                     href="/dashboard/menus"
@@ -1229,12 +1217,12 @@ export default function MenuDetailPage() {
                 >
                     <ArrowLeft className="w-4 h-4" /> Back to Menus
                 </Link>
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="space-y-2 max-w-2xl">
+                <div className="space-y-4">
+                    <div className="flex justify-center">
                         {isEditingMenuName ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-center gap-2">
                                 <input
-                                    className="font-heading text-3xl font-bold tracking-tight bg-transparent border-b border-[var(--cms-border)] focus:outline-none focus:border-[var(--cms-text)] transition-colors"
+                                    className="font-heading text-3xl font-bold tracking-tight text-center bg-transparent border-b border-[var(--cms-border)] focus:outline-none focus:border-[var(--cms-text)] transition-colors"
                                     value={menuNameDraft}
                                     onChange={(e) => setMenuNameDraft(e.target.value)}
                                     onKeyDown={(e) => {
@@ -1274,16 +1262,16 @@ export default function MenuDetailPage() {
                                     <X className="w-4 h-4" />
                                 </button>
                             </div>
-	                        ) : (
-	                            <>
-	                                {canManageMenus ? (
-	                                    <button
+                        ) : (
+                            <>
+                                {canManageMenus ? (
+                                    <button
                                         type="button"
                                         onClick={() => {
                                             setMenuNameDraft(menuName);
                                             setIsEditingMenuName(true);
                                         }}
-                                        className="group inline-flex items-center gap-2 font-heading text-3xl font-bold tracking-tight text-left hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent-strong)]/25"
+                                        className="group inline-flex items-center justify-center gap-2 font-heading text-3xl font-bold tracking-tight text-center hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent-strong)]/25"
                                         aria-label="Edit menu name"
                                         title="Edit menu name"
                                     >
@@ -1291,100 +1279,97 @@ export default function MenuDetailPage() {
                                         <PencilLine className="relative top-[1px] w-4 h-4 text-[var(--cms-muted)] transition-colors group-hover:text-[var(--cms-text)]" />
                                     </button>
                                 ) : (
-	                                    <h1 className="font-heading text-3xl font-bold tracking-tight">{menuName}</h1>
-	                                )}
-	                            </>
-	                        )}
-                            <p className="text-muted">
-                                Edit items, pricing, availability, and photoreal AR dishes.
-                            </p>
-	                    </div>
-                    <div className="w-full lg:w-auto lg:max-w-[52%] space-y-2">
-                        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                            {canManageMenus && (
-                                <button
-                                    onClick={handleToggleMenuActive}
-                                    className="h-9 px-1.5 inline-flex items-center gap-2 text-[11px] font-semibold tracking-[0.08em] uppercase text-[var(--cms-muted)] transition-colors duration-150 hover:text-[var(--cms-text)] motion-reduce:transition-none"
+                                    <h1 className="font-heading text-3xl font-bold tracking-tight text-center">{menuName}</h1>
+                                )}
+                            </>
+                        )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                        {canManageMenus && (
+                            <button
+                                onClick={handleSaveMenu}
+                                disabled={isSavingMenu || !pageDirty}
+                                className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none ${
+                                    pageDirty && !isSavingMenu
+                                        ? "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"
+                                        : "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed"
+                                }`}
+                            >
+                                {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
+                                {isSavingMenu ? "Saving..." : "Save"}
+                            </button>
+                        )}
+                        {canManageMenus && (
+                            <button
+                                onClick={handleToggleMenuActive}
+                                className="h-9 px-2.5 inline-flex items-center gap-2 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-[11px] font-semibold tracking-[0.08em] uppercase text-[var(--cms-muted)] transition-colors duration-150 hover:text-[var(--cms-text)] motion-reduce:transition-none"
+                            >
+                                <span>{menuActive ? "Active" : "Inactive"}</span>
+                                <span
+                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 motion-reduce:transition-none ${menuActive ? "bg-[var(--cms-text)]" : "bg-[var(--cms-panel)]"}`}
                                 >
-                                    <span>{menuActive ? "Active" : "Inactive"}</span>
                                     <span
-                                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 motion-reduce:transition-none ${menuActive ? "bg-[var(--cms-text)]" : "bg-[var(--cms-panel-strong)]"}`}
-                                    >
-                                        <span
-                                            className={`inline-block h-3.5 w-3.5 rounded-full bg-[var(--cms-bg)] shadow transition-transform duration-150 motion-reduce:transition-none ${menuActive ? "translate-x-5" : "translate-x-0.5"}`}
-                                        />
-                                    </span>
-                                </button>
-                            )}
-                            {canManageMenus && (
-                                <button
-                                    onClick={handleSaveMenu}
-                                    disabled={isSavingMenu || !pageDirty}
-                                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none ${
-                                        pageDirty && !isSavingMenu
-                                            ? "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"
-                                            : "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed"
-                                    }`}
-                                >
-                                    {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
-                                    {isSavingMenu ? "Saving..." : "Save"}
-                                </button>
-                            )}
-                            {canManageMenus && (
-                                <Link
-                                    href={`/dashboard/menus/${menu.id}/themes`}
-                                    className="h-9 px-3.5 rounded-full text-xs font-semibold inline-flex items-center justify-center text-[var(--cms-muted)] transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none"
-                                >
-                                    Design Studio
-                                </Link>
-                            )}
+                                        className={`inline-block h-3.5 w-3.5 rounded-full bg-[var(--cms-bg)] shadow transition-transform duration-150 motion-reduce:transition-none ${menuActive ? "translate-x-5" : "translate-x-0.5"}`}
+                                    />
+                                </span>
+                            </button>
+                        )}
+                        {canManageMenus && (
                             <Link
-                                href={`/r/${menu.id}`}
-                                target="_blank"
-                                className="h-9 px-3.5 rounded-full text-xs font-semibold inline-flex items-center justify-center text-[var(--cms-muted)] transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none"
+                                href={`/dashboard/menus/${menu.id}/themes`}
+                                className="h-9 px-3.5 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-xs font-semibold inline-flex items-center justify-center text-[var(--cms-muted)] transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none"
                             >
-                                View Public Page
+                                Design Studio
                             </Link>
-                            {canManageMenus && (
-                                <details className="relative">
-                                    <summary className="list-none h-9 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center gap-1.5 text-[var(--cms-muted)] cursor-pointer transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
-                                        <MoreHorizontal className="w-3.5 h-3.5" />
-                                        More
-                                    </summary>
-                                    <div className="absolute right-0 mt-2 w-44 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-1.5 shadow-lg z-20">
-                                        <button
-                                            onClick={(event) => {
-                                                handleExportMenu();
-                                                const details = event.currentTarget.closest("details");
-                                                if (details instanceof HTMLDetailsElement) {
-                                                    details.open = false;
-                                                }
-                                            }}
-                                            disabled={isExporting}
-                                            className="h-8 px-2.5 rounded-lg text-xs font-semibold inline-flex w-full items-center gap-1.5 text-[var(--cms-muted)] hover:bg-[var(--cms-panel-strong)] hover:text-[var(--cms-text)] disabled:opacity-50"
-                                        >
-                                            {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-                                            {isExporting ? "Exporting..." : "Export"}
-                                        </button>
-                                    </div>
-                                </details>
-                            )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--cms-muted)] lg:justify-end">
-                            <button
-                                onClick={collapseAllCategories}
-                                className="transition-colors duration-150 hover:text-[var(--cms-text)] motion-reduce:transition-none"
-                            >
-                                Collapse all
-                            </button>
-                            <span className="text-[var(--cms-border)]">•</span>
-                            <button
-                                onClick={expandAllCategories}
-                                className="transition-colors duration-150 hover:text-[var(--cms-text)] motion-reduce:transition-none"
-                            >
-                                Expand all
-                            </button>
-                        </div>
+                        )}
+                        <Link
+                            href={`/r/${menu.id}`}
+                            target="_blank"
+                            className="h-9 px-3.5 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-xs font-semibold inline-flex items-center justify-center text-[var(--cms-muted)] transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none"
+                        >
+                            View Public Page
+                        </Link>
+                        {canManageMenus && (
+                            <details className="relative">
+                                <summary className="list-none h-9 px-3 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-xs font-semibold inline-flex items-center justify-center gap-1.5 text-[var(--cms-muted)] cursor-pointer transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
+                                    <MoreHorizontal className="w-3.5 h-3.5" />
+                                    More
+                                </summary>
+                                <div className="absolute right-0 mt-2 w-44 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-1.5 shadow-lg z-20">
+                                    <button
+                                        onClick={(event) => {
+                                            handleExportMenu();
+                                            const details = event.currentTarget.closest("details");
+                                            if (details instanceof HTMLDetailsElement) {
+                                                details.open = false;
+                                            }
+                                        }}
+                                        disabled={isExporting}
+                                        className="h-8 px-2.5 rounded-lg text-xs font-semibold inline-flex w-full items-center gap-1.5 text-[var(--cms-muted)] hover:bg-[var(--cms-panel-strong)] hover:text-[var(--cms-text)] disabled:opacity-50"
+                                    >
+                                        {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                                        {isExporting ? "Exporting..." : "Export"}
+                                    </button>
+                                </div>
+                            </details>
+                        )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-center gap-2 text-xs text-[var(--cms-muted)]">
+                        <button
+                            onClick={collapseAllCategories}
+                            className="transition-colors duration-150 hover:text-[var(--cms-text)] motion-reduce:transition-none"
+                        >
+                            Collapse all
+                        </button>
+                        <span className="text-[var(--cms-border)]">•</span>
+                        <button
+                            onClick={expandAllCategories}
+                            className="transition-colors duration-150 hover:text-[var(--cms-text)] motion-reduce:transition-none"
+                        >
+                            Expand all
+                        </button>
                     </div>
                 </div>
             </header>
@@ -1393,15 +1378,14 @@ export default function MenuDetailPage() {
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
-                    onDragStart={(event) => {
+                    layoutMeasuring={{ strategy: MeasuringStrategy.Always }}
+                    onDragStart={() => {
                         setIsDragging(true);
-                        setActiveDragId(String(event.active.id));
                         document.body.style.cursor = "grabbing";
                     }}
                     onDragEnd={handleDragEnd}
                     onDragCancel={() => {
                         setIsDragging(false);
-                        setActiveDragId(null);
                         document.body.style.cursor = "";
                     }}
                 >
@@ -1625,63 +1609,6 @@ export default function MenuDetailPage() {
                             </SortableCategoryCard>
                         ))}
                     </SortableContext>
-                    <DragOverlay
-                        dropAnimation={{
-                            duration: 220,
-                            easing: "cubic-bezier(0.22, 1, 0.36, 1)"
-                        }}
-                    >
-                        {activeDraggedCategory && (
-                            <div className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.35)] w-[520px]">
-                                <div className="p-4 bg-[var(--cms-panel-strong)] border-b border-[var(--cms-border)] flex items-center gap-3">
-                                    <GripVertical className="w-4 h-4 text-[var(--cms-muted)]" />
-                                    <span className="font-bold text-lg">
-                                        {activeDraggedCategory.name}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-                        {activeDraggedItem && (
-                            <div className="group/item flex w-[min(900px,calc(100vw-2rem))] items-center justify-between gap-3 rounded-md border border-[var(--cms-border)] bg-[color-mix(in_srgb,var(--cms-panel)_92%,transparent)] px-4 py-4 shadow-[0_22px_56px_rgba(0,0,0,0.34)]">
-                                <div className="flex min-w-0 items-center gap-3.5">
-                                    <div className="p-1.5 text-[var(--cms-muted)] rounded-md bg-[var(--cms-pill)]">
-                                        <GripVertical className="w-4 h-4" />
-                                    </div>
-                                    {activeDraggedItemPhotoUrl && (
-                                        <img
-                                            src={activeDraggedItemPhotoUrl}
-                                            alt={activeDraggedItem.name}
-                                            className="w-10 h-10 rounded-lg object-cover bg-[var(--cms-panel-strong)]"
-                                        />
-                                    )}
-                                    <div className="min-w-0">
-                                        <div className="flex min-w-0 items-center gap-2">
-                                            <p className="truncate text-[15px] font-semibold leading-tight">{activeDraggedItem.name}</p>
-                                            {Boolean(activeDraggedItem.ar_video_url) && (
-                                                <span className="inline-flex items-center gap-1 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--cms-muted)]">
-                                                    <Box className="h-2.5 w-2.5" />
-                                                    AR
-                                                </span>
-                                            )}
-                                        </div>
-                                        {activeDraggedItem.description && (
-                                            <p className="mt-0.5 line-clamp-1 text-[11px] text-[var(--cms-muted)] opacity-80">
-                                                {activeDraggedItem.description}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="ml-3 flex min-w-[146px] shrink-0 items-center justify-end gap-2 self-start pt-0.5">
-                                    <span className="w-[74px] text-right font-mono text-sm tabular-nums">${activeDraggedItem.price}</span>
-                                    {activeDraggedItem.is_sold_out && (
-                                        <span className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-pill)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--cms-muted)]">
-                                            Sold out
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </DragOverlay>
                 </DndContext>
 
                 {canManageMenus && (

@@ -31,18 +31,21 @@ export function SortableCategoryCard({
         id,
         disabled,
         transition: {
-            duration: 180,
+            duration: 240,
             easing: "cubic-bezier(0.22, 1, 0.36, 1)"
         },
-        animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true })
+        animateLayoutChanges: (args) => {
+            if (args.isSorting || args.wasDragging) return true;
+            return defaultAnimateLayoutChanges(args);
+        }
     });
 
-    const translateX = Math.round(transform?.x ?? 0);
-    const translateY = Math.round(transform?.y ?? 0);
+    const translateX = Number((transform?.x ?? 0).toFixed(2));
+    const translateY = Number((transform?.y ?? 0).toFixed(2));
 
     const style = {
         transform: transform ? `translate3d(${translateX}px, ${translateY}px, 0)` : undefined,
-        transition,
+        transition: transition ?? "transform 240ms cubic-bezier(0.22, 1, 0.36, 1)",
         boxShadow: isDragging ? "0 14px 34px rgba(0,0,0,0.22)" : undefined,
         opacity: isDragging ? 0.98 : 1,
         zIndex: isDragging ? 40 : undefined,

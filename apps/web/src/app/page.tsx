@@ -508,7 +508,7 @@ export default function Home() {
                 <span className="landing-bg-fade" />
             </div>
 
-            <header className="glass-surface fixed inset-x-0 top-0 z-50 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/75 backdrop-blur-xl">
+            <header className="glass-surface !fixed inset-x-0 top-0 z-50 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/75 backdrop-blur-xl">
                 <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
                     <Logo size="lg" />
 
