@@ -168,10 +168,6 @@ def _apply_vignette(img: Image.Image, strength: float = 0.15) -> Image.Image:
         )
 
     # Apply mask as a multiplicative blend
-    import numpy as np
-    img_array = np.array(img, dtype=np.float32)
-    mask_array = np.array(mask, dtype=np.float32) / 255.0
-    mask_3d = np.stack([mask_array] * 3, axis=-1)
-
-    result_array = (img_array * mask_3d).clip(0, 255).astype(np.uint8)
-    return Image.fromarray(result_array)
+    from PIL import ImageChops
+    mask = mask.convert("RGB")
+    return ImageChops.multiply(img, mask)
