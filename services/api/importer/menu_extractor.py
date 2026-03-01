@@ -210,12 +210,18 @@ def _extract_menu_text_from_html(html: str | bytes) -> str:
     # Tags whose text content we skip entirely
     SKIP_TAGS = {"script", "style", "noscript"}
 
-    # Try to find a main content area first
-    target = (
-        soup.find("main")
-        or soup.find("article")
-        or soup.find(id=re.compile(r"content", re.I))
-    )
+    # Try to find a main content area — but only use it if it has substantial text
+    target = None
+    for candidate in [
+        soup.find("main"),
+        soup.find(id=re.compile(r"content", re.I)),
+    ]:
+        if candidate and len(candidate.get_text(strip=True)) > 200:
+            target = candidate
+            break
+
+    # Don't use <article> eagerly — many sites have small article elements
+    # that don't contain the menu (e.g., "Call Us", "Address" blocks)
     if target is None:
         target = soup.body if soup.body else soup
 
