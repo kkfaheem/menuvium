@@ -21,6 +21,7 @@ export default function DashboardLayout({
     const [navOpen, setNavOpen] = useState(false);
     const [mode, setMode] = useState<"admin" | "manager" | null>(null);
     const [modeReady, setModeReady] = useState(false);
+    const [userEmail, setUserEmail] = useState<string>("");
     const isModePage = pathname.startsWith("/dashboard/mode");
 
     useEffect(() => {
@@ -44,6 +45,19 @@ export default function DashboardLayout({
 
     useEffect(() => {
         if (!mounted || !user || !modeReady) return;
+
+        // Extract email if logging in directly
+        if (typeof user.signInDetails?.loginId === 'string') {
+            setUserEmail(user.signInDetails.loginId.toLowerCase());
+        } else {
+            // Federated SSO users (Google) don't have signInDetails, so we fetch their attributes
+            import("aws-amplify/auth").then(({ fetchUserAttributes }) => {
+                fetchUserAttributes().then((attrs) => {
+                    if (attrs.email) setUserEmail(attrs.email.toLowerCase());
+                }).catch(console.error);
+            });
+        }
+
         if (mode === null && !isModePage) {
             router.replace("/dashboard/mode");
             return;
@@ -64,8 +78,7 @@ export default function DashboardLayout({
 
     const isManager = mode === "manager";
     const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").toLowerCase().split(",").map(e => e.trim());
-    const userEmail = typeof user?.signInDetails?.loginId === 'string' ? user.signInDetails.loginId.toLowerCase() : "";
-    const isSuperAdmin = adminEmails.includes(userEmail);
+    const isSuperAdmin = userEmail ? adminEmails.includes(userEmail) : false;
     if (isModePage) {
         return (
             <div className="min-h-screen bg-background text-foreground">
