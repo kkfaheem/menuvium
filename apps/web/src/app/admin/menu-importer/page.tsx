@@ -649,18 +649,16 @@ export default function MenuImporterPage() {
                                                             <Ban className="w-4 h-4" />
                                                         </button>
                                                     )}
-                                                    {(job.status === "FAILED" || job.status === "CANCELED" || job.status === "NEEDS_INPUT" || job.status === "COMPLETED") && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleRetry(job.id);
-                                                            }}
-                                                            className="p-2 rounded-lg hover:bg-white/5 text-gray-500 hover:text-blue-400 transition-colors"
-                                                            title="Retry"
-                                                        >
-                                                            <RotateCcw className="w-4 h-4" />
-                                                        </button>
-                                                    )}
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleRetry(job.id);
+                                                        }}
+                                                        className="p-2 rounded-lg hover:bg-white/5 text-gray-500 hover:text-blue-400 transition-colors"
+                                                        title="Retry"
+                                                    >
+                                                        <RotateCcw className="w-4 h-4" />
+                                                    </button>
                                                     <ChevronRight className="w-4 h-4 text-gray-600" />
                                                 </div>
                                             </div>
@@ -767,17 +765,12 @@ export default function MenuImporterPage() {
                                             <Ban className="w-4 h-4" /> Cancel
                                         </button>
                                     )}
-                                {(selectedJob.status === "FAILED" ||
-                                    selectedJob.status === "CANCELED" ||
-                                    selectedJob.status === "NEEDS_INPUT" ||
-                                    selectedJob.status === "COMPLETED") && (
-                                        <button
-                                            onClick={() => handleRetry(selectedJob.id)}
-                                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-semibold transition-colors"
-                                        >
-                                            <RotateCcw className="w-4 h-4" /> Retry
-                                        </button>
-                                    )}
+                                <button
+                                    onClick={() => handleRetry(selectedJob.id)}
+                                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-semibold transition-colors"
+                                >
+                                    <RotateCcw className="w-4 h-4" /> Retry
+                                </button>
                             </div>
 
                             {/* Metadata */}

@@ -121,11 +121,6 @@ async def retry_job(
     job = session.get(ImportJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if job.status not in ("FAILED", "CANCELED", "NEEDS_INPUT", "COMPLETED"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot retry job with status '{job.status}'. Only FAILED, CANCELED, NEEDS_INPUT, or COMPLETED jobs can be retried.",
-        )
     job.status = "QUEUED"
     job.progress = 0
     job.current_step = "Queued (retry)"
