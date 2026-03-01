@@ -453,7 +453,8 @@ async def enrich_items_with_ai(parsed_menu: ParsedMenu, log_fn=None) -> ParsedMe
     import json
     prompt = (
         "You are a food expert. For each menu item below, provide:\n"
-        "- A short, appetizing description (1-2 sentences) if missing or improve the existing one\n"
+        "- A short, appetizing description (1-2 sentences) ONLY if the description field is empty. "
+        "If a description already exists from the restaurant, keep it as-is.\n"
         "- dietary_tags: array of relevant tags from [vegetarian, vegan, gluten-free, halal, spicy, "
         "contains-nuts, dairy-free, seafood, keto, sugar-free]\n"
         "- allergens: array from [dairy, nuts, gluten, shellfish, eggs, soy, fish, sesame, mustard]\n\n"
@@ -478,16 +479,20 @@ async def enrich_items_with_ai(parsed_menu: ParsedMenu, log_fn=None) -> ParsedMe
         enriched = {item["idx"]: item for item in result.get("items", [])}
 
         count = 0
+        desc_filled = 0
         for i, (_, item) in enumerate(all_items):
             if i in enriched:
                 e = enriched[i]
-                if e.get("description"):
+                # Only use AI description if item has no website description
+                if not item.description and e.get("description"):
                     item.description = e["description"]
+                    desc_filled += 1
+                # Always apply tags and allergens (website can't provide these)
                 item.dietary_tags = e.get("dietary_tags", [])
                 item.allergens = e.get("allergens", [])
                 count += 1
 
-        log_fn(f"AI-enriched {count} items with descriptions, tags, and allergens")
+        log_fn(f"AI-enriched {count} items (tags/allergens), filled {desc_filled} missing descriptions")
 
     except Exception as e:
         log_fn(f"AI enrichment failed: {e}")
