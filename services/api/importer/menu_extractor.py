@@ -289,8 +289,17 @@ async def _extract_mealsy_menu(url: str, log_fn) -> ParsedMenu:
             accounts = r.json()
             if not accounts:
                 return parsed_menu
-            location_id = accounts[0].get("BusinessLocationId")
+                
+            if isinstance(accounts, list):
+                location_id = accounts[0].get("BusinessLocationId")
+            elif isinstance(accounts, dict):
+                location_id = accounts.get("BusinessLocationId")
+            else:
+                log_fn("Unexpected structure for BusinessAccounts")
+                return parsed_menu
+                
             if not location_id:
+                log_fn("Could not find BusinessLocationId")
                 return parsed_menu
         except Exception as e:
             log_fn(f"Failed to fetch Mealsy BusinessAccounts: {e}")
