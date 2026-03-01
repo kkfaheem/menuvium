@@ -26,6 +26,9 @@ class ParsedItem:
     description: Optional[str] = None
     price: Optional[float] = None
     category: Optional[str] = None
+    dietary_tags: list[str] = field(default_factory=list)
+    allergens: list[str] = field(default_factory=list)
+    image_filename: Optional[str] = None
 
 
 @dataclass
@@ -406,3 +409,78 @@ def _fallback_parse(text: str) -> ParsedMenu:
         categories.append(ParsedCategory(name=current_category, items=current_items))
 
     return ParsedMenu(categories=categories)
+
+
+async def enrich_items_with_ai(parsed_menu: ParsedMenu, log_fn=None) -> ParsedMenu:
+    """Use OpenAI to enrich menu items with descriptions, dietary_tags, and allergens.
+
+    Modifies items in-place and returns the same ParsedMenu.
+    """
+    if log_fn is None:
+        log_fn = lambda msg: None
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        log_fn("OPENAI_API_KEY not set — skipping AI enrichment")
+        return parsed_menu
+
+    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    all_items = [(cat.name, item) for cat in parsed_menu.categories for item in cat.items]
+    if not all_items:
+        return parsed_menu
+
+    # Build a compact list for the prompt
+    items_for_prompt = []
+    for i, (cat_name, item) in enumerate(all_items):
+        items_for_prompt.append({
+            "idx": i,
+            "category": cat_name,
+            "name": item.name,
+            "description": item.description or "",
+            "price": item.price,
+        })
+
+    import json
+    prompt = (
+        "You are a food expert. For each menu item below, provide:\n"
+        "- A short, appetizing description (1-2 sentences) if missing or improve the existing one\n"
+        "- dietary_tags: array of relevant tags from [vegetarian, vegan, gluten-free, halal, spicy, "
+        "contains-nuts, dairy-free, seafood, keto, sugar-free]\n"
+        "- allergens: array from [dairy, nuts, gluten, shellfish, eggs, soy, fish, sesame, mustard]\n\n"
+        "Return valid JSON: {\"items\": [{\"idx\": 0, \"description\": \"...\", "
+        "\"dietary_tags\": [...], \"allergens\": [...]}]}\n\n"
+        "ONLY return the JSON, no markdown.\n\n"
+        f"Menu items:\n{json.dumps(items_for_prompt[:80], ensure_ascii=False)}"
+    )
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+            response_format={"type": "json_object"},
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        enriched = {item["idx"]: item for item in result.get("items", [])}
+
+        count = 0
+        for i, (_, item) in enumerate(all_items):
+            if i in enriched:
+                e = enriched[i]
+                if e.get("description"):
+                    item.description = e["description"]
+                item.dietary_tags = e.get("dietary_tags", [])
+                item.allergens = e.get("allergens", [])
+                count += 1
+
+        log_fn(f"AI-enriched {count} items with descriptions, tags, and allergens")
+
+    except Exception as e:
+        log_fn(f"AI enrichment failed: {e}")
+
+    return parsed_menu
+

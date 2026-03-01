@@ -1,13 +1,15 @@
 """
-Image collector: discovers and downloads dish images from restaurant websites.
+Per-dish image finder: searches for an image matching each menu item.
 
-Sources (in priority order):
-1. Restaurant website (homepage, /menu, /gallery, /photos pages)
-2. Google Places Photos (if GOOGLE_PLACES_API_KEY configured)
-3. Instagram/social links found on website (only if public)
+Strategy (per dish):
+1. Search restaurant website HTML for <img> near the dish name
+2. Google Images via SerpAPI (if configured)
+3. AI-generate a studio food photo via DALL-E (if configured)
 """
 
+import json
 import os
+import re
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -17,218 +19,229 @@ from importer.utils import (
     fetch_url_bytes,
     fetch_url_text,
     image_hash,
-    is_image_url,
     is_likely_dish_image,
     normalize_url,
 )
 
 
-# Pages to crawl for images
-IMAGE_PAGE_PATHS = [
-    "", "/menu", "/food-menu", "/menus", "/gallery", "/photos",
-    "/our-food", "/food", "/dishes",
-]
+# Cache of already-fetched website HTML (url → BeautifulSoup)
+_html_cache: dict[str, Optional[BeautifulSoup]] = {}
 
 
-async def collect_images(
+async def _get_page_soup(url: str, log_fn) -> Optional[BeautifulSoup]:
+    """Fetch and cache a page's BeautifulSoup."""
+    if url in _html_cache:
+        return _html_cache[url]
+    try:
+        html = await fetch_url_text(url)
+        soup = BeautifulSoup(html, "html.parser")
+        _html_cache[url] = soup
+        return soup
+    except Exception:
+        _html_cache[url] = None
+        return None
+
+
+def _normalise_name(name: str) -> str:
+    """Lowercase, strip non-alpha for fuzzy matching."""
+    return re.sub(r"[^a-z0-9 ]", "", name.lower()).strip()
+
+
+def _score_image_for_dish(
+    img_tag, dish_name_lower: str, page_soup: BeautifulSoup
+) -> int:
+    """Score how well an <img> tag matches a dish name. Higher = better."""
+    score = 0
+    alt = (img_tag.get("alt") or "").lower()
+    title = (img_tag.get("title") or "").lower()
+    src = (img_tag.get("src") or "").lower()
+
+    # Direct match in alt text
+    if dish_name_lower in alt:
+        score += 10
+    # Partial word overlap
+    dish_words = set(dish_name_lower.split())
+    alt_words = set(alt.split())
+    overlap = dish_words & alt_words
+    if overlap:
+        score += len(overlap) * 2
+
+    # Match in title
+    if dish_name_lower in title:
+        score += 8
+
+    # Match in src/filename
+    if any(w in src for w in dish_words if len(w) > 3):
+        score += 3
+
+    # Check nearby text (parent container)
+    parent = img_tag.parent
+    for _ in range(3):  # Walk up 3 levels
+        if parent is None:
+            break
+        parent_text = parent.get_text(separator=" ", strip=True).lower()
+        if dish_name_lower in parent_text:
+            score += 5
+            break
+        # Check word overlap in parent text
+        parent_words = set(parent_text.split())
+        if len(dish_words & parent_words) >= 2:
+            score += 2
+        parent = parent.parent
+
+    return score
+
+
+async def find_dish_image(
+    dish_name: str,
     website_url: str,
     restaurant_name: str,
-    max_images: int = 30,
+    page_urls: list[str],
+    seen_hashes: set[str],
     log_fn=None,
-) -> list[dict]:
-    """Discover and download dish images.
+) -> Optional[dict]:
+    """Find an image for a specific dish.
 
-    Returns list of dicts: {"url": str, "data": bytes, "hash": str, "filename": str}
-    Deduplicates by content hash.
+    Returns {filename: str, data: bytes} or None.
     """
     if log_fn is None:
         log_fn = lambda msg: None
 
-    candidate_urls: list[str] = []
-    seen_hashes: set[str] = set()
-    results: list[dict] = []
+    dish_lower = _normalise_name(dish_name)
+    if not dish_lower:
+        return None
 
-    # 1. Crawl website pages for images
-    base_parsed = urlparse(website_url)
-    base_origin = f"{base_parsed.scheme}://{base_parsed.netloc}"
+    # --- Strategy 1: Search website HTML pages ---
+    best_url = None
+    best_score = 0
 
-    for path in IMAGE_PAGE_PATHS:
-        page_url = f"{base_origin}{path}"
-        try:
-            log_fn(f"Scanning for images: {page_url}")
-            html = await fetch_url_text(page_url)
-            soup = BeautifulSoup(html, "html.parser")
-            page_images = _extract_image_urls(page_url, soup)
-            candidate_urls.extend(page_images)
-        except Exception as e:
-            log_fn(f"Could not fetch {page_url}: {e}")
-
-    # Deduplicate URLs
-    unique_urls = list(dict.fromkeys(candidate_urls))
-    log_fn(f"Found {len(unique_urls)} unique candidate image URLs")
-
-    # 2. Google Places Photos (optional)
-    places_key = os.getenv("GOOGLE_PLACES_API_KEY")
-    if places_key:
-        places_urls = await _get_places_photos(restaurant_name, places_key, log_fn)
-        unique_urls.extend(places_urls)
-        log_fn(f"Added {len(places_urls)} Google Places photos")
-
-    # 3. Download and deduplicate images
-    download_count = 0
-    for url in unique_urls:
-        if download_count >= max_images:
-            break
-        try:
-            data = await fetch_url_bytes(url, timeout=20.0)
-            if len(data) < 5000:  # Skip tiny images
-                continue
-
-            h = image_hash(data)
-            if h in seen_hashes:
-                continue
-            seen_hashes.add(h)
-
-            # Determine file extension
-            ext = _get_image_extension(url, data)
-            idx = len(results) + 1
-            filename = f"dish_{idx:03d}{ext}"
-
-            results.append({
-                "url": url,
-                "data": data,
-                "hash": h,
-                "filename": filename,
-            })
-            download_count += 1
-            log_fn(f"Downloaded image {download_count}: {filename}")
-
-        except Exception as e:
-            log_fn(f"Failed to download {url}: {e}")
-
-    log_fn(f"Collected {len(results)} images total")
-    return results
-
-
-def _extract_image_urls(page_url: str, soup: BeautifulSoup) -> list[str]:
-    """Extract image URLs from an HTML page, filtering out icons/logos."""
-    urls: list[str] = []
-
-    # <img> tags
-    for img in soup.find_all("img"):
-        src = img.get("src") or img.get("data-src") or img.get("data-lazy-src")
-        if not src:
+    for page_url in page_urls:
+        soup = await _get_page_soup(page_url, log_fn)
+        if not soup:
             continue
-        resolved = normalize_url(page_url, src)
-        if resolved and is_likely_dish_image(resolved):
-            # Try to check dimensions from attributes
-            width = _parse_int(img.get("width", "0"))
-            height = _parse_int(img.get("height", "0"))
-            if width > 0 and height > 0 and (width < 100 or height < 100):
+
+        for img in soup.find_all("img"):
+            src = img.get("src") or img.get("data-src") or img.get("data-lazy-src")
+            if not src:
                 continue
-            urls.append(resolved)
+            resolved = normalize_url(page_url, src)
+            if not resolved or not is_likely_dish_image(resolved):
+                continue
 
-        # Also check srcset
-        srcset = img.get("srcset", "")
-        if srcset:
-            for part in srcset.split(","):
-                src_part = part.strip().split(" ")[0]
-                resolved = normalize_url(page_url, src_part)
-                if resolved and is_likely_dish_image(resolved):
-                    urls.append(resolved)
+            score = _score_image_for_dish(img, dish_lower, soup)
+            if score > best_score:
+                best_score = score
+                best_url = resolved
 
-    # <source> tags (picture element)
-    for source in soup.find_all("source"):
-        srcset = source.get("srcset", "")
-        for part in srcset.split(","):
-            src_part = part.strip().split(" ")[0]
-            resolved = normalize_url(page_url, src_part)
-            if resolved and is_likely_dish_image(resolved):
-                urls.append(resolved)
-
-    # og:image meta tag
-    og = soup.find("meta", property="og:image")
-    if og and og.get("content"):
-        resolved = normalize_url(page_url, og["content"])
-        if resolved:
-            urls.append(resolved)
-
-    # JSON-LD (look for images in structured data)
-    for script in soup.find_all("script", type="application/ld+json"):
+    # Only use website image if score is meaningful
+    if best_url and best_score >= 3:
         try:
-            import json
-            data = json.loads(script.string or "")
-            _extract_jsonld_images(data, page_url, urls)
+            data = await fetch_url_bytes(best_url, timeout=15.0)
+            if len(data) > 3000:
+                h = image_hash(data)
+                if h not in seen_hashes:
+                    seen_hashes.add(h)
+                    ext = _get_image_extension(best_url, data)
+                    return {"data": data, "ext": ext, "source": "website"}
         except Exception:
             pass
 
-    return urls
+    # --- Strategy 2: Google Images via SerpAPI ---
+    serp_key = os.getenv("SERPAPI_KEY")
+    if serp_key:
+        img_data = await _search_google_image(dish_name, restaurant_name, serp_key, seen_hashes)
+        if img_data:
+            return img_data
+
+    # --- Strategy 3: AI-generate image via DALL-E ---
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key:
+        img_data = await _generate_dish_image(dish_name, restaurant_name, openai_key, log_fn)
+        if img_data:
+            return img_data
+
+    return None
 
 
-def _extract_jsonld_images(data, base_url: str, urls: list[str]):
-    """Recursively extract image URLs from JSON-LD structured data."""
-    if isinstance(data, dict):
-        for key in ("image", "photo", "thumbnail"):
-            val = data.get(key)
-            if isinstance(val, str):
-                resolved = normalize_url(base_url, val)
-                if resolved:
-                    urls.append(resolved)
-            elif isinstance(val, list):
-                for v in val:
-                    if isinstance(v, str):
-                        resolved = normalize_url(base_url, v)
-                        if resolved:
-                            urls.append(resolved)
-        for v in data.values():
-            _extract_jsonld_images(v, base_url, urls)
-    elif isinstance(data, list):
-        for item in data:
-            _extract_jsonld_images(item, base_url, urls)
-
-
-async def _get_places_photos(
-    restaurant_name: str, api_key: str, log_fn
-) -> list[str]:
-    """Get photo URLs from Google Places API."""
+async def _search_google_image(
+    dish_name: str,
+    restaurant_name: str,
+    api_key: str,
+    seen_hashes: set[str],
+) -> Optional[dict]:
+    """Search Google Images via SerpAPI for a specific dish."""
     import httpx
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            search_resp = await client.get(
-                "https://maps.googleapis.com/maps/api/place/textsearch/json",
-                params={"query": f"{restaurant_name} restaurant", "key": api_key},
-            )
-            results = search_resp.json().get("results", [])
-            if not results:
-                return []
-
-            place_id = results[0].get("place_id")
-            if not place_id:
-                return []
-
-            details_resp = await client.get(
-                "https://maps.googleapis.com/maps/api/place/details/json",
+            resp = await client.get(
+                "https://serpapi.com/search",
                 params={
-                    "place_id": place_id,
-                    "fields": "photos",
-                    "key": api_key,
+                    "q": f"{dish_name} {restaurant_name} food",
+                    "tbm": "isch",
+                    "api_key": api_key,
+                    "num": 3,
                 },
             )
-            photos = details_resp.json().get("result", {}).get("photos", [])
-            urls = []
-            for photo in photos[:10]:
-                ref = photo.get("photo_reference")
-                if ref:
-                    url = (
-                        f"https://maps.googleapis.com/maps/api/place/photo"
-                        f"?maxwidth=1600&photo_reference={ref}&key={api_key}"
-                    )
-                    urls.append(url)
-            return urls
+            data = resp.json()
+            for result in data.get("images_results", [])[:3]:
+                img_url = result.get("original")
+                if not img_url:
+                    continue
+                try:
+                    img_data = await fetch_url_bytes(img_url, timeout=10.0)
+                    if len(img_data) > 3000:
+                        h = image_hash(img_data)
+                        if h not in seen_hashes:
+                            seen_hashes.add(h)
+                            ext = _get_image_extension(img_url, img_data)
+                            return {"data": img_data, "ext": ext, "source": "google"}
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return None
+
+
+async def _generate_dish_image(
+    dish_name: str,
+    restaurant_name: str,
+    api_key: str,
+    log_fn,
+) -> Optional[dict]:
+    """Generate a studio-quality food photo using DALL-E."""
+    try:
+        from openai import OpenAI
+        import httpx
+
+        client = OpenAI(api_key=api_key)
+        prompt = (
+            f"Professional studio food photography of \"{dish_name}\", "
+            f"beautifully plated on an elegant dish, "
+            f"shot from a 45-degree angle, soft natural lighting, "
+            f"shallow depth of field, clean white or dark slate background, "
+            f"restaurant-quality presentation, high resolution, appetizing"
+        )
+
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size="1024x1024",
+            quality="standard",
+            n=1,
+        )
+
+        image_url = response.data[0].url
+        if image_url:
+            async with httpx.AsyncClient(timeout=30) as http_client:
+                img_resp = await http_client.get(image_url)
+                img_resp.raise_for_status()
+                return {"data": img_resp.content, "ext": ".png", "source": "ai_generated"}
+
     except Exception as e:
-        log_fn(f"Google Places photos failed: {e}")
-        return []
+        log_fn(f"DALL-E generation failed for '{dish_name}': {e}")
+
+    return None
 
 
 def _get_image_extension(url: str, data: bytes) -> str:
@@ -240,17 +253,8 @@ def _get_image_extension(url: str, data: bytes) -> str:
         return ".webp"
     if path.endswith(".gif"):
         return ".gif"
-    # Check magic bytes
     if data[:2] == b"\x89P":
         return ".png"
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return ".webp"
-    return ".jpg"  # Default to JPEG
-
-
-def _parse_int(value: str) -> int:
-    """Parse an integer from a string, returning 0 on failure."""
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return 0
+    return ".jpg"

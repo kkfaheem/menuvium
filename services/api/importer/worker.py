@@ -3,7 +3,7 @@ Background worker for menu importer jobs.
 
 Runs as a background thread inside the FastAPI process.
 Polls the database every 5 seconds for QUEUED jobs and processes them
-through the full pipeline.
+through the dish-first pipeline.
 """
 
 import asyncio
@@ -12,6 +12,7 @@ import threading
 import time
 import traceback
 from datetime import datetime
+from urllib.parse import urlparse
 
 from sqlmodel import Session, select
 
@@ -19,8 +20,8 @@ from database import get_engine
 from models import ImportJob
 
 from importer.website_resolver import resolve_website
-from importer.menu_extractor import extract_menu
-from importer.image_collector import collect_images
+from importer.menu_extractor import extract_menu, enrich_items_with_ai
+from importer.image_collector import find_dish_image, _html_cache
 from importer.image_enhancer import enhance_image
 from importer.manifest_builder import build_manifest
 from importer.zipper import create_zip, store_zip
@@ -40,7 +41,6 @@ def start_worker():
 
 def _worker_loop():
     """Main worker loop: poll for QUEUED jobs and process them."""
-    # Create a new event loop for this thread
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
@@ -121,7 +121,7 @@ def _log_and_update(job_id, message: str, progress: int, current_step: str):
 
 
 async def _process_job(job_id):
-    """Execute the full import pipeline for a single job."""
+    """Execute the dish-first import pipeline for a single job."""
     engine = get_engine()
 
     # Load job data
@@ -135,6 +135,9 @@ async def _process_job(job_id):
 
     def log(msg):
         _append_log(job_id, msg)
+
+    # Clear HTML cache between jobs
+    _html_cache.clear()
 
     try:
         # ---- Step 1: Resolve website (0 → 10%) ----
@@ -162,21 +165,44 @@ async def _process_job(job_id):
         _update_job(
             job_id,
             progress=10,
-            current_step="Discovering menu sources",
+            current_step="Extracting menu",
             metadata_json={"website_url": website_url},
         )
 
-        # ---- Step 2–3: Discover and extract menu (10 → 40%) ----
-        _log_and_update(job_id, "Extracting menu data...", 15, "Extracting menu")
+        # ---- Step 2: Extract menu text (10 → 35%) ----
+        _log_and_update(job_id, "Extracting menu data...", 10, "Extracting menu")
 
         parsed_menu = await extract_menu(website_url, log_fn=log)
         total_items = sum(len(c.items) for c in parsed_menu.categories)
         log(f"Menu extraction complete: {len(parsed_menu.categories)} categories, {total_items} items")
 
+        # ---- GATE: If no items found, fail ----
+        if total_items == 0:
+            _log_and_update(
+                job_id,
+                "❌ No menu items found. Cannot proceed without menu data.",
+                35,
+                "Failed — no menu items",
+            )
+            _update_job(
+                job_id,
+                status="FAILED",
+                error_message="No menu items could be extracted from the website. "
+                              "Try providing a direct URL to the menu page.",
+                finished_at=datetime.utcnow(),
+                metadata_json={
+                    "website_url": website_url,
+                    "menu_source_urls": parsed_menu.source_urls,
+                    "categories_count": 0,
+                    "items_count": 0,
+                },
+            )
+            return
+
         _update_job(
             job_id,
-            progress=40,
-            current_step="Discovering images",
+            progress=35,
+            current_step="Enriching with AI",
             metadata_json={
                 "website_url": website_url,
                 "menu_source_urls": parsed_menu.source_urls,
@@ -185,54 +211,99 @@ async def _process_job(job_id):
             },
         )
 
-        # ---- Step 4–5: Discover and download images (40 → 70%) ----
-        _log_and_update(job_id, "Collecting dish images...", 45, "Collecting images")
+        # ---- Step 3: AI-enrich items (35 → 45%) ----
+        _log_and_update(job_id, "Enriching items with AI (descriptions, tags, allergens)...", 35, "AI enrichment")
 
-        raw_images = await collect_images(
-            website_url, restaurant_name, max_images=30, log_fn=log
-        )
-        log(f"Downloaded {len(raw_images)} images")
-        _update_job(job_id, progress=60, current_step="Enhancing images")
+        parsed_menu = await enrich_items_with_ai(parsed_menu, log_fn=log)
+        _update_job(job_id, progress=45, current_step="Finding dish images")
 
-        # ---- Step 6: Enhance images (70 → 85%) ----
-        _log_and_update(job_id, "Enhancing images...", 70, "Enhancing images")
+        # ---- Step 4: Per-dish image search (45 → 80%) ----
+        _log_and_update(job_id, "Finding images for each dish...", 45, "Finding dish images")
 
-        enhanced_images = []
-        for i, img in enumerate(raw_images):
-            try:
-                enhanced_data = await enhance_image(img["data"], img["filename"], log_fn=log)
-                # Rename to sequential webp
-                fname = f"dish_{i + 1:03d}.webp"
-                enhanced_images.append({
-                    "filename": fname,
-                    "data": enhanced_data,
-                })
-            except Exception as e:
-                log(f"Failed to enhance {img['filename']}: {e}")
+        # Build list of pages to scan for images (website + menu source pages)
+        parsed_base = urlparse(website_url)
+        base_origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
+        page_urls = [website_url]
+        for src_url in parsed_menu.source_urls:
+            if src_url not in page_urls:
+                page_urls.append(src_url)
+        # Also add homepage if different
+        if base_origin not in page_urls and base_origin + "/" not in page_urls:
+            page_urls.append(base_origin)
+
+        all_items = [(cat, item) for cat in parsed_menu.categories for item in cat.items]
+        seen_hashes: set[str] = set()
+        images_found = 0
+        images_data: list[dict] = []  # {filename, data}
+
+        for i, (cat, item) in enumerate(all_items):
+            img_result = await find_dish_image(
+                dish_name=item.name,
+                website_url=website_url,
+                restaurant_name=restaurant_name,
+                page_urls=page_urls,
+                seen_hashes=seen_hashes,
+                log_fn=log,
+            )
+
+            if img_result:
+                fname = f"dish_{i + 1:03d}{img_result['ext']}"
+                item.image_filename = fname
+                images_data.append({"filename": fname, "data": img_result["data"]})
+                images_found += 1
+                source = img_result.get("source", "unknown")
+                log(f"Found image for '{item.name}' ({source}): {fname}")
+            else:
+                log(f"No image found for '{item.name}'")
 
             # Update progress proportionally
-            pct = 70 + int(15 * (i + 1) / max(len(raw_images), 1))
-            _update_job(job_id, progress=min(pct, 85))
+            pct = 45 + int(35 * (i + 1) / max(len(all_items), 1))
+            _update_job(job_id, progress=min(pct, 80))
+
+        log(f"Image search complete: {images_found}/{total_items} dishes have images")
+
+        # ---- Step 5: Enhance images (80 → 90%) ----
+        _log_and_update(job_id, "Enhancing images...", 80, "Enhancing images")
+
+        enhanced_images: list[dict] = []
+        for i, img in enumerate(images_data):
+            try:
+                enhanced_data = await enhance_image(img["data"], img["filename"], log_fn=log)
+                # Convert to webp filename
+                base_name = img["filename"].rsplit(".", 1)[0]
+                webp_fname = f"{base_name}.webp"
+                enhanced_images.append({"filename": webp_fname, "data": enhanced_data})
+
+                # Update the item's filename to webp
+                for cat in parsed_menu.categories:
+                    for item in cat.items:
+                        if item.image_filename == img["filename"]:
+                            item.image_filename = webp_fname
+                            break
+            except Exception as e:
+                log(f"Failed to enhance {img['filename']}: {e}")
+                # Keep original
+                enhanced_images.append(img)
+
+            pct = 80 + int(10 * (i + 1) / max(len(images_data), 1))
+            _update_job(job_id, progress=min(pct, 90))
 
         log(f"Enhanced {len(enhanced_images)} images")
 
-        # ---- Step 7: Build manifest (85 → 90%) ----
-        _log_and_update(job_id, "Building manifest.json...", 85, "Building manifest")
+        # ---- Step 6: Build manifest (90 → 93%) ----
+        _log_and_update(job_id, "Building manifest.json...", 90, "Building manifest")
 
-        image_filenames = [img["filename"] for img in enhanced_images]
-        manifest_json = build_manifest(
-            restaurant_name, parsed_menu, image_filenames
-        )
+        manifest_json = build_manifest(restaurant_name, parsed_menu)
         log("Manifest built successfully")
 
-        # ---- Step 8: Create zip (90 → 95%) ----
-        _log_and_update(job_id, "Creating zip archive...", 90, "Creating zip")
+        # ---- Step 7: Create zip (93 → 96%) ----
+        _log_and_update(job_id, "Creating zip archive...", 93, "Creating zip")
 
         zip_data = create_zip(restaurant_name, manifest_json, enhanced_images)
         log(f"Zip created: {len(zip_data)} bytes")
 
-        # ---- Step 9: Store zip (95 → 100%) ----
-        _log_and_update(job_id, "Storing zip...", 95, "Storing result")
+        # ---- Step 8: Store zip (96 → 100%) ----
+        _log_and_update(job_id, "Storing zip...", 96, "Storing result")
 
         storage_key = store_zip(zip_data, str(job_id), restaurant_name)
         log(f"Zip stored: {storage_key}")
@@ -250,7 +321,7 @@ async def _process_job(job_id):
                 "menu_source_urls": parsed_menu.source_urls,
                 "categories_count": len(parsed_menu.categories),
                 "items_count": total_items,
-                "images_count": len(enhanced_images),
+                "images_count": images_found,
                 "zip_size_bytes": len(zip_data),
             },
         )
