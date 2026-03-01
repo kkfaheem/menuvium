@@ -194,6 +194,7 @@ cd apps/web && npm test
 | `NEXT_PUBLIC_COGNITO_DOMAIN` | `menuvium.auth.us-east-1.amazoncognito.com` |
 | `NEXT_PUBLIC_AUTH_REDIRECT_SIGNIN` | `https://www.menuvium.com/login` |
 | `NEXT_PUBLIC_AUTH_REDIRECT_SIGNOUT` | `https://www.menuvium.com/login` |
+| `NEXT_PUBLIC_ADMIN_EMAILS` | `admin1@example.com,admin2@example.com` |
 
 ### API (Railway)
 
