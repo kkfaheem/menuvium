@@ -68,14 +68,14 @@ export default function RootLayout({
     const storageKey = "menuvium-theme";
     const legacyKey = "menuvium_cms_theme";
     const stored = localStorage.getItem(storageKey) || localStorage.getItem(legacyKey);
-    const theme = stored || "system";
+    const theme = stored || "dark";
     const root = document.documentElement;
     root.classList.remove("light", "dark");
     let effectiveTheme = theme;
     if (theme === "system") {
       effectiveTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
-    if (effectiveTheme !== "light" && effectiveTheme !== "dark") effectiveTheme = "light";
+    if (effectiveTheme !== "light" && effectiveTheme !== "dark") effectiveTheme = "dark";
     root.classList.add(effectiveTheme);
     root.dataset.cmsTheme = effectiveTheme;
   } catch {}
@@ -88,7 +88,7 @@ export default function RootLayout({
                 <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
             </head>
             <body className={`${sans.variable} ${heading.variable} antialiased`} suppressHydrationWarning>
-                <ThemeProvider defaultTheme="system">
+                <ThemeProvider defaultTheme="dark">
                     <ToastProvider>
                         <ConfirmProvider>
                             <AmplifyProvider>

@@ -4,7 +4,6 @@ import { Authenticator, ThemeProvider, useAuthenticator, View } from "@aws-ampli
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { useTheme } from "@/components/ThemeProvider";
 import { Logo } from "@/components/Logo";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -12,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 export default function LoginPage() {
     const router = useRouter();
     const { authStatus } = useAuthenticator(context => [context.authStatus]);
-    const { resolvedTheme } = useTheme();
 
     useEffect(() => {
         if (authStatus !== 'authenticated') return;
@@ -75,11 +73,21 @@ export default function LoginPage() {
                 }
             }
         };
-    }, [resolvedTheme]);
+    }, []);
 
     return (
-        <div className="min-h-screen bg-background text-foreground transition-colors">
-            <header className="sticky top-0 z-40 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
+        <div className="landing-shell relative isolate min-h-screen overflow-x-hidden bg-transparent text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
+            <div aria-hidden="true" className="landing-bg">
+                <span className="landing-bg-blob landing-bg-blob-emerald" />
+                <span className="landing-bg-blob landing-bg-blob-blue" />
+                <span className="landing-bg-blob landing-bg-blob-orange" />
+                <span className="landing-bg-blob landing-bg-blob-teal" />
+                <span className="landing-bg-noise" />
+                <span className="landing-bg-vignette" />
+                <span className="landing-bg-fade" />
+            </div>
+
+            <header className="relative z-40 sticky top-0 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
                 <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
                     <div className="flex-1" />
                     <Logo size="lg" />
@@ -89,8 +97,8 @@ export default function LoginPage() {
                 </div>
             </header>
 
-            <main className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:py-16">
-                <section className="flex flex-col justify-center gap-6">
+            <main className="relative z-10 mx-auto grid w-full max-w-6xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:py-16">
+                <section className="flex flex-col justify-center gap-6 animate-fade-in-up motion-reduce:animate-none">
                     <div className="space-y-3">
                         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--cms-accent-strong)]">
                             Welcome back
@@ -111,9 +119,9 @@ export default function LoginPage() {
                     </div>
                 </section>
 
-                <section className="flex items-center justify-center lg:justify-end">
+                <section className="flex items-center justify-center lg:justify-end animate-fade-in-up animation-delay-100 motion-reduce:animate-none">
                     <div className="w-full max-w-md">
-                        <Card>
+                        <Card className="backdrop-blur-md bg-panel/88">
                             <CardHeader>
                                 <CardTitle>Sign in</CardTitle>
                                 <CardDescription>Use email (and optionally a social provider) to continue.</CardDescription>

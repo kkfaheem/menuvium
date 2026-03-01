@@ -20,9 +20,9 @@ export function useTheme() {
     if (context === undefined) {
         // Return a safe default that won't crash the app
         return {
-            theme: "system" as Theme,
+            theme: "dark" as Theme,
             setTheme: () => { },
-            resolvedTheme: "light" as "light" | "dark",
+            resolvedTheme: "dark" as "light" | "dark",
         };
     }
     return context;
@@ -36,11 +36,11 @@ interface ThemeProviderProps {
 
 export default function ThemeProvider({
     children,
-    defaultTheme = "system",
+    defaultTheme = "dark",
     storageKey = "menuvium-theme",
 }: ThemeProviderProps) {
     const [theme, setThemeState] = useState<Theme>(defaultTheme);
-    const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+    const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {

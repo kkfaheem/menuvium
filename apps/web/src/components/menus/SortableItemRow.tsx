@@ -2,7 +2,6 @@
 
 import { type ReactNode } from "react";
 import { useSortable, defaultAnimateLayoutChanges } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 
 interface SortableItemRowProps {
     id: string;
@@ -31,22 +30,26 @@ export function SortableItemRow({
     } = useSortable({
         id,
         disabled,
+        transition: {
+            duration: 180,
+            easing: "cubic-bezier(0.22, 1, 0.36, 1)"
+        },
         animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true })
     });
 
+    const translateX = Math.round(transform?.x ?? 0);
+    const translateY = Math.round(transform?.y ?? 0);
+
     const style = {
-        transform: transform
-            ? CSS.Transform.toString({
-                ...transform,
-                x: transform.x ?? 0,
-                y: transform.y ?? 0,
-                scaleX: 1,
-                scaleY: 1
-            })
-            : undefined,
+        transform: transform ? `translate3d(${translateX}px, ${translateY}px, 0)` : undefined,
         transition,
-        opacity: isDragging ? 0.7 : undefined,
-        boxShadow: isDragging ? "0 8px 20px rgba(0,0,0,0.18)" : undefined
+        boxShadow: isDragging ? "0 16px 34px rgba(0,0,0,0.22)" : undefined,
+        opacity: isDragging ? 0.96 : 1,
+        zIndex: isDragging ? 30 : undefined,
+        willChange: isDragging ? "transform" : undefined,
+        transformOrigin: "center center",
+        isolation: "isolate" as const,
+        backfaceVisibility: "hidden" as const
     };
 
     return (

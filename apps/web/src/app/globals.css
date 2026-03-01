@@ -1302,22 +1302,81 @@ body:has(.landing-shell)::after {
   }
 }
 
+.cms-surface-0 {
+  position: relative;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--cms-accent-subtle) 52%, transparent) 0%, transparent 65%),
+    radial-gradient(130% 90% at 100% 0%, color-mix(in srgb, var(--cms-panel-strong) 48%, transparent) 0%, transparent 72%),
+    color-mix(in srgb, var(--cms-bg) 94%, var(--cms-panel-strong) 6%);
+}
+
+.dark .cms-surface-0 {
+  background:
+    radial-gradient(120% 92% at 0% 0%, rgba(251, 146, 60, 0.08) 0%, transparent 62%),
+    radial-gradient(130% 94% at 100% 0%, rgba(56, 189, 248, 0.06) 0%, transparent 72%),
+    color-mix(in srgb, var(--cms-bg) 92%, #111827 8%);
+}
+
+.cms-surface-1 {
+  background: color-mix(in srgb, var(--cms-panel) 92%, var(--cms-bg));
+  border: 1px solid color-mix(in srgb, var(--cms-border) 90%, transparent);
+  box-shadow:
+    0 10px 28px -20px rgba(15, 23, 42, 0.24),
+    inset 0 1px 0 color-mix(in srgb, var(--cms-glass-highlight) 78%, transparent);
+}
+
+.dark .cms-surface-1 {
+  box-shadow:
+    0 22px 52px -32px rgba(0, 0, 0, 0.72),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.cms-surface-2 {
+  background: color-mix(in srgb, var(--cms-panel-strong) 90%, var(--cms-panel));
+  border: 1px solid color-mix(in srgb, var(--cms-border) 85%, transparent);
+  box-shadow: 0 8px 20px -20px rgba(15, 23, 42, 0.3);
+}
+
+.dark .cms-surface-2 {
+  box-shadow:
+    0 14px 34px -30px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.cms-surface-3 {
+  background: color-mix(in srgb, var(--cms-panel) 95%, var(--cms-panel-strong));
+  border: 1px solid color-mix(in srgb, var(--cms-border) 95%, transparent);
+  box-shadow:
+    0 56px 110px -52px rgba(15, 23, 42, 0.52),
+    0 8px 24px -18px rgba(15, 23, 42, 0.42),
+    inset 0 1px 0 color-mix(in srgb, var(--cms-glass-highlight) 84%, transparent);
+}
+
+.dark .cms-surface-3 {
+  box-shadow:
+    0 68px 140px -54px rgba(0, 0, 0, 0.86),
+    0 16px 38px -22px rgba(0, 0, 0, 0.62),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
 .cms-modal-overlay {
-  background: rgba(15, 23, 42, 0.18);
+  background: rgba(4, 10, 20, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .dark .cms-modal-overlay {
-  background: rgba(4, 6, 10, 0.7);
+  background: rgba(2, 4, 8, 0.68);
 }
 
 .cms-modal-shell {
   background: var(--cms-panel);
   border: 1px solid var(--cms-border);
-  box-shadow: 0 30px 90px -60px rgba(15, 23, 42, 0.35);
+  box-shadow: 0 40px 120px -70px rgba(15, 23, 42, 0.4);
 }
 
 .dark .cms-modal-shell {
-  box-shadow: 0 40px 120px -60px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 56px 150px -70px rgba(0, 0, 0, 0.86);
 }
 
 .cms-modal-header,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2, Check, ChevronDown, ChevronRight, Download, PencilLine } from "lucide-react";
+import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2, Check, ChevronDown, ChevronRight, Download, PencilLine, MoreHorizontal, Box } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useParams, useRouter } from "next/navigation";
@@ -95,8 +95,16 @@ export default function MenuDetailPage() {
                 : editingItemArStatus === "pending"
                     ? "Queued"
                     : editingItemArStatus === "failed"
-                        ? "Failed"
-                        : "Not set";
+                    ? "Failed"
+                    : "Not set";
+    const arStatusSummary =
+        editingItemArStatus === "ready"
+            ? "Set: Photoreal AR"
+            : editingItemArStatus === "processing" || editingItemArStatus === "pending"
+                ? "Processing"
+                : editingItemArStatus === "failed"
+                    ? "Needs attention"
+                    : "Not set";
     const arStatusPillClassName =
         editingItemArStatus === "ready"
             ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
@@ -483,7 +491,7 @@ export default function MenuDetailPage() {
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
-            activationConstraint: { distance: 6 }
+            activationConstraint: { distance: 4 }
         })
     );
 
@@ -518,6 +526,7 @@ export default function MenuDetailPage() {
     const handleDragEnd = async (event: DragEndEvent) => {
         setIsDragging(false);
         setActiveDragId(null);
+        document.body.style.cursor = "";
         if (!orgPermissions?.can_manage_menus) return;
         if (!menu || !event.over) return;
         const activeId = String(event.active.id);
@@ -1015,7 +1024,7 @@ export default function MenuDetailPage() {
         setPageDirty(true);
     };
 
-    const handleSaveMenu = async () => {
+    const persistMenuChanges = async ({ showSuccessToast = true }: { showSuccessToast?: boolean } = {}) => {
         if (!menu) return;
         if (!orgPermissions?.can_manage_menus) {
             toast({
@@ -1023,7 +1032,7 @@ export default function MenuDetailPage() {
                 title: "Not authorized",
                 description: "You don’t have permission to manage menus.",
             });
-            return;
+            return false;
         }
         if (!menuName.trim()) {
             toast({
@@ -1031,9 +1040,8 @@ export default function MenuDetailPage() {
                 title: "Menu name required",
                 description: "Please enter a name for this menu.",
             });
-            return;
+            return false;
         }
-        setIsSavingMenu(true);
         try {
             const token = await getAuthToken();
             const res = await fetch(`${apiBase}/menus/${menu.id}`, {
@@ -1056,7 +1064,7 @@ export default function MenuDetailPage() {
                     title: "Failed to save menu",
                     description: typeof detail === "string" ? detail : "Unknown error",
                 });
-                return;
+                return false;
             }
             const data = await res.json();
             setMenu({ ...menu, ...data });
@@ -1064,7 +1072,10 @@ export default function MenuDetailPage() {
             setMenuActive(Boolean(data.is_active));
             setMenuBaseline({ name: data.name || menuName, is_active: Boolean(data.is_active) });
             setPageDirty(false);
-            toast({ variant: "success", title: "Menu saved" });
+            if (showSuccessToast) {
+                toast({ variant: "success", title: "Menu saved" });
+            }
+            return true;
         } catch (e) {
             console.error(e);
             toast({
@@ -1072,6 +1083,26 @@ export default function MenuDetailPage() {
                 title: "Error saving menu",
                 description: "Please try again in a moment.",
             });
+            return false;
+        }
+    };
+
+    const handleToggleMenuActive = () => {
+        setMenuActive((prev) => {
+            const next = !prev;
+            toast({
+                variant: "success",
+                title: next ? "Menu set to active" : "Menu set to inactive",
+            });
+            return next;
+        });
+        setPageDirty(true);
+    };
+
+    const handleSaveMenu = async () => {
+        setIsSavingMenu(true);
+        try {
+            await persistMenuChanges();
         } finally {
             setIsSavingMenu(false);
         }
@@ -1179,18 +1210,27 @@ export default function MenuDetailPage() {
     const canEditItems = Boolean(orgPermissions?.can_edit_items);
     const canManageAvailability = Boolean(orgPermissions?.can_manage_availability);
     const canOpenItemModal = canEditItems || canManageAvailability;
+    const activeDraggedCategory = activeDragId?.startsWith("cat-")
+        ? menu.categories.find((category) => `cat-${category.id}` === activeDragId) ?? null
+        : null;
+    const activeDraggedItem = activeDragId?.startsWith("item-")
+        ? menu.categories.flatMap((category) => category.items || []).find((item) => `item-${item.id}` === activeDragId) ?? null
+        : null;
+    const activeDraggedItemPhotoUrl =
+        activeDraggedItem?.photo_url || (activeDraggedItem as any)?.photos?.[0]?.url || null;
 
     return (
-        <div className="w-full max-w-5xl mr-auto">
+        <div className="w-full max-w-5xl mx-auto">
+            <div className="cms-surface-0 rounded-[28px] p-4 sm:p-6">
             <header className="mb-6 space-y-3 sm:mb-8">
                 <Link
                     href="/dashboard/menus"
-                    className="inline-flex items-center gap-1 text-sm font-semibold text-muted transition-colors hover:text-foreground"
+                    className="inline-flex items-center gap-1 text-sm font-semibold text-muted transition-colors duration-150 hover:text-foreground motion-reduce:transition-none"
                 >
                     <ArrowLeft className="w-4 h-4" /> Back to Menus
                 </Link>
-                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                    <div className="space-y-2">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-2 max-w-2xl">
                         {isEditingMenuName ? (
                             <div className="flex items-center gap-2">
                                 <input
@@ -1259,85 +1299,88 @@ export default function MenuDetailPage() {
                                 Edit items, pricing, availability, and photoreal AR dishes.
                             </p>
 	                    </div>
-                    <div className="w-full md:w-auto md:min-w-[420px]">
-                        <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-3">
-                            <div className="flex flex-wrap items-center gap-2">
-                                {canManageMenus && (
-                                    <>
-                                        <button
-                                            onClick={() => {
-                                                setMenuActive(!menuActive);
-                                                setPageDirty(true);
-                                            }}
-                                            className="h-9 px-3.5 inline-flex items-center justify-between gap-3 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)]"
-                                        >
-                                            <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[var(--cms-muted)]">
-                                                {menuActive ? "Active" : "Inactive"}
-                                            </span>
-                                            <span
-                                                className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${menuActive ? "bg-[var(--cms-text)]" : "bg-[var(--cms-panel)]"}`}
-                                            >
-                                                <span
-                                                    className={`inline-block h-3 w-3 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${menuActive ? "translate-x-4" : "translate-x-1"}`}
-                                                />
-                                            </span>
-                                        </button>
-                                        <button
-                                            onClick={handleSaveMenu}
-                                            disabled={isSavingMenu || !pageDirty}
-                                            className={`h-9 px-4 rounded-xl text-sm font-semibold inline-flex items-center gap-2 justify-center min-w-[100px] ${isSavingMenu || !pageDirty ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed border border-[var(--cms-border)]" : "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"}`}
-                                        >
-                                            {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
-                                            {isSavingMenu ? "Saving..." : "Save"}
-                                        </button>
-                                    </>
-                                )}
-                                <Link
-                                    href={`/dashboard/menus/${menu.id}/publish`}
-                                    className="h-9 px-3.5 rounded-xl text-xs font-semibold inline-flex items-center justify-center bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
+                    <div className="w-full lg:w-auto lg:max-w-[52%] space-y-2">
+                        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                            {canManageMenus && (
+                                <button
+                                    onClick={handleToggleMenuActive}
+                                    className="h-9 px-1.5 inline-flex items-center gap-2 text-[11px] font-semibold tracking-[0.08em] uppercase text-[var(--cms-muted)] transition-colors duration-150 hover:text-[var(--cms-text)] motion-reduce:transition-none"
                                 >
-                                    Publish
+                                    <span>{menuActive ? "Active" : "Inactive"}</span>
+                                    <span
+                                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-150 motion-reduce:transition-none ${menuActive ? "bg-[var(--cms-text)]" : "bg-[var(--cms-panel-strong)]"}`}
+                                    >
+                                        <span
+                                            className={`inline-block h-3.5 w-3.5 rounded-full bg-[var(--cms-bg)] shadow transition-transform duration-150 motion-reduce:transition-none ${menuActive ? "translate-x-5" : "translate-x-0.5"}`}
+                                        />
+                                    </span>
+                                </button>
+                            )}
+                            {canManageMenus && (
+                                <button
+                                    onClick={handleSaveMenu}
+                                    disabled={isSavingMenu || !pageDirty}
+                                    className={`inline-flex h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none ${
+                                        pageDirty && !isSavingMenu
+                                            ? "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"
+                                            : "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed"
+                                    }`}
+                                >
+                                    {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    {isSavingMenu ? "Saving..." : "Save"}
+                                </button>
+                            )}
+                            {canManageMenus && (
+                                <Link
+                                    href={`/dashboard/menus/${menu.id}/themes`}
+                                    className="h-9 px-3.5 rounded-full text-xs font-semibold inline-flex items-center justify-center text-[var(--cms-muted)] transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none"
+                                >
+                                    Design Studio
                                 </Link>
-                            </div>
-                            <div className="mt-3 border-t border-[var(--cms-border)] pt-3 flex flex-wrap items-center gap-2">
-                                {canManageMenus && (
-                                    <>
-                                        <Link
-                                            href={`/dashboard/menus/${menu.id}/themes`}
-                                            className="h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
-                                        >
-                                            Design Studio
-                                        </Link>
+                            )}
+                            <Link
+                                href={`/r/${menu.id}`}
+                                target="_blank"
+                                className="h-9 px-3.5 rounded-full text-xs font-semibold inline-flex items-center justify-center text-[var(--cms-muted)] transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none"
+                            >
+                                View Public Page
+                            </Link>
+                            {canManageMenus && (
+                                <details className="relative">
+                                    <summary className="list-none h-9 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center gap-1.5 text-[var(--cms-muted)] cursor-pointer transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
+                                        <MoreHorizontal className="w-3.5 h-3.5" />
+                                        More
+                                    </summary>
+                                    <div className="absolute right-0 mt-2 w-44 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-1.5 shadow-lg z-20">
                                         <button
-                                            onClick={handleExportMenu}
+                                            onClick={(event) => {
+                                                handleExportMenu();
+                                                const details = event.currentTarget.closest("details");
+                                                if (details instanceof HTMLDetailsElement) {
+                                                    details.open = false;
+                                                }
+                                            }}
                                             disabled={isExporting}
-                                            className="h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 justify-center bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)] disabled:opacity-50"
+                                            className="h-8 px-2.5 rounded-lg text-xs font-semibold inline-flex w-full items-center gap-1.5 text-[var(--cms-muted)] hover:bg-[var(--cms-panel-strong)] hover:text-[var(--cms-text)] disabled:opacity-50"
                                         >
                                             {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
                                             {isExporting ? "Exporting..." : "Export"}
                                         </button>
-                                    </>
-                                )}
-                                <Link
-                                    href={`/r/${menu.id}`}
-                                    target="_blank"
-                                    className="h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
-                                >
-                                    View Public Page
-                                </Link>
-                            </div>
+                                    </div>
+                                </details>
+                            )}
                         </div>
-                        <div className="mt-2 flex items-center justify-end gap-2 text-xs text-[var(--cms-muted)]">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--cms-muted)] lg:justify-end">
                             <button
                                 onClick={collapseAllCategories}
-                                className="hover:text-[var(--cms-text)]"
+                                className="transition-colors duration-150 hover:text-[var(--cms-text)] motion-reduce:transition-none"
                             >
                                 Collapse all
                             </button>
                             <span className="text-[var(--cms-border)]">•</span>
                             <button
                                 onClick={expandAllCategories}
-                                className="hover:text-[var(--cms-text)]"
+                                className="transition-colors duration-150 hover:text-[var(--cms-text)] motion-reduce:transition-none"
                             >
                                 Expand all
                             </button>
@@ -1346,18 +1389,20 @@ export default function MenuDetailPage() {
                 </div>
             </header>
 
-            <div className="space-y-8">
+            <div className="space-y-10 pt-3">
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
                     onDragStart={(event) => {
                         setIsDragging(true);
                         setActiveDragId(String(event.active.id));
+                        document.body.style.cursor = "grabbing";
                     }}
                     onDragEnd={handleDragEnd}
                     onDragCancel={() => {
                         setIsDragging(false);
                         setActiveDragId(null);
+                        document.body.style.cursor = "";
                     }}
                 >
                     <SortableContext
@@ -1369,88 +1414,107 @@ export default function MenuDetailPage() {
                                 key={category.id}
                                 id={`cat-${category.id}`}
                                 disabled={!canManageMenus}
-                                className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl overflow-hidden"
+                                className="mt-8 first:mt-0 overflow-hidden bg-transparent"
                             >
                                 {({ attributes, listeners }) => (
                                     <>
-                                        <div className="p-4 bg-[var(--cms-panel-strong)] border-b border-[var(--cms-border)] flex justify-between items-center group">
-                                            <div className="flex items-center gap-3">
+                                        <div
+                                            className="px-2 py-4 border-b border-[var(--cms-border)] shadow-[inset_0_-1px_0_rgba(255,255,255,0.08)] dark:shadow-[inset_0_-1px_0_rgba(255,255,255,0.12)] flex justify-between items-center gap-3 group cursor-pointer"
+                                            role="button"
+                                            tabIndex={0}
+                                            aria-expanded={!collapsedCategoryIds.has(category.id)}
+                                            aria-label={`${collapsedCategoryIds.has(category.id) ? "Expand" : "Collapse"} ${category.name}`}
+                                            onClick={() => toggleCategoryCollapse(category.id)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault();
+                                                    toggleCategoryCollapse(category.id);
+                                                }
+                                            }}
+                                        >
+                                            <div className="flex min-w-0 items-center gap-3">
                                                 {canManageMenus ? (
                                                     <button
-                                                        className="text-[var(--cms-muted)] cursor-grab active:cursor-grabbing"
+                                                        className="p-1.5 text-[var(--cms-muted)] opacity-65 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 transition-opacity duration-150 motion-reduce:transition-none cursor-grab active:cursor-grabbing rounded-md hover:bg-[var(--cms-pill)]"
                                                         {...attributes}
                                                         {...listeners}
                                                         aria-label="Reorder category"
+                                                        title="Drag to reorder category"
+                                                        onClick={(e) => e.stopPropagation()}
                                                     >
                                                         <GripVertical className="w-4 h-4" />
                                                     </button>
                                                 ) : (
                                                     <div className="w-8 h-8" aria-hidden="true" />
                                                 )}
-                                                <button
-                                                    onClick={() => toggleCategoryCollapse(category.id)}
-                                                    className="text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
-                                                    aria-label="Toggle category"
-                                                >
+                                                <div className="text-[var(--cms-muted)]" aria-hidden="true">
                                                     {collapsedCategoryIds.has(category.id) ? (
                                                         <ChevronRight className="w-4 h-4" />
                                                     ) : (
                                                         <ChevronDown className="w-4 h-4" />
                                                     )}
-                                                </button>
-                                                {canManageMenus ? (
-                                                    editingCategoryId === category.id ? (
-                                                        <div className="flex items-center gap-2">
-                                                            <input
-                                                                value={editingCategoryName}
-                                                                onChange={(e) => setEditingCategoryName(e.target.value)}
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === "Enter") {
-                                                                        e.preventDefault();
-                                                                        handleUpdateCategoryName(category);
-                                                                    }
-                                                                }}
-                                                                className="bg-transparent border border-[var(--cms-border)] rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                                                                autoFocus
-                                                            />
-                                                            <button
-                                                                onClick={() => handleUpdateCategoryName(category)}
-                                                                className="p-1.5 rounded-lg hover:bg-[var(--cms-pill)]"
-                                                                title="Save"
-                                                            >
-                                                                <Check className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setEditingCategoryId(null);
-                                                                    setEditingCategoryName("");
-                                                                }}
-                                                                className="p-1.5 rounded-lg hover:bg-[var(--cms-pill)]"
-                                                                title="Cancel"
-                                                            >
-                                                                <X className="w-4 h-4" />
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => {
-                                                                setEditingCategoryId(category.id);
-                                                                setEditingCategoryName(category.name);
+                                                </div>
+                                                {canManageMenus && editingCategoryId === category.id ? (
+                                                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                        <input
+                                                            value={editingCategoryName}
+                                                            onChange={(e) => setEditingCategoryName(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === "Enter") {
+                                                                    e.preventDefault();
+                                                                    handleUpdateCategoryName(category);
+                                                                }
                                                             }}
-                                                            className="font-bold text-lg text-left hover:opacity-80"
+                                                            className="bg-transparent border border-[var(--cms-border)] rounded-lg px-2 py-1 text-sm focus:outline-none focus:border-[var(--cms-text)]"
+                                                            autoFocus
+                                                        />
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleUpdateCategoryName(category);
+                                                            }}
+                                                            className="p-1.5 rounded-lg hover:bg-[var(--cms-pill)]"
+                                                            title="Save"
                                                         >
-                                                            {category.name}
+                                                            <Check className="w-4 h-4" />
                                                         </button>
-                                                    )
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setEditingCategoryId(null);
+                                                                setEditingCategoryName("");
+                                                            }}
+                                                            className="p-1.5 rounded-lg hover:bg-[var(--cms-pill)]"
+                                                            title="Cancel"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
                                                 ) : (
-                                                    <div className="font-bold text-lg">{category.name}</div>
+                                                    <div className="truncate font-semibold text-xl sm:text-2xl tracking-tight text-left">{category.name}</div>
                                                 )}
                                             </div>
                                             {canManageMenus && (
-                                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                                                     <button
-                                                        onClick={() => handleDeleteCategory(category.id)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingCategoryId(category.id);
+                                                            setEditingCategoryName(category.name);
+                                                        }}
+                                                        className="p-2 hover:bg-[var(--cms-pill)] rounded-lg text-[var(--cms-muted)] hover:text-[var(--cms-text)]"
+                                                        title="Rename category"
+                                                        aria-label="Rename category"
+                                                    >
+                                                        <PencilLine className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDeleteCategory(category.id);
+                                                        }}
                                                         className="p-2 hover:bg-red-500/10 rounded-lg text-red-500 hover:text-red-600"
+                                                        aria-label="Delete category"
                                                     >
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
@@ -1458,118 +1522,163 @@ export default function MenuDetailPage() {
                                             )}
                                         </div>
 
-                                        {!collapsedCategoryIds.has(category.id) && (
-                                            <div className="p-4 space-y-2">
-                                                {category.items?.length === 0 && (
-                                                    <div className="text-center py-8 text-[var(--cms-muted)] text-sm border-2 border-dashed border-[var(--cms-border)] rounded-xl">
-                                                        No items in this category yet.
-                                                    </div>
-                                                )}
-                                                <SortableContext
-                                                    items={(category.items || []).map((item) => `item-${item.id}`)}
-                                                    strategy={verticalListSortingStrategy}
-                                                >
-                                                    {category.items
-                                                        .map((item) => (
-                                                            <SortableItemRow
-                                                                key={item.id}
-                                                                id={`item-${item.id}`}
-                                                                disabled={!canManageMenus}
-                                                                className={`px-3.5 py-3 bg-[var(--cms-panel-strong)] rounded-xl border border-transparent flex justify-between items-center group hover:bg-[var(--cms-pill)] hover:border-[var(--cms-border)] transition-colors ${canOpenItemModal ? "cursor-pointer" : ""} ${item.is_sold_out ? "opacity-60" : ""}`}
-                                                            >
-                                                                {({ attributes: itemAttributes, listeners: itemListeners }) => (
-                                                                    <div
-                                                                        className="flex w-full items-center justify-between gap-3"
-                                                                        onClick={() => {
-                                                                            if (isDragging) return;
-                                                                            if (!canOpenItemModal) return;
-                                                                            setEditingItem({
-                                                                                ...item,
-                                                                                categoryId: category.id,
-                                                                                dietary_tag_ids: (item.dietary_tags || []).map((t: any) => t.id),
-                                                                                allergen_ids: (item.allergens || []).map((a: any) => a.id)
-                                                                            } as any);
-                                                                            setFileToUpload(null);
-                                                                        }}
-                                                                    >
-                                                                        <div className="flex min-w-0 items-center gap-3.5">
-                                                                            {canManageMenus ? (
-                                                                                <button
-                                                                                    className="text-[var(--cms-muted)] cursor-grab active:cursor-grabbing"
-                                                                                    {...itemAttributes}
-                                                                                    {...itemListeners}
-                                                                                    aria-label="Reorder item"
-                                                                                >
-                                                                                    <GripVertical className="w-4 h-4" />
-                                                                                </button>
-                                                                            ) : (
-                                                                                <div className="w-8 h-8" aria-hidden="true" />
-                                                                            )}
-                                                                            {(item.photo_url || (item as any).photos?.[0]?.url) && (
-                                                                                <img src={item.photo_url || (item as any).photos?.[0]?.url} alt={item.name} className="w-10 h-10 rounded-lg object-cover bg-[var(--cms-panel-strong)]" />
-                                                                            )}
-                                                                            <div className="min-w-0">
-                                                                                <div className="flex min-w-0 items-center gap-2">
-                                                                                    <p className="font-medium truncate">{item.name}</p>
-                                                                                    {Boolean(item.ar_video_url) && (
-                                                                                        <span className="inline-flex items-center rounded-md border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-cyan-300">
-                                                                                            AR
-                                                                                        </span>
+                                        <div
+                                            className={`grid transition-[grid-template-rows,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${collapsedCategoryIds.has(category.id)
+                                                ? "grid-rows-[0fr] opacity-0"
+                                                : "grid-rows-[1fr] opacity-100"
+                                                }`}
+                                        >
+                                            <div className={`min-h-0 overflow-hidden ${collapsedCategoryIds.has(category.id) ? "pointer-events-none" : ""}`}>
+                                                <div className="pt-3 pl-5 pr-1 space-y-0">
+                                                    {category.items?.length === 0 && (
+                                                        <div className="text-center py-8 text-[var(--cms-muted)] text-sm border-2 border-dashed border-[var(--cms-border)] rounded-xl">
+                                                            No items in this category yet.
+                                                        </div>
+                                                    )}
+                                                    <SortableContext
+                                                        items={(category.items || []).map((item) => `item-${item.id}`)}
+                                                        strategy={verticalListSortingStrategy}
+                                                    >
+                                                        {category.items
+                                                            .map((item) => (
+                                                                <SortableItemRow
+                                                                    key={item.id}
+                                                                    id={`item-${item.id}`}
+                                                                    disabled={!canManageMenus}
+                                                                    className={`group/item px-4 py-4 rounded-md border-b border-[var(--cms-border)] last:border-b-0 flex justify-between items-center transition-colors duration-150 motion-reduce:transition-none hover:bg-[color-mix(in_srgb,var(--cms-panel)_88%,transparent)] ${canOpenItemModal ? "cursor-pointer" : ""} ${item.is_sold_out ? "opacity-[0.86]" : ""}`}
+                                                                >
+                                                                    {({ attributes: itemAttributes, listeners: itemListeners }) => (
+                                                                        <div
+                                                                            className="flex w-full items-center justify-between gap-3"
+                                                                            onClick={() => {
+                                                                                if (isDragging) return;
+                                                                                if (!canOpenItemModal) return;
+                                                                                setEditingItem({
+                                                                                    ...item,
+                                                                                    categoryId: category.id,
+                                                                                    dietary_tag_ids: (item.dietary_tags || []).map((t: any) => t.id),
+                                                                                    allergen_ids: (item.allergens || []).map((a: any) => a.id)
+                                                                                } as any);
+                                                                                setFileToUpload(null);
+                                                                            }}
+                                                                        >
+                                                                            <div className="flex min-w-0 items-center gap-3.5">
+                                                                                {canManageMenus ? (
+                                                                                    <button
+                                                                                        className="p-1.5 text-[var(--cms-muted)] opacity-65 sm:opacity-0 sm:group-hover/item:opacity-100 focus-visible:opacity-100 transition-opacity duration-150 motion-reduce:transition-none cursor-grab active:cursor-grabbing rounded-md hover:bg-[var(--cms-pill)]"
+                                                                                        {...itemAttributes}
+                                                                                        {...itemListeners}
+                                                                                        aria-label="Reorder item"
+                                                                                        title="Drag to reorder item"
+                                                                                        onClick={(e) => e.stopPropagation()}
+                                                                                    >
+                                                                                        <GripVertical className="w-4 h-4" />
+                                                                                    </button>
+                                                                                ) : (
+                                                                                    <div className="w-8 h-8" aria-hidden="true" />
+                                                                                )}
+                                                                                {(item.photo_url || (item as any).photos?.[0]?.url) && (
+                                                                                    <img src={item.photo_url || (item as any).photos?.[0]?.url} alt={item.name} className="w-10 h-10 rounded-lg object-cover bg-[var(--cms-panel-strong)]" />
+                                                                                )}
+                                                                                <div className="min-w-0">
+                                                                                    <div className="flex min-w-0 items-center gap-2">
+                                                                                        <p className="truncate text-[15px] font-semibold leading-tight">{item.name}</p>
+                                                                                        {Boolean(item.ar_video_url) && (
+                                                                                            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--cms-muted)]">
+                                                                                                <Box className="h-2.5 w-2.5" />
+                                                                                                AR
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    {item.description && (
+                                                                                        <p className="text-[11px] text-[var(--cms-muted)] opacity-80 line-clamp-1 mt-0.5">{item.description}</p>
                                                                                     )}
                                                                                 </div>
-                                                                                {item.description && (
-                                                                                    <p className="text-xs text-[var(--cms-muted)] line-clamp-1">{item.description}</p>
-                                                                                )}
+                                                                            </div>
+                                                                            <div className="ml-3 flex min-w-[146px] shrink-0 items-center justify-end gap-2 self-start pt-0.5">
+                                                                                <span className="w-[74px] text-right font-mono text-sm tabular-nums">${item.price}</span>
+                                                                                {item.is_sold_out && <span className="text-[10px] bg-[var(--cms-pill)] text-[var(--cms-muted)] border border-[var(--cms-border)] px-2 py-1 rounded-full uppercase tracking-[0.12em] font-semibold">Sold out</span>}
                                                                             </div>
                                                                         </div>
-                                                                        <div className="ml-2 flex shrink-0 items-center gap-2.5">
-                                                                            <span className="font-mono text-sm tabular-nums">${item.price}</span>
-                                                                            {item.is_sold_out && <span className="text-[10px] bg-red-500/10 text-red-500 px-2 py-1 rounded-full uppercase tracking-wider font-bold">Sold Out</span>}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </SortableItemRow>
-                                                        ))}
-                                                </SortableContext>
+                                                                    )}
+                                                                </SortableItemRow>
+                                                            ))}
+                                                    </SortableContext>
 
-                                                {canEditItems && (
-                                                    <button
-                                                        onClick={() => {
-                                                            setEditingItem({ categoryId: category.id });
-                                                            setFileToUpload(null);
-                                                            setPageDirty(true);
-                                                        }}
-                                                        className="w-full py-3 border-2 border-dashed border-[var(--cms-border)] rounded-xl text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all text-sm font-medium flex items-center justify-center gap-2"
-                                                    >
-                                                        <Plus className="w-4 h-4" /> Add Item
-                                                    </button>
-                                                )}
+                                                    {canEditItems && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setEditingItem({ categoryId: category.id });
+                                                                setFileToUpload(null);
+                                                                setPageDirty(true);
+                                                            }}
+                                                            className="w-full px-4 py-4 rounded-md text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[color-mix(in_srgb,var(--cms-panel)_88%,transparent)] transition-colors duration-150 motion-reduce:transition-none text-sm font-medium flex items-center justify-center gap-2"
+                                                        >
+                                                            <Plus className="w-4 h-4" /> Add Item
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
-                                        )}
+                                        </div>
                                     </>
                                 )}
                             </SortableCategoryCard>
                         ))}
                     </SortableContext>
-                    <DragOverlay dropAnimation={null}>
-                        {activeDragId?.startsWith("cat-") && (
-                            <div className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl overflow-hidden shadow-2xl w-[520px]">
+                    <DragOverlay
+                        dropAnimation={{
+                            duration: 220,
+                            easing: "cubic-bezier(0.22, 1, 0.36, 1)"
+                        }}
+                    >
+                        {activeDraggedCategory && (
+                            <div className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl overflow-hidden shadow-[0_24px_64px_rgba(0,0,0,0.35)] w-[520px]">
                                 <div className="p-4 bg-[var(--cms-panel-strong)] border-b border-[var(--cms-border)] flex items-center gap-3">
                                     <GripVertical className="w-4 h-4 text-[var(--cms-muted)]" />
                                     <span className="font-bold text-lg">
-                                        {menu.categories.find((c) => `cat-${c.id}` === activeDragId)?.name}
+                                        {activeDraggedCategory.name}
                                     </span>
                                 </div>
                             </div>
                         )}
-                        {activeDragId?.startsWith("item-") && (
-                            <div className="p-3 bg-[var(--cms-panel-strong)] rounded-xl border border-[var(--cms-border)] shadow-2xl flex items-center gap-4 w-[420px]">
-                                <GripVertical className="w-4 h-4 text-[var(--cms-muted)]" />
-                                <span className="font-medium">
-                                    {menu.categories
-                                        .flatMap((cat) => cat.items || [])
-                                        .find((item) => `item-${item.id}` === activeDragId)?.name}
-                                </span>
+                        {activeDraggedItem && (
+                            <div className="group/item flex w-[min(900px,calc(100vw-2rem))] items-center justify-between gap-3 rounded-md border border-[var(--cms-border)] bg-[color-mix(in_srgb,var(--cms-panel)_92%,transparent)] px-4 py-4 shadow-[0_22px_56px_rgba(0,0,0,0.34)]">
+                                <div className="flex min-w-0 items-center gap-3.5">
+                                    <div className="p-1.5 text-[var(--cms-muted)] rounded-md bg-[var(--cms-pill)]">
+                                        <GripVertical className="w-4 h-4" />
+                                    </div>
+                                    {activeDraggedItemPhotoUrl && (
+                                        <img
+                                            src={activeDraggedItemPhotoUrl}
+                                            alt={activeDraggedItem.name}
+                                            className="w-10 h-10 rounded-lg object-cover bg-[var(--cms-panel-strong)]"
+                                        />
+                                    )}
+                                    <div className="min-w-0">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <p className="truncate text-[15px] font-semibold leading-tight">{activeDraggedItem.name}</p>
+                                            {Boolean(activeDraggedItem.ar_video_url) && (
+                                                <span className="inline-flex items-center gap-1 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--cms-muted)]">
+                                                    <Box className="h-2.5 w-2.5" />
+                                                    AR
+                                                </span>
+                                            )}
+                                        </div>
+                                        {activeDraggedItem.description && (
+                                            <p className="mt-0.5 line-clamp-1 text-[11px] text-[var(--cms-muted)] opacity-80">
+                                                {activeDraggedItem.description}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="ml-3 flex min-w-[146px] shrink-0 items-center justify-end gap-2 self-start pt-0.5">
+                                    <span className="w-[74px] text-right font-mono text-sm tabular-nums">${activeDraggedItem.price}</span>
+                                    {activeDraggedItem.is_sold_out && (
+                                        <span className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-pill)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--cms-muted)]">
+                                            Sold out
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </DragOverlay>
@@ -1649,9 +1758,9 @@ export default function MenuDetailPage() {
 
             {/* Item Editor Modal */}
             {editingItem && (
-                <div className="fixed inset-0 cms-modal-overlay backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+                <div className="fixed inset-0 cms-modal-overlay z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in motion-reduce:animate-none">
                     <div
-                        className="cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-lg rounded-[28px] max-h-[90vh] flex flex-col backdrop-blur-xl animate-fade-in-scale"
+                        className="cms-modal-shell cms-surface-3 ring-1 ring-[var(--cms-border)] w-full max-w-2xl rounded-[28px] max-h-[min(92vh,880px)] flex flex-col animate-fade-in-scale motion-reduce:animate-none"
                         onKeyDown={(e) => {
                             const target = e.target as HTMLElement;
                             const isTextarea = target.tagName === "TEXTAREA";
@@ -1681,251 +1790,265 @@ export default function MenuDetailPage() {
                             </button>
                         </div>
 
-                        <div className="p-6 pt-5 flex flex-col gap-5 overflow-y-auto flex-1 custom-scrollbar">
-                            <div className="space-y-2">
-                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
-                                    Name
-                                </label>
-                                <input
-                                    className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all text-sm"
-                                    placeholder="e.g. Margherita Pizza"
-                                    value={editingItem.name || ""}
-                                    onChange={(e) => {
-                                        if (!canEditItems) return;
-                                        setEditingItem({ ...editingItem, name: e.target.value });
-                                        setPageDirty(true);
-                                    }}
-                                    disabled={!canEditItems}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
-                                    Description
-                                </label>
-                                <textarea
-                                    className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all min-h-[96px] text-sm"
-                                    placeholder="e.g. Tomato sauce, mozzarella, and fresh basil."
-                                    value={editingItem.description || ""}
-                                    onChange={(e) => {
-                                        if (!canEditItems) return;
-                                        setEditingItem({ ...editingItem, description: e.target.value });
-                                        setPageDirty(true);
-                                    }}
-                                    disabled={!canEditItems}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div className="space-y-2">
-                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
-                                        Price
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all text-sm"
-                                        placeholder="0.00"
-                                        value={editingItem.price ?? ""}
-                                        onChange={(e) => {
-                                            if (!canEditItems) return;
-                                            const raw = e.target.value;
-                                            const nextPrice = raw === "" ? undefined : parseFloat(raw);
-                                            setEditingItem({ ...editingItem, price: nextPrice });
-                                            setPageDirty(true);
-                                        }}
-                                        disabled={!canEditItems}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
-                                        Status
-                                    </label>
-                                    <button
-                                        onClick={() => {
-                                            setEditingItem({ ...editingItem, is_sold_out: !editingItem.is_sold_out });
-                                            setPageDirty(true);
-                                        }}
-                                        disabled={!canManageAvailability && !canEditItems}
-                                        className={`w-full px-4 py-3 rounded-2xl border font-semibold text-sm transition-all inline-flex items-center justify-between ${editingItem.is_sold_out ? "bg-red-500/10 border-red-500/30 text-red-500" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-text)]"} hover:shadow-[0_0_0_1px_rgba(255,255,255,0.06)]`}
-                                    >
-                                        <span>{editingItem.is_sold_out ? "Sold Out" : "Available"}</span>
-                                        <span
-                                            className={`h-2 w-2 rounded-full ${editingItem.is_sold_out ? "bg-red-500" : "bg-emerald-400"}`}
+                        <div className="p-5 sm:p-6 pt-5 flex flex-col gap-4 overflow-y-auto flex-1 custom-scrollbar">
+                            <details open className="group rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)]">
+                                <summary className="list-none cursor-pointer flex items-center justify-between gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
+                                    <div>
+                                        <div className="text-sm font-semibold text-[var(--cms-text)]">Basic</div>
+                                        <div className="text-xs text-[var(--cms-muted)]">Name, description, pricing, and availability</div>
+                                    </div>
+                                    <ChevronDown className="w-4 h-4 text-[var(--cms-muted)] transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
+                                </summary>
+                                <div className="px-4 pb-4 space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
+                                            Name
+                                        </label>
+                                        <input
+                                            className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all duration-150 motion-reduce:transition-none text-sm"
+                                            placeholder="e.g. Margherita Pizza"
+                                            value={editingItem.name || ""}
+                                            onChange={(e) => {
+                                                if (!canEditItems) return;
+                                                setEditingItem({ ...editingItem, name: e.target.value });
+                                                setPageDirty(true);
+                                            }}
+                                            disabled={!canEditItems}
                                         />
-                                    </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
+                                            Description
+                                        </label>
+                                        <textarea
+                                            className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all duration-150 motion-reduce:transition-none min-h-[96px] text-sm"
+                                            placeholder="e.g. Tomato sauce, mozzarella, and fresh basil."
+                                            value={editingItem.description || ""}
+                                            onChange={(e) => {
+                                                if (!canEditItems) return;
+                                                setEditingItem({ ...editingItem, description: e.target.value });
+                                                setPageDirty(true);
+                                            }}
+                                            disabled={!canEditItems}
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                        <div className="space-y-2">
+                                            <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
+                                                Price
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)] focus:ring-2 focus:ring-[var(--cms-accent-strong)]/20 transition-all duration-150 motion-reduce:transition-none text-sm"
+                                                placeholder="0.00"
+                                                value={editingItem.price ?? ""}
+                                                onChange={(e) => {
+                                                    if (!canEditItems) return;
+                                                    const raw = e.target.value;
+                                                    const nextPrice = raw === "" ? undefined : parseFloat(raw);
+                                                    setEditingItem({ ...editingItem, price: nextPrice });
+                                                    setPageDirty(true);
+                                                }}
+                                                disabled={!canEditItems}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
+                                                Status
+                                            </label>
+                                            <button
+                                                onClick={() => {
+                                                    setEditingItem({ ...editingItem, is_sold_out: !editingItem.is_sold_out });
+                                                    setPageDirty(true);
+                                                    toast({
+                                                        variant: "success",
+                                                        title: editingItem.is_sold_out ? "Marked available" : "Marked sold out",
+                                                    });
+                                                }}
+                                                disabled={!canManageAvailability && !canEditItems}
+                                                className={`w-full px-4 py-3 rounded-2xl border font-semibold text-sm transition-colors duration-150 motion-reduce:transition-none inline-flex items-center justify-between ${editingItem.is_sold_out ? "bg-[var(--cms-panel)] border-[var(--cms-border)] text-[var(--cms-muted)]" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-text)]"} hover:bg-[var(--cms-pill)]`}
+                                            >
+                                                <span>{editingItem.is_sold_out ? "Sold out" : "Available"}</span>
+                                                <span
+                                                    className={`h-2 w-2 rounded-full ${editingItem.is_sold_out ? "bg-rose-400/70" : "bg-emerald-400"}`}
+                                                />
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            </details>
 
-                            {/* Photo Upload */}
-                            <div className="space-y-2">
-                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">Photo</label>
-                                <div
-                                    role="button"
-                                    tabIndex={editingItemDisplayPhotoUrl || canEditItems ? 0 : -1}
-                                    aria-disabled={!editingItemDisplayPhotoUrl && !canEditItems}
-                                    aria-label={editingItemDisplayPhotoUrl ? "View photo" : "Upload a photo"}
-                                    onKeyDown={(e) => {
-                                        const target = e.target as HTMLElement | null;
-                                        if (target?.closest?.("button")) return;
-                                        if (e.key !== "Enter" && e.key !== " ") return;
-                                        e.preventDefault();
-                                        if (editingItemDisplayPhotoUrl) {
-                                            setIsPhotoPreviewOpen(true);
-                                        } else {
-                                            if (!canEditItems) return;
-                                            fileInputRef.current?.click();
-                                        }
-                                    }}
-                                    onClick={(e) => {
-                                        const target = e.target as HTMLElement | null;
-                                        if (target?.closest?.("button")) return;
-                                        if (editingItemDisplayPhotoUrl) {
-                                            setIsPhotoPreviewOpen(true);
-                                        } else {
-                                            if (!canEditItems) return;
-                                            fileInputRef.current?.click();
-                                        }
-                                    }}
-                                    onDragOver={(e) => {
-                                        if (!canEditItems) return;
-                                        e.preventDefault();
-                                    }}
-                                    onDrop={(e) => {
-                                        if (!canEditItems) return;
-                                        e.preventDefault();
-                                        const file = e.dataTransfer.files?.[0];
-                                        if (!file) return;
-                                        if (!file.type.startsWith("image/")) return;
-                                        setFileToUpload(file);
-                                        setPageDirty(true);
-                                    }}
-                                    className={`group relative overflow-hidden rounded-2xl border ${editingItemDisplayPhotoUrl ? "border-solid" : "border-dashed"} bg-[var(--cms-panel-strong)] ring-1 ring-transparent transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent-strong)]/25 ${canEditItems
-                                        ? "cursor-pointer border-[var(--cms-border)] hover:border-[var(--cms-text)] hover:ring-[var(--cms-border)]"
-                                        : "cursor-not-allowed opacity-70 border-[var(--cms-border)]"
-                                        }`}
-                                >
-                                    <input
-                                        ref={fileInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            (e.currentTarget as HTMLInputElement).value = "";
+                            <details open className="group rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)]">
+                                <summary className="list-none cursor-pointer flex items-center justify-between gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
+                                    <div>
+                                        <div className="text-sm font-semibold text-[var(--cms-text)]">Photo</div>
+                                        <div className="text-xs text-[var(--cms-muted)]">
+                                            {editingItemDisplayPhotoUrl ? "Current photo set" : "No photo uploaded yet"}
+                                        </div>
+                                    </div>
+                                    <ChevronDown className="w-4 h-4 text-[var(--cms-muted)] transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
+                                </summary>
+                                <div className="px-4 pb-4 space-y-2">
+                                    <div
+                                        role="button"
+                                        tabIndex={editingItemDisplayPhotoUrl || canEditItems ? 0 : -1}
+                                        aria-disabled={!editingItemDisplayPhotoUrl && !canEditItems}
+                                        aria-label={editingItemDisplayPhotoUrl ? "View photo" : "Upload a photo"}
+                                        onKeyDown={(e) => {
+                                            const target = e.target as HTMLElement | null;
+                                            if (target?.closest?.("button")) return;
+                                            if (e.key !== "Enter" && e.key !== " ") return;
+                                            e.preventDefault();
+                                            if (editingItemDisplayPhotoUrl) {
+                                                setIsPhotoPreviewOpen(true);
+                                            } else {
+                                                if (!canEditItems) return;
+                                                fileInputRef.current?.click();
+                                            }
                                         }}
-                                        onChange={(e) => {
+                                        onClick={(e) => {
+                                            const target = e.target as HTMLElement | null;
+                                            if (target?.closest?.("button")) return;
+                                            if (editingItemDisplayPhotoUrl) {
+                                                setIsPhotoPreviewOpen(true);
+                                            } else {
+                                                if (!canEditItems) return;
+                                                fileInputRef.current?.click();
+                                            }
+                                        }}
+                                        onDragOver={(e) => {
                                             if (!canEditItems) return;
-                                            if (!e.target.files?.[0]) return;
-                                            setFileToUpload(e.target.files[0]);
+                                            e.preventDefault();
+                                        }}
+                                        onDrop={(e) => {
+                                            if (!canEditItems) return;
+                                            e.preventDefault();
+                                            const file = e.dataTransfer.files?.[0];
+                                            if (!file) return;
+                                            if (!file.type.startsWith("image/")) return;
+                                            setFileToUpload(file);
                                             setPageDirty(true);
                                         }}
-                                        disabled={!canEditItems}
-                                    />
+                                        className={`group/photo relative overflow-hidden rounded-2xl border ${editingItemDisplayPhotoUrl ? "border-solid" : "border-dashed"} bg-[var(--cms-panel-strong)] ring-1 ring-transparent transition-all duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent-strong)]/25 ${canEditItems
+                                            ? "cursor-pointer border-[var(--cms-border)] hover:border-[var(--cms-text)]"
+                                            : "cursor-not-allowed opacity-70 border-[var(--cms-border)]"
+                                            }`}
+                                    >
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                (e.currentTarget as HTMLInputElement).value = "";
+                                            }}
+                                            onChange={(e) => {
+                                                if (!canEditItems) return;
+                                                if (!e.target.files?.[0]) return;
+                                                setFileToUpload(e.target.files[0]);
+                                                setPageDirty(true);
+                                            }}
+                                            disabled={!canEditItems}
+                                        />
 
-                                    {!editingItemDisplayPhotoUrl ? (
-                                        <div className="min-h-[148px] px-6 py-10 flex flex-col items-center justify-center text-center">
-                                            <div className="w-12 h-12 rounded-2xl bg-[var(--cms-pill)] flex items-center justify-center ring-1 ring-[var(--cms-border)] shadow-sm">
-                                                <ImageIcon className="w-6 h-6 text-[var(--cms-muted)] group-hover:text-[var(--cms-text)] transition-colors" />
-                                            </div>
-                                            <div className="mt-4 text-sm font-semibold text-[var(--cms-text)]">Upload a photo</div>
-                                            <div className="mt-1 text-xs text-[var(--cms-muted)]">Click to choose or drag and drop • PNG/JPG • up to 10MB</div>
-                                        </div>
-                                    ) : (
-                                        <div className="relative min-h-[148px]">
-                                            <img src={editingItemDisplayPhotoUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" />
-                                            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/25 to-black/10 pointer-events-none" />
-
-                                            <div
-                                                className="absolute top-3 right-3 z-20 pointer-events-auto flex items-center gap-2"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        if (!canEditItems) return;
-                                                        setIsPhotoPreviewOpen(false);
-                                                        fileInputRef.current?.click();
-                                                    }}
-                                                    disabled={!canEditItems}
-                                                    className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-panel-strong)] transition-colors disabled:opacity-60"
-                                                >
-                                                    Change
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        handleRemoveItemPhoto();
-                                                    }}
-                                                    disabled={!canEditItems || isRemovingItemPhoto}
-                                                    className="rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-1 text-[11px] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-panel-strong)] transition-colors disabled:opacity-60"
-                                                >
-                                                    {fileToUpload ? "Clear" : isRemovingItemPhoto ? "Removing…" : "Remove"}
-                                                </button>
-                                            </div>
-
-                                            <div className="relative z-10 px-5 py-4 flex items-end justify-between">
-                                                <div className="min-w-0">
-                                                    {fileToUpload ? (
-                                                        <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white ring-1 ring-white/20">
-                                                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-300" aria-hidden="true" />
-                                                            New photo selected
-                                                        </div>
-                                                    ) : (
-                                                        <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-semibold text-white ring-1 ring-white/20">
-                                                            Current photo
-                                                        </div>
-                                                    )}
-                                                    {fileToUpload && (
-                                                        <div className="mt-2 text-xs text-white/85 truncate">{fileToUpload.name}</div>
-                                                    )}
+                                        {!editingItemDisplayPhotoUrl ? (
+                                            <div className="min-h-[170px] px-6 py-10 flex flex-col items-center justify-center text-center">
+                                                <div className="w-12 h-12 rounded-2xl bg-[var(--cms-pill)] flex items-center justify-center ring-1 ring-[var(--cms-border)] shadow-sm">
+                                                    <ImageIcon className="w-6 h-6 text-[var(--cms-muted)] group-hover/photo:text-[var(--cms-text)] transition-colors duration-150 motion-reduce:transition-none" />
                                                 </div>
-                                                <div className="text-xs font-semibold text-white/90 hidden sm:block">Click to view</div>
+                                                <div className="mt-4 text-sm font-semibold text-[var(--cms-text)]">Upload a photo</div>
+                                                <div className="mt-1 text-xs text-[var(--cms-muted)]">Click to choose or drag and drop • PNG/JPG • up to 10MB</div>
+                                            </div>
+                                        ) : (
+                                            <div className="relative min-h-[172px]">
+                                                <img src={editingItemDisplayPhotoUrl} alt="" className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" />
+                                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-black/10 pointer-events-none" />
+                                                <div className="absolute left-3 top-3 z-10 inline-flex items-center gap-2 rounded-full bg-black/35 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-white/90 ring-1 ring-white/20">
+                                                    {fileToUpload ? "New photo selected" : "Current photo"}
+                                                </div>
+                                                <div
+                                                    className="absolute inset-x-3 bottom-3 z-20 pointer-events-auto flex items-center justify-end gap-2 opacity-0 transition-opacity duration-150 group-hover/photo:opacity-100 group-focus-within/photo:opacity-100 motion-reduce:transition-none"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            if (!canEditItems) return;
+                                                            setIsPhotoPreviewOpen(false);
+                                                            fileInputRef.current?.click();
+                                                        }}
+                                                        disabled={!canEditItems}
+                                                        className="rounded-full border border-transparent bg-white/85 px-3 py-1 text-[11px] font-semibold text-slate-900 shadow-sm hover:bg-white transition-colors duration-150 motion-reduce:transition-none disabled:opacity-60"
+                                                    >
+                                                        Change photo
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            handleRemoveItemPhoto();
+                                                        }}
+                                                        disabled={!canEditItems || isRemovingItemPhoto}
+                                                        className="rounded-full border border-white/25 bg-black/35 px-3 py-1 text-[11px] font-semibold text-white shadow-sm hover:bg-black/55 transition-colors duration-150 motion-reduce:transition-none disabled:opacity-60"
+                                                    >
+                                                        {fileToUpload ? "Clear" : isRemovingItemPhoto ? "Removing…" : "Remove"}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {fileToUpload && (
+                                        <div className="text-xs text-[var(--cms-muted)] truncate">Selected: {fileToUpload.name}</div>
+                                    )}
+                                    {isPhotoPreviewOpen && editingItemDisplayPhotoUrl && (
+                                        <div
+                                            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+                                            role="dialog"
+                                            aria-modal="true"
+                                            onClick={() => setIsPhotoPreviewOpen(false)}
+                                        >
+                                            <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
+                                                <button
+                                                    type="button"
+                                                    className="absolute -top-3 -right-3 w-10 h-10 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] text-[var(--cms-text)] flex items-center justify-center shadow-lg hover:bg-[var(--cms-panel-strong)] transition-colors duration-150 motion-reduce:transition-none"
+                                                    onClick={() => setIsPhotoPreviewOpen(false)}
+                                                    aria-label="Close"
+                                                >
+                                                    <X className="w-5 h-5" />
+                                                </button>
+                                                <img
+                                                    src={editingItemDisplayPhotoUrl}
+                                                    alt=""
+                                                    className="w-full max-h-[80vh] object-contain rounded-2xl bg-black/20 ring-1 ring-white/10"
+                                                />
                                             </div>
                                         </div>
                                     )}
                                 </div>
-                                {isPhotoPreviewOpen && editingItemDisplayPhotoUrl && (
-                                    <div
-                                        className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-                                        role="dialog"
-                                        aria-modal="true"
-                                        onClick={() => setIsPhotoPreviewOpen(false)}
-                                    >
-                                        <div className="relative w-full max-w-4xl" onClick={(e) => e.stopPropagation()}>
-                                            <button
-                                                type="button"
-                                                className="absolute -top-3 -right-3 w-10 h-10 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] text-[var(--cms-text)] flex items-center justify-center shadow-lg hover:bg-[var(--cms-panel-strong)] transition-colors"
-                                                onClick={() => setIsPhotoPreviewOpen(false)}
-                                                aria-label="Close"
-                                            >
-                                                <X className="w-5 h-5" />
-                                            </button>
-                                            <img
-                                                src={editingItemDisplayPhotoUrl}
-                                                alt=""
-                                                className="w-full max-h-[80vh] object-contain rounded-2xl bg-black/20 ring-1 ring-white/10"
-                                            />
-                                        </div>
+                            </details>
+
+                            <details className="group rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)]">
+                                <summary className="list-none cursor-pointer flex items-center justify-between gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
+                                    <div>
+                                        <div className="text-sm font-semibold text-[var(--cms-text)]">AR Model</div>
+                                        <div className="text-xs text-[var(--cms-muted)]">{arStatusSummary}</div>
                                     </div>
-                                )}
-                            </div>
-                            {/* AR Video / Model */}
-                            <div className="space-y-2">
-                                <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">
-                                    AR Model
-                                </label>
-                                <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 space-y-3">
+                                    <ChevronDown className="w-4 h-4 text-[var(--cms-muted)] transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
+                                </summary>
+                                <div className="px-4 pb-4 space-y-3">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
                                             <div className="text-sm font-semibold text-[var(--cms-text)]">Photoreal AR (video → 3D)</div>
-                                            <div className="text-xs text-[var(--cms-muted)] mt-1">
-                                                Upload a ~10s rotating dish video. Processing can take a while, but AR opens instantly once ready.
-                                            </div>
+                                            <ul className="mt-1 space-y-1 pl-4 list-disc text-xs text-[var(--cms-muted)]">
+                                                <li>Use a rotating dish video under 20 seconds.</li>
+                                                <li>Keep lighting even and avoid motion blur.</li>
+                                                <li>Center the dish with light background texture.</li>
+                                            </ul>
                                         </div>
                                         <div className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold ${arStatusPillClassName}`}>
                                             {arStatusLabel}
@@ -1978,55 +2101,50 @@ export default function MenuDetailPage() {
                                         </div>
                                     )}
 
-                                    <div className="space-y-3">
-                                        <div className="text-xs text-[var(--cms-muted)]">
-                                            Tip: shoot 4K if possible, bright diffuse light, minimal blur, keep dish centered, add some background texture.
-                                        </div>
-                                        <div className="grid gap-2 sm:grid-cols-2">
-                                            <input
-                                                ref={arVideoInputRef}
-                                                type="file"
-                                                accept="video/*"
-                                                className="hidden"
-                                                onClick={(e) => {
-                                                    (e.currentTarget as HTMLInputElement).value = "";
-                                                }}
-                                                onChange={(e) => {
-                                                    if (!canEditItems) return;
-                                                    const file = e.target.files?.[0];
-                                                    if (!file) return;
-                                                    setArVideoToUpload(file);
-                                                    setPageDirty(true);
-                                                }}
-                                                disabled={!canEditItems}
-                                            />
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                        <input
+                                            ref={arVideoInputRef}
+                                            type="file"
+                                            accept="video/*"
+                                            className="hidden"
+                                            onClick={(e) => {
+                                                (e.currentTarget as HTMLInputElement).value = "";
+                                            }}
+                                            onChange={(e) => {
+                                                if (!canEditItems) return;
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                setArVideoToUpload(file);
+                                                setPageDirty(true);
+                                            }}
+                                            disabled={!canEditItems}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => arVideoInputRef.current?.click()}
+                                            disabled={!canEditItems}
+                                            className="h-11 w-full rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] shadow-sm transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)] disabled:opacity-60"
+                                        >
+                                            Choose video
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleUploadArVideo}
+                                            disabled={!canEditItems || !editingItem.id || !arVideoToUpload || isUploadingArVideo}
+                                            className="h-11 w-full rounded-2xl bg-[linear-gradient(180deg,var(--cms-accent),var(--cms-accent-strong))] px-4 text-sm font-semibold text-white shadow-sm transition-all duration-150 motion-reduce:transition-none hover:shadow-md disabled:opacity-60"
+                                        >
+                                            {isUploadingArVideo ? "Uploading…" : "Upload & generate"}
+                                        </button>
+                                        {editingItemArStatus === "failed" && Boolean(editingItem.ar_video_url) && (
                                             <button
                                                 type="button"
-                                                onClick={() => arVideoInputRef.current?.click()}
-                                                disabled={!canEditItems}
-                                                className="h-11 w-full rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] shadow-sm transition-colors hover:bg-[var(--cms-pill)] disabled:opacity-60"
+                                                onClick={handleRetryArGeneration}
+                                                disabled={!canEditItems || !editingItem.id || isRetryingArGeneration || isUploadingArVideo}
+                                                className="h-11 w-full sm:col-span-2 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] shadow-sm transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)] disabled:opacity-60"
                                             >
-                                                Choose video
+                                                {isRetryingArGeneration ? "Retrying…" : "Retry"}
                                             </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleUploadArVideo}
-                                                disabled={!canEditItems || !editingItem.id || !arVideoToUpload || isUploadingArVideo}
-                                                className="h-11 w-full rounded-2xl bg-[linear-gradient(180deg,var(--cms-accent),var(--cms-accent-strong))] px-4 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:opacity-60"
-                                            >
-                                                {isUploadingArVideo ? "Uploading…" : "Upload & generate"}
-                                            </button>
-                                            {editingItemArStatus === "failed" && Boolean(editingItem.ar_video_url) && (
-                                                <button
-                                                    type="button"
-                                                    onClick={handleRetryArGeneration}
-                                                    disabled={!canEditItems || !editingItem.id || isRetryingArGeneration || isUploadingArVideo}
-                                                    className="h-11 w-full sm:col-span-2 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] shadow-sm transition-colors hover:bg-[var(--cms-pill)] disabled:opacity-60"
-                                                >
-                                                    {isRetryingArGeneration ? "Retrying…" : "Retry"}
-                                                </button>
-                                            )}
-                                        </div>
+                                        )}
                                     </div>
 
                                     {arVideoToUpload && (
@@ -2044,12 +2162,18 @@ export default function MenuDetailPage() {
                                         </div>
                                     )}
                                 </div>
-                            </div>
-                            {/* Tags */}
+                            </details>
+
                             {canEditItems && (
-                                <div className="space-y-3">
-                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">Tags</label>
-                                    <div className="space-y-4">
+                                <details className="group rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)]">
+                                    <summary className="list-none cursor-pointer flex items-center justify-between gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
+                                        <div>
+                                            <div className="text-sm font-semibold text-[var(--cms-text)]">Tags & Allergens</div>
+                                            <div className="text-xs text-[var(--cms-muted)]">Diet, spice, highlights, and allergen labels</div>
+                                        </div>
+                                        <ChevronDown className="w-4 h-4 text-[var(--cms-muted)] transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
+                                    </summary>
+                                    <div className="px-4 pb-4 space-y-4">
                                         <div>
                                             <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">{tagLabels.diet}</div>
                                             <div className="flex flex-wrap gap-2">
@@ -2057,7 +2181,7 @@ export default function MenuDetailPage() {
                                                     <button
                                                         key={tag.id}
                                                         onClick={() => toggleMetadata('tags', tag.id)}
-                                                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)] shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 motion-reduce:transition-none ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)] shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
                                                     >
                                                         {tag.name}
                                                     </button>
@@ -2071,7 +2195,7 @@ export default function MenuDetailPage() {
                                                     <button
                                                         key={tag.id}
                                                         onClick={() => toggleMetadata('tags', tag.id)}
-                                                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)] shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 motion-reduce:transition-none ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)] shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
                                                     >
                                                         {tag.name}
                                                     </button>
@@ -2085,37 +2209,32 @@ export default function MenuDetailPage() {
                                                     <button
                                                         key={tag.id}
                                                         onClick={() => toggleMetadata('tags', tag.id)}
-                                                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)] shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 motion-reduce:transition-none ${(editingItem as any).dietary_tag_ids?.includes(tag.id) ? "bg-[var(--cms-text)] border-[var(--cms-text)] text-[var(--cms-bg)] shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
                                                     >
                                                         {tag.name}
                                                     </button>
                                                 ))}
                                             </div>
                                         </div>
+                                        <div>
+                                            <div className="text-[11px] uppercase tracking-[0.2em] text-[var(--cms-muted)] mb-2">{tagLabels.allergens}</div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {allergenTagList.map(alg => (
+                                                    <button
+                                                        key={alg.id}
+                                                        onClick={() => toggleMetadata('allergens', alg.id)}
+                                                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-150 motion-reduce:transition-none ${(editingItem as any).allergen_ids?.includes(alg.id) ? "bg-red-500/10 border-red-500/40 text-red-500 shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
+                                                    >
+                                                        {alg.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                </details>
                             )}
-
-                            {/* Allergens */}
-                            {canEditItems && (
-                                <div className="space-y-2">
-                                    <label className="block text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--cms-muted)]">{tagLabels.allergens}</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {allergenTagList.map(alg => (
-                                            <button
-                                                key={alg.id}
-                                                onClick={() => toggleMetadata('allergens', alg.id)}
-                                                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${(editingItem as any).allergen_ids?.includes(alg.id) ? "bg-red-500/10 border-red-500/40 text-red-500 shadow-sm" : "bg-[var(--cms-panel-strong)] border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)]/40"}`}
-                                            >
-                                                {alg.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
                         </div>
-                        <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex justify-between gap-3 flex-shrink-0 rounded-b-[28px]">
+                        <div className="cms-modal-footer sticky bottom-0 z-10 p-4 sm:p-5 border-t border-[var(--cms-border)] flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center flex-shrink-0 rounded-b-[28px] backdrop-blur-xl">
                             <div>
                                 {canEditItems && editingItem.id && (
                                     <button
@@ -2150,7 +2269,7 @@ export default function MenuDetailPage() {
                                                 });
                                             }
                                         }}
-                                        className="h-11 px-4 rounded-2xl border border-red-500/25 font-semibold text-red-500 hover:bg-red-500/10 transition-colors inline-flex items-center gap-2"
+                                        className="h-11 px-4 rounded-2xl border border-red-500/25 font-semibold text-red-500 hover:bg-red-500/10 transition-colors duration-150 motion-reduce:transition-none inline-flex items-center gap-2"
                                     >
                                         <Trash2 className="w-4 h-4" /> Delete
                                     </button>
@@ -2162,7 +2281,7 @@ export default function MenuDetailPage() {
                                         setEditingItem(null);
                                         setFileToUpload(null);
                                     }}
-                                    className="h-11 px-5 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-pill)] transition-colors"
+                                    className="h-11 px-5 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-pill)] transition-colors duration-150 motion-reduce:transition-none"
                                 >
                                     Cancel
                                 </button>
@@ -2174,7 +2293,7 @@ export default function MenuDetailPage() {
                                             ? !editingItem.name || (!editingItem.price && editingItem.price !== 0)
                                             : !editingItem.id || !canManageAvailability)
                                     }
-                                    className="h-11 px-5 bg-[linear-gradient(180deg,var(--cms-accent),var(--cms-accent-strong))] text-white rounded-2xl font-semibold transition-colors disabled:opacity-50 inline-flex items-center gap-2 shadow-sm hover:shadow-md"
+                                    className="h-11 px-5 bg-[linear-gradient(180deg,var(--cms-accent),var(--cms-accent-strong))] text-white rounded-2xl font-semibold transition-all duration-150 motion-reduce:transition-none disabled:opacity-50 inline-flex items-center gap-2 shadow-sm hover:shadow-md"
                                 >
                                     {isSavingItem && <Loader2 className="w-4 h-4 animate-spin" />}
                                     {isSavingItem ? 'Saving...' : 'Save Item'}
@@ -2184,6 +2303,7 @@ export default function MenuDetailPage() {
                     </div>
                 </div>
             )}
+            </div>
         </div>
     );
 }
