@@ -45,6 +45,7 @@ class ParsedMenu:
 MENU_PATH_PATTERNS = [
     "/menu", "/menus", "/food-menu", "/food", "/our-menu",
     "/dinner-menu", "/lunch-menu", "/drinks", "/bar-menu",
+    "/carte", "/speisekarte", "/carta", "/menukaart",
 ]
 
 
@@ -55,30 +56,36 @@ async def extract_menu(website_url: str, log_fn=None) -> ParsedMenu:
 
     log_fn(f"Fetching homepage: {website_url}")
 
+    all_text_parts: list[str] = []
+    source_urls: list[str] = []
+    menu_urls: list[str] = []
+
     # Step 1: Fetch homepage and discover menu-related links
     try:
         html = await fetch_url_text(website_url)
+        soup = BeautifulSoup(html, "html.parser")
+        menu_urls = _discover_menu_links(website_url, soup)
+        log_fn(f"Discovered {len(menu_urls)} potential menu URL(s)")
+
+        # Always extract homepage text (it may contain menu info)
+        homepage_text = _extract_menu_text_from_html(soup)
+        if len(homepage_text.strip()) > 100:
+            all_text_parts.append(homepage_text)
+            source_urls.append(website_url)
+            log_fn(f"Extracted {len(homepage_text)} chars from homepage")
     except Exception as e:
         log_fn(f"Failed to fetch homepage: {e}")
-        return ParsedMenu(raw_text=f"Error fetching {website_url}: {e}")
 
-    soup = BeautifulSoup(html, "html.parser")
-    menu_urls = _discover_menu_links(website_url, soup)
-    log_fn(f"Discovered {len(menu_urls)} potential menu URL(s)")
+    # Step 2: Try common menu URL paths even if not linked from homepage
+    parsed_base = urlparse(website_url)
+    base_origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
+    for path in MENU_PATH_PATTERNS:
+        candidate = f"{base_origin}{path}"
+        if candidate not in menu_urls and candidate != website_url.rstrip("/"):
+            menu_urls.append(candidate)
 
-    # Step 2: Collect text from all menu sources
-    all_text_parts: list[str] = []
-    source_urls: list[str] = []
-
-    # Extract from homepage if it looks like a menu page
-    homepage_text = _extract_menu_text_from_html(soup)
-    if _looks_like_menu(homepage_text):
-        all_text_parts.append(homepage_text)
-        source_urls.append(website_url)
-        log_fn("Homepage contains menu content")
-
-    # Try each discovered menu URL
-    for url in menu_urls[:5]:  # Cap at 5 pages
+    # Step 3: Collect text from all menu sources
+    for url in menu_urls[:8]:  # Cap at 8 pages
         try:
             log_fn(f"Fetching menu page: {url}")
             content_bytes = await fetch_url_bytes(url)
@@ -107,7 +114,7 @@ async def extract_menu(website_url: str, log_fn=None) -> ParsedMenu:
             else:  # HTML
                 page_soup = BeautifulSoup(content_bytes, "html.parser")
                 page_text = _extract_menu_text_from_html(page_soup)
-                if page_text.strip():
+                if len(page_text.strip()) > 50:
                     all_text_parts.append(page_text)
                     source_urls.append(url)
                     log_fn(f"Extracted {len(page_text)} chars from HTML")
@@ -134,9 +141,9 @@ async def extract_menu(website_url: str, log_fn=None) -> ParsedMenu:
         log_fn("No menu text found on any pages")
         return ParsedMenu(raw_text="", source_urls=source_urls)
 
-    log_fn(f"Total menu text: {len(combined_text)} chars. Parsing with OpenAI...")
+    log_fn(f"Total menu text: {len(combined_text)} chars. Parsing...")
 
-    # Step 3: Parse with OpenAI
+    # Step 4: Parse with OpenAI or fallback
     parsed = await _parse_with_openai(combined_text, log_fn)
     parsed.raw_text = combined_text
     parsed.source_urls = source_urls
@@ -313,16 +320,70 @@ async def _parse_with_openai(text: str, log_fn) -> ParsedMenu:
 
 
 def _fallback_parse(text: str) -> ParsedMenu:
-    """Simple regex-based menu parser as fallback when OpenAI is not available."""
-    items = []
-    # Pattern: "Item Name ... $XX.XX" or "Item Name XX.XX"
-    pattern = re.compile(r"^(.+?)\s+\$?(\d{1,4}\.\d{2})\s*$", re.MULTILINE)
-    for match in pattern.finditer(text):
-        name = match.group(1).strip().rstrip(".")
-        price = float(match.group(2))
-        if len(name) > 2 and price > 0:
-            items.append(ParsedItem(name=name, price=price))
+    """Robust fallback parser when OpenAI is not available.
 
-    if items:
-        return ParsedMenu(categories=[ParsedCategory(name="Menu Items", items=items)])
-    return ParsedMenu()
+    Strategy:
+    1. Try to find lines with prices (various formats: $, €, £, commas)
+    2. Look for category headers (ALL CAPS or short bold-looking lines)
+    3. Extract items even without prices (from list structures)
+    """
+    categories: list[ParsedCategory] = []
+    current_category = "Menu Items"
+    current_items: list[ParsedItem] = []
+
+    # Price patterns: $12.99, 12.99, €12,50, £8.00, 12,99€, etc.
+    price_re = re.compile(
+        r'[\$€£]\s*(\d{1,4}[.,]\d{2})'
+        r'|(\d{1,4}[.,]\d{2})\s*[€£]?'
+    )
+
+    lines = text.split("\n")
+    for line in lines:
+        line = line.strip()
+        if not line or len(line) < 2:
+            continue
+
+        # Detect category headers: ALL CAPS, or short lines ending with :
+        if (
+            (line.isupper() and 3 < len(line) < 50 and not price_re.search(line))
+            or (line.endswith(":") and len(line) < 40)
+            or (line.startswith("#") and len(line) < 50)
+        ):
+            # Save previous category
+            if current_items:
+                categories.append(ParsedCategory(name=current_category, items=current_items))
+                current_items = []
+            current_category = line.rstrip(":").strip("# ").title()
+            continue
+
+        # Try to extract price from the line
+        price_match = price_re.search(line)
+        if price_match:
+            price_str = price_match.group(1) or price_match.group(2)
+            try:
+                price = float(price_str.replace(",", "."))
+            except ValueError:
+                price = None
+            # Item name is everything before the price
+            name = line[:price_match.start()].strip().rstrip(".").rstrip("-").rstrip("…").strip()
+            if len(name) > 2 and (price is None or price > 0):
+                current_items.append(ParsedItem(name=name, price=price))
+        else:
+            # No price — could still be a menu item if it's a short-ish line
+            if 3 < len(line) < 80 and not any(skip in line.lower() for skip in [
+                "copyright", "all rights", "follow us", "contact", "phone",
+                "address", "hours", "open", "close", "reserve", "click",
+                "http", "www.", "@", "email", "privacy", "terms",
+            ]):
+                # Looks like it could be an item name or description
+                # If previous item exists and line is shorter, treat as description
+                if current_items and len(line) < 120 and not current_items[-1].description:
+                    current_items[-1].description = line
+                elif len(line) < 60:
+                    current_items.append(ParsedItem(name=line))
+
+    # Save final category
+    if current_items:
+        categories.append(ParsedCategory(name=current_category, items=current_items))
+
+    return ParsedMenu(categories=categories)

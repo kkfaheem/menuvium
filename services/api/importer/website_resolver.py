@@ -10,10 +10,79 @@ Priority:
 
 import os
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 
-from importer.utils import USER_AGENT
+from importer.utils import fetch_url_text
+
+
+# Domains that are link aggregators or not actual restaurant sites
+AGGREGATOR_DOMAINS = {
+    "linktr.ee", "linktree.com", "campsite.bio", "bio.link",
+    "beacons.ai", "lnk.bio", "tap.bio", "linkpop.com",
+    "heylink.me", "solo.to", "milkshake.app",
+}
+
+SKIP_DOMAINS = {
+    "yelp.com", "tripadvisor.com", "facebook.com",
+    "instagram.com", "twitter.com", "x.com", "tiktok.com",
+    "doordash.com", "ubereats.com", "grubhub.com",
+    "opentable.com", "postmates.com", "seamless.com",
+    "zomato.com", "foursquare.com", "google.com",
+}
+
+
+def _is_aggregator(url: str) -> bool:
+    """Check if a URL is a link aggregator site."""
+    domain = urlparse(url).netloc.lower().lstrip("www.")
+    return any(agg in domain for agg in AGGREGATOR_DOMAINS)
+
+
+def _is_skip_domain(url: str) -> bool:
+    """Check if a URL is a social media or review site to skip."""
+    domain = urlparse(url).netloc.lower().lstrip("www.")
+    return any(skip in domain for skip in SKIP_DOMAINS)
+
+
+async def _follow_aggregator(url: str) -> Optional[str]:
+    """Fetch a link aggregator page and try to extract the real website URL."""
+    try:
+        html = await fetch_url_text(url)
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+
+        # Look for links that aren't social media / aggregator
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if not href.startswith(("http://", "https://")):
+                continue
+            if _is_aggregator(href) or _is_skip_domain(href):
+                continue
+            # Filter out obviously non-website links
+            if "mailto:" in href or "tel:" in href:
+                continue
+            # Good candidate — an external link from the aggregator
+            link_text = (a.get_text() or "").lower().strip()
+            # Prioritize links with menu/website keywords
+            menu_keywords = ["menu", "website", "site", "order", "food", "reserve"]
+            if any(kw in link_text for kw in menu_keywords):
+                return href
+
+        # Second pass: return any external link that's not social/aggregator
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if not href.startswith(("http://", "https://")):
+                continue
+            if _is_aggregator(href) or _is_skip_domain(href):
+                continue
+            if "mailto:" in href or "tel:" in href:
+                continue
+            return href
+
+    except Exception:
+        pass
+    return None
 
 
 async def resolve_website(
@@ -30,6 +99,11 @@ async def resolve_website(
         url = website_override.strip()
         if not url.startswith(("http://", "https://")):
             url = f"https://{url}"
+        # If override is an aggregator, follow through
+        if _is_aggregator(url):
+            real = await _follow_aggregator(url)
+            if real:
+                return real
         return url
 
     search_query = restaurant_name
@@ -41,7 +115,13 @@ async def resolve_website(
     if places_key:
         result = await _resolve_via_google_places(search_query, places_key)
         if result:
-            return result
+            # If Google returned an aggregator, follow through
+            if _is_aggregator(result):
+                real = await _follow_aggregator(result)
+                if real:
+                    return real
+            elif not _is_skip_domain(result):
+                return result
 
     # 3. SerpAPI
     serp_key = os.getenv("SERPAPI_KEY")
@@ -58,7 +138,6 @@ async def _resolve_via_google_places(query: str, api_key: str) -> Optional[str]:
     """Use Google Places Text Search → Place Details to find restaurant website."""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            # Text Search to find place
             search_url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
             search_resp = await client.get(
                 search_url,
@@ -73,7 +152,6 @@ async def _resolve_via_google_places(query: str, api_key: str) -> Optional[str]:
             if not place_id:
                 return None
 
-            # Place Details to get website
             details_url = "https://maps.googleapis.com/maps/api/place/details/json"
             details_resp = await client.get(
                 details_url,
@@ -104,25 +182,17 @@ async def _resolve_via_serpapi(query: str, api_key: str) -> Optional[str]:
             )
             data = resp.json()
 
-            # Check knowledge graph first
             if "knowledge_graph" in data:
                 kg = data["knowledge_graph"]
                 if "website" in kg:
-                    return kg["website"]
+                    url = kg["website"]
+                    if not _is_aggregator(url) and not _is_skip_domain(url):
+                        return url
 
-            # Check organic results
             organic = data.get("organic_results", [])
-            for result in organic[:3]:
+            for result in organic[:5]:
                 link = result.get("link", "")
-                # Filter out social media and review sites
-                skip_domains = [
-                    "yelp.com", "tripadvisor.com", "facebook.com",
-                    "instagram.com", "twitter.com", "doordash.com",
-                    "ubereats.com", "grubhub.com", "opentable.com",
-                ]
-                from urllib.parse import urlparse
-                domain = urlparse(link).netloc.lower()
-                if not any(skip in domain for skip in skip_domains):
+                if not _is_aggregator(link) and not _is_skip_domain(link):
                     return link
     except Exception:
         pass

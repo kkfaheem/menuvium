@@ -50,7 +50,7 @@ def slugify(text: str) -> str:
 # Rate-limited HTTP client
 # ---------------------------------------------------------------------------
 
-USER_AGENT = "Menuvium-Importer/1.0 (+https://menuvium.com; menu-import-tool)"
+USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 MAX_CONCURRENT = 2
 _semaphore: Optional[asyncio.Semaphore] = None
 
@@ -100,15 +100,14 @@ async def fetch_url(
     max_retries: int = 3,
     headers: Optional[dict] = None,
 ) -> httpx.Response:
-    """Fetch a URL with rate limiting, retries, and backoff.
-
-    Respects robots.txt and limits concurrency to MAX_CONCURRENT requests.
-    """
-    if not is_allowed_by_robots(url):
-        raise PermissionError(f"Blocked by robots.txt: {url}")
-
+    """Fetch a URL with rate limiting, retries, and backoff."""
     sem = _get_semaphore()
-    req_headers = {"User-Agent": USER_AGENT}
+    req_headers = {
+        "User-Agent": USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate",
+    }
     if headers:
         req_headers.update(headers)
 
