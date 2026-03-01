@@ -76,6 +76,11 @@ export default function MenuThemesPage() {
         return MENU_THEME_BY_ID[themeId as MenuThemeId] ? (themeId as MenuThemeId) : "noir";
     };
 
+    const withAlpha = (hex: string, alphaHex: string) => {
+        if (/^#[0-9a-fA-F]{6}$/.test(hex)) return `${hex}${alphaHex}`;
+        return hex;
+    };
+
     useEffect(() => {
         if (!menuId) return;
         fetchMenuData(menuId);
@@ -630,54 +635,56 @@ export default function MenuThemesPage() {
                                     {orderedThemes.map((theme) => {
                                         const isActive = activeThemeId === theme.id;
                                         const isSelected = selectedThemeId === theme.id;
-                                        const coreColors = [
-                                            { label: "Background", value: theme.palette.bg },
-                                            { label: "Surface", value: theme.palette.surface },
-                                            { label: "Accent", value: theme.palette.accent },
-                                        ];
+                                        const primaryTextColor = theme.palette.text;
+                                        const secondaryTextColor = withAlpha(theme.palette.text, "B8");
+                                        const tertiaryTextColor = withAlpha(theme.palette.text, "96");
+                                        const cardBlendStyle = {
+                                            backgroundColor: theme.palette.surface,
+                                            backgroundImage: `
+                                                radial-gradient(140% 120% at 0% 0%, ${withAlpha(theme.palette.accent, "40")} 0%, transparent 58%),
+                                                radial-gradient(120% 130% at 100% 5%, ${withAlpha(theme.palette.bg, "DD")} 0%, transparent 62%),
+                                                radial-gradient(125% 140% at 50% 100%, ${withAlpha(theme.palette.surfaceAlt, "D6")} 0%, transparent 60%),
+                                                linear-gradient(140deg, ${withAlpha(theme.palette.bg, "EA")} 0%, ${withAlpha(theme.palette.surface, "F2")} 52%, ${withAlpha(theme.palette.accent, "22")} 100%)
+                                            `,
+                                        } as const;
                                         return (
-                                            <button
-                                                type="button"
-                                                key={theme.id}
-                                                onClick={() => handleThemeSelection(theme.id)}
-                                                aria-pressed={isSelected}
-                                                className={`w-full overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30 ${
-                                                    isActive
-                                                        ? "border-white/40 bg-gradient-to-r from-[var(--cms-accent)]/20 to-[var(--cms-accent)]/5"
-                                                        : isSelected
-                                                          ? "border-[var(--cms-accent)]/40 bg-[var(--cms-panel-strong)]"
-                                                          : "border-[var(--cms-border)] bg-[var(--cms-bg)] hover:bg-[var(--cms-panel-strong)]"
-                                                }`}
-                                            >
-                                                <div className="px-3 py-3">
-                                                    <div className="flex items-start justify-between gap-3">
+                                            <div key={theme.id} className="relative">
+                                                {isActive && (
+                                                    <Badge
+                                                        variant="success"
+                                                        className="pointer-events-none absolute -top-2.5 right-2 z-10 rounded-md border border-neutral-700 bg-white px-2 py-0.5 font-bold text-emerald-700 shadow-[0_4px_10px_rgba(0,0,0,0.28)]"
+                                                    >
+                                                        Active
+                                                    </Badge>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleThemeSelection(theme.id)}
+                                                    aria-pressed={isSelected}
+                                                    className={`w-full overflow-hidden rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30 ${
+                                                        isActive
+                                                            ? "border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+                                                            : isSelected
+                                                              ? "border-[var(--cms-accent)]/40"
+                                                              : "border-[var(--cms-border)]"
+                                                    }`}
+                                                    style={cardBlendStyle}
+                                                >
+                                                    <div className="px-2.5 py-2.5">
                                                         <div className="min-w-0">
-                                                            <h3 className="truncate text-lg font-bold tracking-tight">{theme.name}</h3>
-                                                            <p className="mt-0.5 line-clamp-1 text-xs text-[var(--cms-muted)]">{theme.description}</p>
-                                                            <p className="mt-1 text-[11px] text-[var(--cms-muted)] capitalize">
+                                                            <h3 className="truncate text-base font-bold tracking-tight" style={{ color: primaryTextColor }}>
+                                                                {theme.name}
+                                                            </h3>
+                                                            <p className="mt-0.5 line-clamp-1 text-[11px]" style={{ color: secondaryTextColor }}>
+                                                                {theme.description}
+                                                            </p>
+                                                            <p className="mt-0.5 text-[10px] capitalize" style={{ color: tertiaryTextColor }}>
                                                                 {theme.category} · {theme.layout}
                                                             </p>
                                                         </div>
-                                                        {isActive && (
-                                                            <Badge variant="success" className="shrink-0">
-                                                                Active
-                                                            </Badge>
-                                                        )}
                                                     </div>
-                                                    <div className="mt-1.5 flex justify-end gap-1">
-                                                        {coreColors.map((color) => (
-                                                            <span
-                                                                key={color.label}
-                                                                className="h-2.5 w-2.5 rounded-full border border-white/45"
-                                                                style={{ backgroundColor: color.value }}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                                <span className="sr-only">
-                                                    Core colors: {coreColors.map((color) => color.value.toUpperCase()).join(", ")}
-                                                </span>
-                                            </button>
+                                                </button>
+                                            </div>
                                         );
                                     })}
                                 </div>
@@ -1002,7 +1009,7 @@ export default function MenuThemesPage() {
 
                                 <div className="relative overflow-hidden rounded-[2.45rem] border border-black/60 bg-black p-[8px]">
                                     <div className="pointer-events-none absolute left-1/2 top-2 z-20 h-6 w-28 -translate-x-1/2 rounded-full border border-white/10 bg-black/80" />
-                                    <div className="relative overflow-hidden rounded-[1.95rem] bg-white pt-7">
+                                    <div className="relative overflow-hidden rounded-[1.95rem] bg-white">
                                         <div className="aspect-[9/19.5] w-full overflow-hidden">
                                             <iframe
                                                 ref={previewIframeRef}

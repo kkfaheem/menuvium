@@ -1259,70 +1259,82 @@ export default function MenuDetailPage() {
                                 Edit items, pricing, availability, and photoreal AR dishes.
                             </p>
 	                    </div>
-	                    <div className="flex flex-col items-start gap-3 md:items-end w-full md:w-auto">
-                        <div className="flex flex-col w-full gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-start md:justify-end">
-                            {canManageMenus && (
-                                <>
-                                    <button
-                                        onClick={() => {
-                                            setMenuActive(!menuActive);
-                                            setPageDirty(true);
-                                        }}
-                                        className="h-8 w-full sm:w-[124px] inline-flex items-center justify-between px-3 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)]"
-                                    >
-                                        <span className="text-xs font-semibold text-[var(--cms-text)] w-[64px] text-left">
-                                            {menuActive ? "Active" : "Inactive"}
-                                        </span>
-                                        <span
-                                            className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${menuActive ? "bg-[var(--cms-text)]" : "bg-[var(--cms-panel-strong)]"}`}
+                    <div className="w-full md:w-auto md:min-w-[420px]">
+                        <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                                {canManageMenus && (
+                                    <>
+                                        <button
+                                            onClick={() => {
+                                                setMenuActive(!menuActive);
+                                                setPageDirty(true);
+                                            }}
+                                            className="h-9 px-3.5 inline-flex items-center justify-between gap-3 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)]"
                                         >
+                                            <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[var(--cms-muted)]">
+                                                {menuActive ? "Active" : "Inactive"}
+                                            </span>
                                             <span
-                                                className={`inline-block h-3 w-3 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${menuActive ? "translate-x-4" : "translate-x-1"}`}
-                                            />
-                                        </span>
-                                    </button>
-                                    <button
-                                        onClick={handleSaveMenu}
-                                        disabled={isSavingMenu || !pageDirty}
-                                        className={`h-8 px-4 rounded-full font-semibold text-sm inline-flex items-center gap-2 justify-center w-full sm:w-auto min-w-[92px] ${isSavingMenu || !pageDirty ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed" : "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"}`}
-                                    >
-                                        {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
-                                        {isSavingMenu ? "Saving..." : "Save"}
-                                    </button>
-                                    <Link
-                                        href={`/dashboard/menus/${menu.id}/themes`}
-                                        className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
-                                    >
-                                        Design Studio
-                                    </Link>
-                                    <button
-                                        onClick={handleExportMenu}
-                                        disabled={isExporting}
-                                        className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)] disabled:opacity-50"
-                                    >
-                                        {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
-                                        {isExporting ? "Exporting..." : "Export"}
-                                    </button>
-                                </>
-                            )}
-                            <Link
-                                href={`/dashboard/menus/${menu.id}/publish`}
-                                className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
-                            >
-                                Publish
-                            </Link>
-                            <Link href={`/r/${menu.id}`} target="_blank" className="h-8 px-3 rounded-full text-xs font-semibold inline-flex items-center justify-center w-full sm:w-auto bg-[var(--cms-panel)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]">
-                                View Public Page
-                            </Link>
+                                                className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${menuActive ? "bg-[var(--cms-text)]" : "bg-[var(--cms-panel)]"}`}
+                                            >
+                                                <span
+                                                    className={`inline-block h-3 w-3 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${menuActive ? "translate-x-4" : "translate-x-1"}`}
+                                                />
+                                            </span>
+                                        </button>
+                                        <button
+                                            onClick={handleSaveMenu}
+                                            disabled={isSavingMenu || !pageDirty}
+                                            className={`h-9 px-4 rounded-xl text-sm font-semibold inline-flex items-center gap-2 justify-center min-w-[100px] ${isSavingMenu || !pageDirty ? "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed border border-[var(--cms-border)]" : "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"}`}
+                                        >
+                                            {isSavingMenu && <Loader2 className="w-4 h-4 animate-spin" />}
+                                            {isSavingMenu ? "Saving..." : "Save"}
+                                        </button>
+                                    </>
+                                )}
+                                <Link
+                                    href={`/dashboard/menus/${menu.id}/publish`}
+                                    className="h-9 px-3.5 rounded-xl text-xs font-semibold inline-flex items-center justify-center bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
+                                >
+                                    Publish
+                                </Link>
+                            </div>
+                            <div className="mt-3 border-t border-[var(--cms-border)] pt-3 flex flex-wrap items-center gap-2">
+                                {canManageMenus && (
+                                    <>
+                                        <Link
+                                            href={`/dashboard/menus/${menu.id}/themes`}
+                                            className="h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
+                                        >
+                                            Design Studio
+                                        </Link>
+                                        <button
+                                            onClick={handleExportMenu}
+                                            disabled={isExporting}
+                                            className="h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 justify-center bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)] disabled:opacity-50"
+                                        >
+                                            {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                                            {isExporting ? "Exporting..." : "Export"}
+                                        </button>
+                                    </>
+                                )}
+                                <Link
+                                    href={`/r/${menu.id}`}
+                                    target="_blank"
+                                    className="h-8 px-3 rounded-lg text-xs font-semibold inline-flex items-center justify-center bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] border border-[var(--cms-border)] hover:text-[var(--cms-text)]"
+                                >
+                                    View Public Page
+                                </Link>
+                            </div>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-[var(--cms-muted)] flex-wrap">
+                        <div className="mt-2 flex items-center justify-end gap-2 text-xs text-[var(--cms-muted)]">
                             <button
                                 onClick={collapseAllCategories}
                                 className="hover:text-[var(--cms-text)]"
                             >
                                 Collapse all
                             </button>
-                            <span className="text-[var(--cms-border)]">/</span>
+                            <span className="text-[var(--cms-border)]">•</span>
                             <button
                                 onClick={expandAllCategories}
                                 className="hover:text-[var(--cms-text)]"
@@ -1463,11 +1475,11 @@ export default function MenuDetailPage() {
                                                                 key={item.id}
                                                                 id={`item-${item.id}`}
                                                                 disabled={!canManageMenus}
-                                                                className={`p-3 bg-[var(--cms-panel-strong)] rounded-xl flex justify-between items-center group hover:bg-[var(--cms-pill)] transition-colors ${canOpenItemModal ? "cursor-pointer" : ""} ${item.is_sold_out ? "opacity-60" : ""}`}
+                                                                className={`px-3.5 py-3 bg-[var(--cms-panel-strong)] rounded-xl border border-transparent flex justify-between items-center group hover:bg-[var(--cms-pill)] hover:border-[var(--cms-border)] transition-colors ${canOpenItemModal ? "cursor-pointer" : ""} ${item.is_sold_out ? "opacity-60" : ""}`}
                                                             >
                                                                 {({ attributes: itemAttributes, listeners: itemListeners }) => (
                                                                     <div
-                                                                        className="flex w-full items-center justify-between"
+                                                                        className="flex w-full items-center justify-between gap-3"
                                                                         onClick={() => {
                                                                             if (isDragging) return;
                                                                             if (!canOpenItemModal) return;
@@ -1480,7 +1492,7 @@ export default function MenuDetailPage() {
                                                                             setFileToUpload(null);
                                                                         }}
                                                                     >
-                                                                        <div className="flex items-center gap-4">
+                                                                        <div className="flex min-w-0 items-center gap-3.5">
                                                                             {canManageMenus ? (
                                                                                 <button
                                                                                     className="text-[var(--cms-muted)] cursor-grab active:cursor-grabbing"
@@ -1496,13 +1508,22 @@ export default function MenuDetailPage() {
                                                                             {(item.photo_url || (item as any).photos?.[0]?.url) && (
                                                                                 <img src={item.photo_url || (item as any).photos?.[0]?.url} alt={item.name} className="w-10 h-10 rounded-lg object-cover bg-[var(--cms-panel-strong)]" />
                                                                             )}
-                                                                            <div>
-                                                                                <p className="font-medium">{item.name}</p>
-                                                                                <p className="text-xs text-[var(--cms-muted)] line-clamp-1">{item.description}</p>
+                                                                            <div className="min-w-0">
+                                                                                <div className="flex min-w-0 items-center gap-2">
+                                                                                    <p className="font-medium truncate">{item.name}</p>
+                                                                                    {Boolean(item.ar_video_url) && (
+                                                                                        <span className="inline-flex items-center rounded-md border border-cyan-500/30 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-cyan-300">
+                                                                                            AR
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                                {item.description && (
+                                                                                    <p className="text-xs text-[var(--cms-muted)] line-clamp-1">{item.description}</p>
+                                                                                )}
                                                                             </div>
                                                                         </div>
-                                                                        <div className="flex items-center gap-4">
-                                                                            <span className="font-mono text-sm">${item.price}</span>
+                                                                        <div className="ml-2 flex shrink-0 items-center gap-2.5">
+                                                                            <span className="font-mono text-sm tabular-nums">${item.price}</span>
                                                                             {item.is_sold_out && <span className="text-[10px] bg-red-500/10 text-red-500 px-2 py-1 rounded-full uppercase tracking-wider font-bold">Sold Out</span>}
                                                                         </div>
                                                                     </div>
