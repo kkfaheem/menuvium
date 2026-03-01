@@ -27,13 +27,13 @@ function JobRow({ job }: { job: AdminJob }) {
         setExpanded(!expanded);
     };
 
-    const getStatusVariant = (status: string) => {
+    const getStatusVariant = (status: string): "default" | "accent" | "success" | "warning" | "danger" | "outline" => {
         switch (status) {
             case "COMPLETED": return "success";
-            case "FAILED": return "destructive";
-            case "RUNNING": return "default";
+            case "FAILED": return "danger";
+            case "RUNNING": return "accent";
             case "QUEUED": return "outline";
-            default: return "secondary";
+            default: return "default";
         }
     };
 
