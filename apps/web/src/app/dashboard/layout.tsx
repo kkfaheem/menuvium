@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, QrCode, Zap } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, QrCode, Zap, Users, Activity, BarChart3, Shield } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -63,7 +63,9 @@ export default function DashboardLayout({
     if (!user) return null;
 
     const isManager = mode === "manager";
-
+    const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").toLowerCase().split(",").map(e => e.trim());
+    const userEmail = typeof user?.signInDetails?.loginId === 'string' ? user.signInDetails.loginId.toLowerCase() : "";
+    const isSuperAdmin = adminEmails.includes(userEmail);
     if (isModePage) {
         return (
             <div className="min-h-screen bg-background text-foreground">
@@ -226,23 +228,70 @@ export default function DashboardLayout({
                         </Link>
                     </nav>
 
-                    <div className="mt-auto pt-4 border-t border-border">
-                        {!isManager && (
-                            <Link
-                                href="/admin/menu-importer"
-                                onClick={() => setNavOpen(false)}
-                                className={cn(
-                                    "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors mb-1",
-                                    pathname.startsWith("/admin/menu-importer")
-                                        ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
-                                        : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
-                                )}
-                            >
-                                <Zap className="w-5 h-5" />
-                                Menu Importer
-                            </Link>
+                    <div className="mt-auto pt-4 border-t border-border space-y-2">
+                        {isSuperAdmin && (
+                            <div className="px-3 pb-2">
+                                <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--cms-muted)] mb-3 mt-2">
+                                    <Shield className="w-3.5 h-3.5" />
+                                    Super Admin
+                                </h4>
+                                <div className="space-y-1">
+                                    <Link
+                                        href="/dashboard/admin/analytics"
+                                        onClick={() => setNavOpen(false)}
+                                        className={cn(
+                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            pathname === "/dashboard/admin/analytics"
+                                                ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                                : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                        )}
+                                    >
+                                        <BarChart3 className="w-5 h-5" />
+                                        Platform Analytics
+                                    </Link>
+                                    <Link
+                                        href="/dashboard/admin/organizations"
+                                        onClick={() => setNavOpen(false)}
+                                        className={cn(
+                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            pathname.startsWith("/dashboard/admin/organizations")
+                                                ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                                : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                        )}
+                                    >
+                                        <Users className="w-5 h-5" />
+                                        Organizations
+                                    </Link>
+                                    <Link
+                                        href="/dashboard/admin/jobs"
+                                        onClick={() => setNavOpen(false)}
+                                        className={cn(
+                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            pathname.startsWith("/dashboard/admin/jobs")
+                                                ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                                : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                        )}
+                                    >
+                                        <Activity className="w-5 h-5" />
+                                        System Health
+                                    </Link>
+                                    <Link
+                                        href="/admin/menu-importer"
+                                        onClick={() => setNavOpen(false)}
+                                        className={cn(
+                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            pathname.startsWith("/admin/menu-importer")
+                                                ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                                : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                        )}
+                                    >
+                                        <Zap className="w-5 h-5" />
+                                        Menu Importer
+                                    </Link>
+                                </div>
+                            </div>
                         )}
-                        <div className="flex items-center gap-3 px-1 py-2">
+                        <div className="flex items-center gap-3 px-1 py-2 border-t border-border mt-2">
                             <ThemeToggle />
                         </div>
                         <button

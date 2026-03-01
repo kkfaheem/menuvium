@@ -284,3 +284,42 @@ export default {
     metadata: metadataApi,
     organization: organizationApi
 };
+
+// ============================================================================
+// Admin API
+// ============================================================================
+
+export interface AdminAnalytics {
+    total_organizations: number;
+    total_menus: number;
+    total_items: number;
+    total_jobs: number;
+}
+
+export interface AdminOrganization {
+    id: string;
+    name: string;
+    slug: string;
+    owner_id: string;
+    created_at: string;
+    menu_count: number;
+    member_count: number;
+}
+
+export interface AdminJob {
+    id: string;
+    restaurant_name: string;
+    status: string;
+    progress: number;
+    current_step: string | null;
+    created_at: string;
+    started_at?: string;
+    finished_at?: string;
+}
+
+export const adminApi = {
+    getAnalytics: () => api.get<AdminAnalytics>("/admin/analytics"),
+    getOrganizations: (page = 1, size = 20) => api.get<{ items: AdminOrganization[], total: number, page: number, size: number }>(`/admin/organizations?page=${page}&size=${size}`),
+    getJobs: (page = 1, size = 20) => api.get<{ items: AdminJob[], total: number, page: number, size: number }>(`/admin/jobs?page=${page}&size=${size}`),
+    getJobDetails: (id: string) => api.get<any>(`/admin/jobs/${id}`),
+};
