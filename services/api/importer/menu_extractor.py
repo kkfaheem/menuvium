@@ -70,10 +70,8 @@ async def extract_menu(website_url: str, log_fn=None) -> ParsedMenu:
         menu_urls = _discover_menu_links(website_url, soup)
         log_fn(f"Discovered {len(menu_urls)} potential menu URL(s)")
 
-        # Always extract homepage text (it may contain menu info)
-        # Use copy because _extract_menu_text_from_html mutates the soup
-        import copy
-        homepage_text = _extract_menu_text_from_html(copy.copy(soup))
+        # Re-parse from raw HTML for text extraction (avoid soup mutation issues)
+        homepage_text = _extract_menu_text_from_html(html)
         if len(homepage_text.strip()) > 100:
             all_text_parts.append(homepage_text)
             source_urls.append(website_url)
@@ -119,14 +117,14 @@ async def extract_menu(website_url: str, log_fn=None) -> ParsedMenu:
                     source_urls.append(url)
 
             else:  # HTML
-                page_soup = BeautifulSoup(content_bytes, "html.parser")
-                page_text = _extract_menu_text_from_html(page_soup)
+                page_text = _extract_menu_text_from_html(content_bytes)
                 if len(page_text.strip()) > 50:
                     all_text_parts.append(page_text)
                     source_urls.append(url)
                     log_fn(f"Extracted {len(page_text)} chars from HTML")
 
                 # Check for embedded PDF links on menu pages
+                page_soup = BeautifulSoup(content_bytes, "html.parser")
                 pdf_links = _find_pdf_links(url, page_soup)
                 for pdf_url in pdf_links[:2]:
                     try:
@@ -201,36 +199,42 @@ def _find_pdf_links(base_url: str, soup: BeautifulSoup) -> list[str]:
     return pdfs
 
 
-def _extract_menu_text_from_html(soup: BeautifulSoup) -> str:
-    """Extract readable text from HTML, focusing on content likely to be menu items.
+def _extract_menu_text_from_html(html: str | bytes) -> str:
+    """Extract readable text from HTML string (non-destructive).
 
-    NOTE: This function mutates the soup by decomposing elements.
-    Pass a copy if you need to reuse the soup object.
+    Accepts raw HTML string or bytes. Parses its own BeautifulSoup
+    so it never mutates any shared soup objects.
     """
-    # Remove script, style, and noscript — these never contain menu content
-    for tag in soup.find_all(["script", "style", "noscript"]):
-        tag.decompose()
+    soup = BeautifulSoup(html, "html.parser")
 
-    # Only remove nav/header/footer if they are small (< 500 chars)
-    # Large nav blocks might actually contain menu content
-    for tag in soup.find_all(["nav", "footer", "header"]):
-        if len(tag.get_text(strip=True)) < 500:
-            tag.decompose()
+    # Tags whose text content we skip entirely
+    SKIP_TAGS = {"script", "style", "noscript"}
 
-    # Try to find a main content area
-    main = (
+    # Try to find a main content area first
+    target = (
         soup.find("main")
         or soup.find("article")
-        or soup.find(id=re.compile(r"menu|content", re.I))
-        or soup.find(class_=re.compile(r"menu|content", re.I))
+        or soup.find(id=re.compile(r"content", re.I))
     )
-    target = main if main else soup.body if soup.body else soup
+    if target is None:
+        target = soup.body if soup.body else soup
 
     lines = []
-    for element in target.stripped_strings:
-        line = element.strip()
-        if line:
-            lines.append(line)
+    for element in target.descendants:
+        if element.name in SKIP_TAGS:
+            continue
+        if hasattr(element, "string") and element.string and not element.name:
+            # This is a NavigableString (text node)
+            text = element.strip()
+            if text and len(text) > 1:
+                # Skip if any ancestor is a skip tag
+                skip = False
+                for parent in element.parents:
+                    if parent.name in SKIP_TAGS:
+                        skip = True
+                        break
+                if not skip:
+                    lines.append(text)
 
     return "\n".join(lines)
 
