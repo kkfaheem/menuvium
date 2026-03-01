@@ -68,11 +68,15 @@ async def extract_menu(website_url: str, log_fn=None) -> ParsedMenu:
         log_fn(f"Discovered {len(menu_urls)} potential menu URL(s)")
 
         # Always extract homepage text (it may contain menu info)
-        homepage_text = _extract_menu_text_from_html(soup)
+        # Use copy because _extract_menu_text_from_html mutates the soup
+        import copy
+        homepage_text = _extract_menu_text_from_html(copy.copy(soup))
         if len(homepage_text.strip()) > 100:
             all_text_parts.append(homepage_text)
             source_urls.append(website_url)
             log_fn(f"Extracted {len(homepage_text)} chars from homepage")
+        else:
+            log_fn(f"Homepage text too short ({len(homepage_text.strip())} chars), skipping")
     except Exception as e:
         log_fn(f"Failed to fetch homepage: {e}")
 
@@ -195,13 +199,28 @@ def _find_pdf_links(base_url: str, soup: BeautifulSoup) -> list[str]:
 
 
 def _extract_menu_text_from_html(soup: BeautifulSoup) -> str:
-    """Extract readable text from HTML, focusing on content likely to be menu items."""
-    # Remove script, style, nav, footer, header elements
-    for tag in soup.find_all(["script", "style", "nav", "footer", "header", "noscript"]):
+    """Extract readable text from HTML, focusing on content likely to be menu items.
+
+    NOTE: This function mutates the soup by decomposing elements.
+    Pass a copy if you need to reuse the soup object.
+    """
+    # Remove script, style, and noscript — these never contain menu content
+    for tag in soup.find_all(["script", "style", "noscript"]):
         tag.decompose()
 
+    # Only remove nav/header/footer if they are small (< 500 chars)
+    # Large nav blocks might actually contain menu content
+    for tag in soup.find_all(["nav", "footer", "header"]):
+        if len(tag.get_text(strip=True)) < 500:
+            tag.decompose()
+
     # Try to find a main content area
-    main = soup.find("main") or soup.find("article") or soup.find(id=re.compile(r"menu|content", re.I))
+    main = (
+        soup.find("main")
+        or soup.find("article")
+        or soup.find(id=re.compile(r"menu|content", re.I))
+        or soup.find(class_=re.compile(r"menu|content", re.I))
+    )
     target = main if main else soup.body if soup.body else soup
 
     lines = []

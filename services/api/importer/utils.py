@@ -121,9 +121,16 @@ async def fetch_url(
                     resp = await client.get(url, headers=req_headers)
                     resp.raise_for_status()
                     return resp
-            except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+            except httpx.HTTPStatusError as exc:
+                # Don't retry client errors (4xx) — they won't change
+                if 400 <= exc.response.status_code < 500:
+                    raise
                 last_exc = exc
-                wait = 2 ** attempt  # 1s, 2s, 4s
+                wait = 2 ** attempt
+                await asyncio.sleep(wait)
+            except httpx.RequestError as exc:
+                last_exc = exc
+                wait = 2 ** attempt
                 await asyncio.sleep(wait)
     raise last_exc or RuntimeError(f"Failed to fetch {url}")
 
