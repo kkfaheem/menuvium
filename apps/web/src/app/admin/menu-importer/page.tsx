@@ -434,8 +434,8 @@ export default function MenuImporterPage() {
             {toast && (
                 <div
                     className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-2xl border text-sm font-medium flex items-center gap-2 animate-in slide-in-from-top-2 ${toast.type === "success"
-                            ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300"
-                            : "bg-red-500/20 border-red-500/30 text-red-300"
+                        ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300"
+                        : "bg-red-500/20 border-red-500/30 text-red-300"
                         }`}
                 >
                     {toast.type === "success" ? (
@@ -565,8 +565,8 @@ export default function MenuImporterPage() {
                                     key={tab.value}
                                     onClick={() => setFilter(tab.value)}
                                     className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${filter === tab.value
-                                            ? "bg-white/10 text-white"
-                                            : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                                        ? "bg-white/10 text-white"
+                                        : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
                                         }`}
                                 >
                                     {tab.label}
@@ -649,7 +649,7 @@ export default function MenuImporterPage() {
                                                             <Ban className="w-4 h-4" />
                                                         </button>
                                                     )}
-                                                    {(job.status === "FAILED" || job.status === "CANCELED" || job.status === "NEEDS_INPUT") && (
+                                                    {(job.status === "FAILED" || job.status === "CANCELED" || job.status === "NEEDS_INPUT" || job.status === "COMPLETED") && (
                                                         <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -769,7 +769,8 @@ export default function MenuImporterPage() {
                                     )}
                                 {(selectedJob.status === "FAILED" ||
                                     selectedJob.status === "CANCELED" ||
-                                    selectedJob.status === "NEEDS_INPUT") && (
+                                    selectedJob.status === "NEEDS_INPUT" ||
+                                    selectedJob.status === "COMPLETED") && (
                                         <button
                                             onClick={() => handleRetry(selectedJob.id)}
                                             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-semibold transition-colors"
