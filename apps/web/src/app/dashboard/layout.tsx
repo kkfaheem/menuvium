@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, QrCode } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, QrCode, Zap } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -227,6 +227,21 @@ export default function DashboardLayout({
                     </nav>
 
                     <div className="mt-auto pt-4 border-t border-border">
+                        {!isManager && (
+                            <Link
+                                href="/admin/menu-importer"
+                                onClick={() => setNavOpen(false)}
+                                className={cn(
+                                    "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors mb-1",
+                                    pathname.startsWith("/admin/menu-importer")
+                                        ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                        : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                )}
+                            >
+                                <Zap className="w-5 h-5" />
+                                Menu Importer
+                            </Link>
+                        )}
                         <div className="flex items-center gap-3 px-1 py-2">
                             <ThemeToggle />
                         </div>

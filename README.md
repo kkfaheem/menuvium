@@ -75,6 +75,22 @@ menuvium/
 - **macOS worker** — A Swift-based worker picks up pending AR jobs, runs Object Capture, and produces USDZ + GLB models.
 - **Job queue** — Jobs persist in Postgres (`pending` → `processing` → `ready`); no jobs are lost if the worker is offline.
 
+### Menu Importer (Admin)
+- **Admin-only page** at `/admin/menu-importer` — restricted via `ADMIN_EMAILS` allowlist.
+- **Automated pipeline** — Input a restaurant name → resolves website → extracts menu → collects dish images → enhances to studio quality → generates Menuvium-compatible ZIP.
+- **Background worker** — Polling worker processes jobs through a 9-step pipeline with progress tracking.
+- **Image enhancement** — LOCAL_ONLY (Pillow) or AI_ENHANCE (external API) modes.
+
+#### Menu Importer Environment Variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `ADMIN_EMAILS` | Yes | Comma-separated admin email addresses |
+| `GOOGLE_PLACES_API_KEY` | No | For restaurant website & photo discovery |
+| `SERPAPI_KEY` | No | Fallback website discovery via web search |
+| `IMAGE_ENHANCE_PROVIDER` | No | AI provider: `replicate` or `openai` |
+| `REPLICATE_API_TOKEN` | No | Required if IMAGE_ENHANCE_PROVIDER=replicate |
+
 ---
 
 ## Production Architecture

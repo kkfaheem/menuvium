@@ -6,10 +6,9 @@ from sqlmodel import SQLModel
 # Simple lifecycle to create tables on startup (for dev simplicity)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # In production, use Alembic. 
-    # This is just for local quickstart if needed, though we should prefer migrations.
-    # from database import get_engine
-    # SQLModel.metadata.create_all(get_engine())
+    # Start the menu-importer background worker
+    from importer.worker import start_worker
+    start_worker()
     yield
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,7 +37,7 @@ if os.getenv("LOCAL_UPLOADS") == "1":
     upload_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
 
-from routers import organizations, menus, categories, items, metadata, imports, export, ar_jobs
+from routers import organizations, menus, categories, items, metadata, imports, export, ar_jobs, menu_importer
 app.include_router(organizations.router)
 app.include_router(menus.router)
 app.include_router(categories.router)
@@ -47,6 +46,7 @@ app.include_router(ar_jobs.router)
 app.include_router(metadata.router)
 app.include_router(imports.router)
 app.include_router(export.router)
+app.include_router(menu_importer.router)
 
 @app.get("/health")
 def health_check():

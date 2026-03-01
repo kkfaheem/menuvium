@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import UniqueConstraint, Column, JSON
+from sqlalchemy import UniqueConstraint, Column, JSON, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import SQLModel, Field, Relationship
 
@@ -225,3 +225,55 @@ class OrgPermissionsRead(SQLModel):
     can_edit_items: bool
     can_manage_menus: bool
     can_manage_users: bool
+
+
+# ================== Menu Importer Job ==================
+
+
+class ImportJob(SQLModel, table=True):
+    __tablename__ = "importjob"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    restaurant_name: str
+    location_hint: Optional[str] = None
+    website_override: Optional[str] = None
+    status: str = Field(default="QUEUED", index=True)
+    progress: int = Field(default=0)
+    current_step: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    result_zip_key: Optional[str] = None
+    error_message: Optional[str] = None
+    logs: Optional[str] = Field(default="[]", sa_column=Column(Text))
+    metadata_json: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON().with_variant(JSONB, "postgresql")),
+    )
+    created_by: str = Field(index=True)
+
+
+class ImportJobCreate(SQLModel):
+    restaurant_name: str
+    location_hint: Optional[str] = None
+    website_override: Optional[str] = None
+
+
+class ImportJobRead(SQLModel):
+    id: uuid.UUID
+    restaurant_name: str
+    location_hint: Optional[str] = None
+    website_override: Optional[str] = None
+    status: str
+    progress: int
+    current_step: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    result_zip_key: Optional[str] = None
+    error_message: Optional[str] = None
+    logs: Optional[str] = None
+    metadata_json: Optional[dict] = None
+    created_by: str
