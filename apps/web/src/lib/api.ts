@@ -294,6 +294,7 @@ export interface AdminAnalytics {
     total_menus: number;
     total_items: number;
     total_jobs: number;
+    total_ai_tokens: number;
 }
 
 export interface AdminOrganization {

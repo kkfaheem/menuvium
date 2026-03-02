@@ -174,6 +174,7 @@ async def _process_job(job_id):
 
         parsed_menu = await extract_menu(website_url, log_fn=log)
         total_items = sum(len(c.items) for c in parsed_menu.categories)
+        total_ai_tokens = getattr(parsed_menu, "ai_tokens", 0)
         log(f"Menu extraction complete: {len(parsed_menu.categories)} categories, {total_items} items")
 
         # ---- GATE: If no items found, fail ----
@@ -208,6 +209,7 @@ async def _process_job(job_id):
                 "menu_source_urls": parsed_menu.source_urls,
                 "categories_count": len(parsed_menu.categories),
                 "items_count": total_items,
+                "ai_tokens": total_ai_tokens,
             },
         )
 
@@ -215,14 +217,16 @@ async def _process_job(job_id):
         _log_and_update(job_id, "Enriching items with AI (descriptions, tags, allergens)...", 35, "AI enrichment")
 
         parsed_menu = await enrich_items_with_ai(parsed_menu, log_fn=log)
+        total_ai_tokens = getattr(parsed_menu, "ai_tokens", total_ai_tokens)
         _update_job(job_id, progress=42, current_step="Creating style template")
 
         # ---- Step 3b: Generate consistent style template (42 → 45%) ----
         # Determine cuisine from category names
         category_names = ", ".join(cat.name for cat in parsed_menu.categories[:5])
-        style_template = await generate_style_template(
+        style_template, style_tokens = await generate_style_template(
             restaurant_name, category_names, log_fn=log
         )
+        total_ai_tokens += style_tokens
         _update_job(job_id, progress=45, current_step="Finding dish images")
 
         # ---- Step 4: Per-dish image search (45 → 80%) ----
@@ -347,6 +351,7 @@ async def _process_job(job_id):
                 "items_count": total_items,
                 "images_count": images_found,
                 "zip_size_bytes": len(zip_data),
+                "ai_tokens": total_ai_tokens,
             },
         )
         _append_log(job_id, "✅ Job completed successfully!")

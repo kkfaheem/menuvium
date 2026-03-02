@@ -18,6 +18,7 @@ class AdminAnalyticsResponse(BaseModel):
     total_menus: int
     total_items: int
     total_jobs: int
+    total_ai_tokens: int = 0
 
 
 class AdminOrganizationRead(BaseModel):
@@ -54,11 +55,26 @@ def get_global_analytics(session: Session = Depends(get_session)):
     item_count = session.exec(select(func.count(Item.id))).one()
     job_count = session.exec(select(func.count(ImportJob.id))).one()
     
+    # Calculate total AI tokens
+    jobs_meta = session.exec(select(ImportJob.metadata_json).where(ImportJob.metadata_json != None)).all()
+    # Handle cases where metadata might be a string (SQLite) instead of a dict (Postgres JSONB)
+    total_ai_tokens = 0
+    import json
+    for meta in jobs_meta:
+        if isinstance(meta, str):
+            try:
+                meta = json.loads(meta)
+            except:
+                meta = {}
+        if isinstance(meta, dict):
+            total_ai_tokens += meta.get("ai_tokens", 0)
+    
     return AdminAnalyticsResponse(
         total_organizations=org_count,
         total_menus=menu_count,
         total_items=item_count,
         total_jobs=job_count,
+        total_ai_tokens=total_ai_tokens,
     )
 
 

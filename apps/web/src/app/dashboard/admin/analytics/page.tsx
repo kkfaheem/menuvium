@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useRouter } from "next/navigation";
-import { BarChart3, Users, UtensilsCrossed, Layers, Activity } from "lucide-react";
+import { BarChart3, Users, UtensilsCrossed, Layers, Activity, Sparkles } from "lucide-react";
 import { adminApi, AdminAnalytics } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
@@ -106,6 +106,21 @@ export default function AdminAnalyticsPage() {
                         </div>
                         <div className="h-12 w-12 rounded-2xl bg-[var(--cms-accent-subtle)] flex items-center justify-center text-[var(--cms-accent)]">
                             <Activity className="w-6 h-6" />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="p-6 flex items-center justify-between">
+                        <div>
+                            <p className="text-sm font-medium text-muted">AI Tokens Used</p>
+                            <h2 className="text-3xl font-bold mt-1">{(analytics?.total_ai_tokens ?? 0).toLocaleString()}</h2>
+                            <p className="text-xs text-[#a1a1aa] mt-1">
+                                Est. ${((analytics?.total_ai_tokens ?? 0) * 0.00000035).toFixed(4)} cost
+                            </p>
+                        </div>
+                        <div className="h-12 w-12 rounded-2xl bg-[var(--cms-accent-subtle)] flex items-center justify-center text-[var(--cms-accent)]">
+                            <Sparkles className="w-6 h-6" />
                         </div>
                     </CardContent>
                 </Card>

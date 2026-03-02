@@ -43,6 +43,7 @@ class ParsedMenu:
     categories: list[ParsedCategory] = field(default_factory=list)
     raw_text: str = ""
     source_urls: list[str] = field(default_factory=list)
+    ai_tokens: int = 0
 
 
 # Common menu page path patterns
@@ -477,8 +478,9 @@ async def _parse_with_openai(text: str, log_fn) -> ParsedMenu:
                 ))
             categories.append(ParsedCategory(name=cat.get("name", "Menu Items"), items=items))
 
-        log_fn(f"Parsed {sum(len(c.items) for c in categories)} items in {len(categories)} categories")
-        return ParsedMenu(categories=categories)
+        tokens = response.usage.total_tokens if response.usage else 0
+        log_fn(f"Parsed {sum(len(c.items) for c in categories)} items in {len(categories)} categories ({tokens} tokens)")
+        return ParsedMenu(categories=categories, ai_tokens=tokens)
 
     except Exception as e:
         log_fn(f"OpenAI parsing failed: {e}, using fallback")
@@ -626,7 +628,9 @@ async def enrich_items_with_ai(parsed_menu: ParsedMenu, log_fn=None) -> ParsedMe
                 item.allergens = e.get("allergens", [])
                 count += 1
 
-        log_fn(f"AI-enriched {count} items (tags/allergens), filled {desc_filled} missing descriptions")
+        tokens = response.usage.total_tokens if response.usage else 0
+        parsed_menu.ai_tokens += tokens
+        log_fn(f"AI-enriched {count} items (tags/allergens), filled {desc_filled} missing descriptions ({tokens} tokens)")
 
     except Exception as e:
         log_fn(f"AI enrichment failed: {e}")
@@ -638,7 +642,7 @@ async def generate_style_template(
     restaurant_name: str,
     cuisine_hint: str,
     log_fn=None,
-) -> str:
+) -> tuple[str, int]:
     """Use AI to create a consistent image search style template for a restaurant.
 
     Returns a comma-separated string of search keywords to append to every dish
@@ -652,7 +656,7 @@ async def generate_style_template(
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         log_fn("OPENAI_API_KEY not set — using default style template")
-        return default_style
+        return default_style, 0
 
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
@@ -687,11 +691,12 @@ async def generate_style_template(
 
         result = json.loads(response.choices[0].message.content)
         style = result.get("style", default_style)
-        log_fn(f"Generated style template: {style}")
-        return style
+        tokens = response.usage.total_tokens if response.usage else 0
+        log_fn(f"Generated style template: {style} ({tokens} tokens)")
+        return style, tokens
 
     except Exception as e:
         log_fn(f"Style template generation failed: {e}")
-        return default_style
+        return default_style, 0
 
 
