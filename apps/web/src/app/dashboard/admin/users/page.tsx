@@ -30,7 +30,8 @@ export default function AdminUsersPage() {
             setUsers(data.items);
         } catch (err: any) {
             console.error("Failed to load users", err);
-            setError(err.message || "Failed to load users");
+            const msg = err.detail ? `${err.message}: ${err.detail}` : (err.message || "Failed to load users");
+            setError(msg);
         } finally {
             setLoading(false);
         }

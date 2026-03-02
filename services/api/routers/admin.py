@@ -432,6 +432,7 @@ def list_users():
         # Note: In a real app with many users, implement proper PaginationToken handling.
         response = client.list_users(UserPoolId=user_pool_id, Limit=60)
         users = []
+        from datetime import timezone
         for u in response.get("Users", []):
             email = next((attr["Value"] for attr in u.get("Attributes", []) if attr["Name"] == "email"), u["Username"])
             users.append(AdminUserRead(
@@ -439,13 +440,14 @@ def list_users():
                 email=email,
                 status=u.get("UserStatus", "UNKNOWN"),
                 enabled=u.get("Enabled", False),
-                created_at=u.get("UserCreateDate", datetime.utcnow()),
-                updated_at=u.get("UserLastModifiedDate", datetime.utcnow())
+                created_at=u.get("UserCreateDate", datetime.now(timezone.utc)),
+                updated_at=u.get("UserLastModifiedDate", datetime.now(timezone.utc))
             ))
         # Sort by creation date descending
         users.sort(key=lambda x: x.created_at, reverse=True)
         return AdminUsersResponse(items=users)
     except Exception as e:
+        print(f"DEBUG: Cognito Error in list_users: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Cognito error: {str(e)}")
 
 @router.post("/users/{username}/disable")
