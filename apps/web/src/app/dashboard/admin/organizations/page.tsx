@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Users, Search, Trash2, ChevronLeft, ChevronRight, Plus, Edit } from "lucide-react";
+import { Building2, Search, Trash2, Edit, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { adminApi, AdminOrganization } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 
 export default function AdminOrganizationsPage() {
     const { user } = useAuthenticator((context) => [context.user]);
@@ -105,18 +106,12 @@ export default function AdminOrganizationsPage() {
             <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">
                     <h1 className="font-heading text-3xl font-bold tracking-tight flex items-center gap-3">
-                        <Users className="w-8 h-8 text-[var(--cms-accent)]" />
-                        Organizations
+                        <Building2 className="w-8 h-8 text-[var(--cms-accent)]" />
+                        Companies
                     </h1>
-                    <p className="text-muted">Manage all onboarded companies.</p>
+                    <p className="text-muted">Manage all restaurant companies and their locations on the platform.</p>
                 </div>
                 <div className="relative w-full max-w-sm flex items-center gap-3">
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="h-9 px-4 rounded-md bg-[var(--cms-accent)] text-white text-sm font-semibold hover:opacity-90 transition-opacity whitespace-nowrap"
-                    >
-                        New Organization
-                    </button>
                     <div className="relative flex-1">
                         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted">
                             <Search className="w-4 h-4" />
@@ -125,10 +120,22 @@ export default function AdminOrganizationsPage() {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search by name or slug..."
+                            placeholder="Search companies..."
                             className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pl-9 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         />
                     </div>
+                    <button
+                        onClick={() => {
+                            setEditingOrg(null);
+                            setNewName("");
+                            setNewOwnerId("");
+                            setShowAddModal(true);
+                        }}
+                        className="flex items-center gap-2 px-3 py-1.5 h-9 bg-[var(--cms-accent)] text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity whitespace-nowrap"
+                    >
+                        <Plus className="w-4 h-4" />
+                        New Company
+                    </button>
                 </div>
             </header>
 
@@ -136,7 +143,7 @@ export default function AdminOrganizationsPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 text-foreground">
                     <Card className="w-full max-w-md shadow-2xl">
                         <CardHeader>
-                            <CardTitle>{editingOrg ? "Edit Organization" : "Create New Organization"}</CardTitle>
+                            <CardTitle>{editingOrg ? "Edit Company" : "Create New Company"}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">
@@ -171,7 +178,7 @@ export default function AdminOrganizationsPage() {
                                     disabled={!newName || !newOwnerId || loading}
                                     className="px-4 py-2 rounded-md bg-[var(--cms-accent)] text-white font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity text-sm"
                                 >
-                                    {loading ? "Creating..." : "Create Organization"}
+                                    {loading ? "Saving..." : "Save Company"}
                                 </button>
                             </div>
                         </CardContent>
@@ -191,10 +198,9 @@ export default function AdminOrganizationsPage() {
                         <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead>
                                 <tr className="border-b border-border bg-panelStrong/50">
-                                    <th className="p-4 font-semibold text-muted">Company Name</th>
-                                    <th className="p-4 font-semibold text-muted">Slug</th>
-                                    <th className="p-4 font-semibold text-muted">Created At</th>
-                                    <th className="p-4 font-semibold text-muted">Members</th>
+                                    <th className="p-4 font-semibold text-muted">Company</th>
+                                    <th className="p-4 font-semibold text-muted">Owner</th>
+                                    <th className="p-4 font-semibold text-muted">Employees</th>
                                     <th className="p-4 font-semibold text-muted">Menus</th>
                                     <th className="p-4 font-semibold text-muted text-right">Actions</th>
                                 </tr>
@@ -215,12 +221,36 @@ export default function AdminOrganizationsPage() {
                                 ) : (
                                     organizations.map((org) => (
                                         <tr key={org.id} className="border-b border-border last:border-0 hover:bg-panelStrong/50 transition-colors">
-                                            <td className="p-4 font-medium text-foreground">{org.name}</td>
-                                            <td className="p-4 text-muted font-mono text-xs">{org.slug}</td>
-                                            <td className="p-4 text-muted">
-                                                {new Date(org.created_at).toLocaleDateString()}
+                                            <td className="p-4">
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium text-foreground">{org.name}</span>
+                                                    <span className="text-xs text-muted font-mono">{org.slug}</span>
+                                                </div>
                                             </td>
-                                            <td className="p-4 text-muted">{org.member_count}</td>
+                                            <td className="p-4">
+                                                <div className="flex flex-col max-w-[200px]">
+                                                    <span className="text-foreground truncate" title={org.owner_email || ""}>{org.owner_email || "N/A"}</span>
+                                                    <span className="text-[10px] text-muted font-mono truncate">{org.owner_id}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge variant="default">{org.member_count}</Badge>
+                                                        <span className="text-xs text-muted">Members</span>
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1 max-w-[300px]">
+                                                        {org.members && org.members.slice(0, 3).map(m => (
+                                                            <span key={m.id} className="text-[10px] px-1.5 py-0.5 bg-panelStrong rounded-md text-muted truncate max-w-[120px]">
+                                                                {m.email}
+                                                            </span>
+                                                        ))}
+                                                        {org.member_count > 3 && (
+                                                            <span className="text-[10px] text-muted">+{org.member_count - 3} more</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
                                             <td className="p-4 text-muted">{org.menu_count}</td>
                                             <td className="p-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">

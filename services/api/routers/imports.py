@@ -334,7 +334,7 @@ def _select_manifest_path(zf: zipfile.ZipFile) -> tuple[str, str]:
     return manifest_path, base_prefix
 
 
-def _resolve_zip_member(zip_files: set[str], base_prefix: str, path: str) -> str | None:
+def _resolve_zip_member(zip_files: set[str], base_prefix: str, path: str) -> Optional[str]:
     if not path:
         return None
     cleaned = path.lstrip("./").lstrip("/")

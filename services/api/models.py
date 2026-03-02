@@ -18,7 +18,9 @@ class Organization(SQLModel, table=True):
 
 class OrganizationMemberBase(SQLModel):
     org_id: uuid.UUID = Field(foreign_key="organization.id", index=True)
+    user_id: Optional[str] = Field(default=None, index=True) # Cognito sub
     email: str = Field(index=True)
+    role: Optional[str] = Field(default="member") # owner, manager, member
     can_manage_availability: bool = Field(default=False)
     can_edit_items: bool = Field(default=False)
     can_manage_menus: bool = Field(default=False)

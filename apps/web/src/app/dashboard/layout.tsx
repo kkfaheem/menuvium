@@ -274,7 +274,7 @@ export default function DashboardLayout({
                                         )}
                                     >
                                         <UserCircle className="w-5 h-5" />
-                                        User Directory
+                                        Users
                                     </Link>
                                     <Link
                                         href="/dashboard/admin/organizations"
@@ -286,8 +286,8 @@ export default function DashboardLayout({
                                                 : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
                                         )}
                                     >
-                                        <Users className="w-5 h-5" />
-                                        Organizations
+                                        <Building2 className="w-5 h-5" />
+                                        Companies
                                     </Link>
                                     <Link
                                         href="/dashboard/admin/subscriptions"

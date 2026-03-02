@@ -28,14 +28,22 @@ class AdminAnalyticsResponse(BaseModel):
     ar_failed: int = 0
 
 
+class AdminMemberRead(BaseModel):
+    id: uuid.UUID
+    email: str
+    role: Optional[str]
+    user_id: Optional[str]
+
 class AdminOrganizationRead(BaseModel):
     id: uuid.UUID
     name: str
     slug: str
     owner_id: str
+    owner_email: Optional[str] = None
     created_at: datetime
     menu_count: int
     member_count: int
+    members: List[AdminMemberRead] = []
 
 
 class AdminOrganizationsResponse(BaseModel):
@@ -141,16 +149,30 @@ def list_organizations(
     for org in orgs:
         # Get counts for this org
         menu_count = session.exec(select(func.count(Menu.id)).where(Menu.org_id == org.id)).one()
-        member_count = session.exec(select(func.count(OrganizationMember.id)).where(OrganizationMember.org_id == org.id)).one()
+        all_members = session.exec(select(OrganizationMember).where(OrganizationMember.org_id == org.id)).all()
+        
+        member_reads = [
+            AdminMemberRead(
+                id=m.id,
+                email=m.email,
+                role=m.role,
+                user_id=m.user_id
+            ) for m in all_members
+        ]
+        
+        # Try to find owner's email
+        owner_email = next((m.email for m in all_members if m.user_id == org.owner_id or m.role == "owner"), None)
         
         results.append(AdminOrganizationRead(
             id=org.id,
             name=org.name,
             slug=org.slug,
             owner_id=org.owner_id,
+            owner_email=owner_email,
             created_at=org.created_at,
             menu_count=menu_count,
-            member_count=member_count,
+            member_count=len(all_members),
+            members=member_reads
         ))
         
     return AdminOrganizationsResponse(

@@ -98,9 +98,9 @@ export default function AdminUsersPage() {
                 <div className="space-y-2">
                     <h1 className="font-heading text-3xl font-bold tracking-tight flex items-center gap-3">
                         <UsersIcon className="w-8 h-8 text-[var(--cms-accent)]" />
-                        Platform Users
+                        Users
                     </h1>
-                    <p className="text-muted">Manage Cognito user pool accounts and impersonate restaurant owners.</p>
+                    <p className="text-muted">Manage all platform accounts, employees, and restaurant owners.</p>
                 </div>
                 <div className="relative w-full max-w-sm flex items-center gap-3">
                     <div className="relative flex-1">

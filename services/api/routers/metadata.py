@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select, delete
 from pydantic import BaseModel
@@ -10,7 +10,7 @@ SessionDep = Depends(get_session)
 
 class DietaryTagCreate(BaseModel):
     name: str
-    icon: str | None = None
+    icon: Optional[str] = None
 
 class AllergenCreate(BaseModel):
     name: str

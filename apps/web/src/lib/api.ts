@@ -310,14 +310,23 @@ export interface AdminUser {
     updated_at: string;
 }
 
+export interface AdminMember {
+    id: string;
+    email: string;
+    role: string | null;
+    user_id: string | null;
+}
+
 export interface AdminOrganization {
     id: string;
     name: string;
     slug: string;
     owner_id: string;
+    owner_email: string | null;
     created_at: string;
     menu_count: number;
     member_count: number;
+    members: AdminMember[];
 }
 
 export interface AdminJob {

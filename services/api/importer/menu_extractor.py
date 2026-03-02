@@ -12,7 +12,7 @@ import io
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Union, List
 from urllib.parse import urlparse, urljoin
 
 from bs4 import BeautifulSoup
@@ -209,7 +209,7 @@ def _find_pdf_links(base_url: str, soup: BeautifulSoup) -> list[str]:
     return pdfs
 
 
-def _extract_menu_text_from_html(html: str | bytes) -> str:
+def _extract_menu_text_from_html(html: Union[str, bytes]) -> str:
     """Extract readable text from HTML string (non-destructive).
 
     Accepts raw HTML string or bytes. Parses its own BeautifulSoup

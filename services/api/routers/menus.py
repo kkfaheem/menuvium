@@ -122,7 +122,7 @@ class GenerateTitleDesignRequest(BaseModel):
 @router.post("/generate-title-design/{menu_id}")
 def generate_title_design(
     menu_id: uuid.UUID,
-    request_body: GenerateTitleDesignRequest | None = None,
+    request_body: Optional[GenerateTitleDesignRequest] = None,
     session: Session = SessionDep,
     user: dict = UserDep
 ):
