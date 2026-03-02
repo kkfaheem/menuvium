@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Users as UsersIcon, Search, Shield, ShieldOff, Key, UserCheck, LogOut } from "lucide-react";
+import { Users as UsersIcon, Search, Shield, ShieldOff, Key, UserCheck, LogOut, Eye } from "lucide-react";
 import { adminApi, AdminUser } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import Link from "next/link";
 
 export default function AdminUsersPage() {
     const { user: currentUser } = useAuthenticator((context) => [context.user]);
@@ -185,6 +186,13 @@ export default function AdminUsersPage() {
                                             </td>
                                             <td className="p-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
+                                                    <Link
+                                                        href={`/dashboard/admin/users/${u.username}`}
+                                                        className="p-2 text-muted hover:bg-panelStrong rounded-md transition-colors"
+                                                        title="View Profile"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </Link>
                                                     <button
                                                         onClick={() => handleResetPassword(u.username)}
                                                         className="p-2 text-muted hover:bg-panelStrong rounded-md transition-colors"

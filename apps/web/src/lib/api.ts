@@ -340,6 +340,27 @@ export interface AdminJob {
     finished_at?: string;
 }
 
+export interface AdminCompanyDetail extends AdminOrganization {
+    item_count: number;
+    total_ai_tokens: number;
+    ar_ready: number;
+    ar_pending: number;
+    ar_processing: number;
+    ar_failed: number;
+    recent_jobs: AdminJob[];
+}
+
+export interface UserCompanyAffiliation {
+    org_id: string;
+    org_name: string;
+    role: string | null;
+}
+
+export interface AdminUserDetail extends AdminUser {
+    companies: UserCompanyAffiliation[];
+    recent_jobs: AdminJob[];
+}
+
 export interface AdminARJob {
     id: string;
     name: string;
@@ -380,6 +401,8 @@ export const adminApi = {
 
     // User & Organization Management
     getUsers: () => api.get<{ items: AdminUser[] }>(`/admin/users`),
+    getUserDetail: (username: string) => api.get<AdminUserDetail>(`/admin/users/${username}`),
+    getCompanyDetail: (id: string) => api.get<AdminCompanyDetail>(`/admin/companies/${id}`),
     disableUser: (username: string) => api.post<any>(`/admin/users/${username}/disable`),
     enableUser: (username: string) => api.post<any>(`/admin/users/${username}/enable`),
     resetUserPassword: (username: string) => api.post<any>(`/admin/users/${username}/reset-password`),

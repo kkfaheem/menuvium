@@ -45,6 +45,15 @@ class AdminOrganizationRead(BaseModel):
     member_count: int
     members: List[AdminMemberRead] = []
 
+class AdminCompanyDetail(AdminOrganizationRead):
+    item_count: int
+    total_ai_tokens: int
+    ar_ready: int
+    ar_pending: int
+    ar_processing: int
+    ar_failed: int
+    recent_jobs: List[ImportJob]
+
 
 class AdminOrganizationsResponse(BaseModel):
     items: List[AdminOrganizationRead]
@@ -265,6 +274,102 @@ def update_organization(org_id: uuid.UUID, data: AdminOrganizationUpdate, sessio
     )
 
 
+@router.get("/companies/{org_id}", response_model=AdminCompanyDetail)
+def get_company_detail(org_id: uuid.UUID, session: Session = Depends(get_session)):
+    """Get detailed information about a single company."""
+    org = session.get(Organization, org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Company not found")
+
+    # Aggregated Counts
+    menu_count = session.exec(select(func.count(Menu.id)).where(Menu.org_id == org.id)).one()
+    item_count = session.exec(
+        select(func.count(Item.id))
+        .join(Category, Item.category_id == Category.id)
+        .join(Menu, Category.menu_id == Menu.id)
+        .where(Menu.org_id == org.id)
+    ).one()
+
+    # Members
+    all_members = session.exec(select(OrganizationMember).where(OrganizationMember.org_id == org.id)).all()
+    member_reads = [
+        AdminMemberRead(
+            id=m.id,
+            email=m.email,
+            role=m.role,
+            user_id=m.user_id
+        ) for m in all_members
+    ]
+    owner_email = next((m.email for m in all_members if m.user_id == org.owner_id or m.role == "owner"), None)
+
+    # AR Stats
+    ar_ready = session.exec(
+        select(func.count(Item.id))
+        .join(Category, Item.category_id == Category.id)
+        .join(Menu, Category.menu_id == Menu.id)
+        .where(Menu.org_id == org.id, Item.ar_status == "ready")
+    ).one()
+    ar_pending = session.exec(
+        select(func.count(Item.id))
+        .join(Category, Item.category_id == Category.id)
+        .join(Menu, Category.menu_id == Menu.id)
+        .where(Menu.org_id == org.id, Item.ar_status == "pending")
+    ).one()
+    ar_processing = session.exec(
+        select(func.count(Item.id))
+        .join(Category, Item.category_id == Category.id)
+        .join(Menu, Category.menu_id == Menu.id)
+        .where(Menu.org_id == org.id, Item.ar_status == "processing")
+    ).one()
+    ar_failed = session.exec(
+        select(func.count(Item.id))
+        .join(Category, Item.category_id == Category.id)
+        .join(Menu, Category.menu_id == Menu.id)
+        .where(Menu.org_id == org.id, Item.ar_status == "failed")
+    ).one()
+
+    # AI Tokens (from jobs)
+    # Note: ImportJob doesn't have org_id directly, but we can search for jobs where restaurant_name matches or recent jobs.
+    # For now, let's get recent jobs related to this company.
+    # A better way would be to link ImportJob to Organization, but for now we'll use restaurant_name heuristic or just skip tokens for detail if unsure.
+    # Let's try to find jobs with restaurant_name ilike org.name
+    recent_jobs = session.exec(
+        select(ImportJob)
+        .where(ImportJob.restaurant_name.ilike(f"%{org.name}%"))
+        .order_by(ImportJob.created_at.desc())
+        .limit(10)
+    ).all()
+
+    total_ai_tokens = 0
+    import json
+    for job in recent_jobs:
+        meta = job.metadata_json
+        if isinstance(meta, str):
+            try: meta = json.loads(meta)
+            except: meta = {}
+        if isinstance(meta, dict):
+            total_ai_tokens += meta.get("ai_tokens", 0)
+
+    return AdminCompanyDetail(
+        id=org.id,
+        name=org.name,
+        slug=org.slug,
+        owner_id=org.owner_id,
+        owner_email=owner_email,
+        created_at=org.created_at,
+        menu_count=menu_count,
+        member_count=len(all_members),
+        members=member_reads,
+        item_count=item_count,
+        total_ai_tokens=total_ai_tokens,
+        ar_ready=ar_ready,
+        ar_pending=ar_pending,
+        ar_processing=ar_processing,
+        ar_failed=ar_failed,
+        recent_jobs=recent_jobs
+    )
+
+
 @router.delete("/organizations/{org_id}")
 def delete_organization(org_id: uuid.UUID, session: Session = Depends(get_session)):
     """Super Admin endpoint to completely delete an organization and all cascading data."""
@@ -438,6 +543,15 @@ class AdminUserRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+class UserCompanyAffiliation(BaseModel):
+    org_id: uuid.UUID
+    org_name: str
+    role: Optional[str]
+
+class AdminUserDetail(AdminUserRead):
+    companies: List[UserCompanyAffiliation]
+    recent_jobs: List[ImportJob]
+
 class AdminUsersResponse(BaseModel):
     items: List[AdminUserRead]
     # Pagination might be tricky with Cognito's PaginationToken, so doing simple approach
@@ -471,6 +585,57 @@ def list_users():
     except Exception as e:
         print(f"DEBUG: Cognito Error in list_users: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Cognito error: {str(e)}")
+
+@router.get("/users/{username}", response_model=AdminUserDetail)
+def get_user_detail(username: str, session: Session = Depends(get_session)):
+    """Get detailed information about a single user from Cognito and DB."""
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    client = get_cognito_client()
+    
+    try:
+        response = client.admin_get_user(UserPoolId=user_pool_id, Username=username)
+        email = next((attr["Value"] for attr in response.get("UserAttributes", []) if attr["Name"] == "email"), username)
+        
+        user_read = AdminUserRead(
+            username=response["Username"],
+            email=email,
+            status=response.get("UserStatus", "UNKNOWN"),
+            enabled=response.get("Enabled", False),
+            created_at=response.get("UserCreateDate", datetime.utcnow()),
+            updated_at=response.get("UserLastModifiedDate", datetime.utcnow())
+        )
+        
+        # Find company affiliations
+        memberships = session.exec(
+            select(OrganizationMember, Organization.name)
+            .join(Organization, OrganizationMember.org_id == Organization.id)
+            .where((OrganizationMember.user_id == response["Username"]) | (OrganizationMember.email == email))
+        ).all()
+        
+        affiliations = [
+            UserCompanyAffiliation(
+                org_id=m.org_id,
+                org_name=org_name,
+                role=m.role
+            ) for m, org_name in memberships
+        ]
+        
+        # Recent jobs by this user
+        recent_jobs = session.exec(
+            select(ImportJob)
+            .where(ImportJob.created_by == email)
+            .order_by(ImportJob.created_at.desc())
+            .limit(10)
+        ).all()
+        
+        return AdminUserDetail(
+            **user_read.model_dump(),
+            companies=affiliations,
+            recent_jobs=recent_jobs
+        )
+    except Exception as e:
+        print(f"DEBUG: Cognito Error in get_user_detail: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching user: {str(e)}")
 
 @router.post("/users/{username}/disable")
 def disable_user(username: str):

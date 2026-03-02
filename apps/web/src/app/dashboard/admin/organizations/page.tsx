@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Building2, Search, Trash2, Edit, Plus, ChevronLeft, ChevronRight } from "lucide-react";
+import { Building2, Search, Trash2, Edit, Plus, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { adminApi, AdminOrganization } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import Link from "next/link";
 
 export default function AdminOrganizationsPage() {
     const { user } = useAuthenticator((context) => [context.user]);
@@ -254,6 +255,13 @@ export default function AdminOrganizationsPage() {
                                             <td className="p-4 text-muted">{org.menu_count}</td>
                                             <td className="p-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
+                                                    <Link
+                                                        href={`/dashboard/admin/organizations/${org.id}`}
+                                                        className="p-2 text-muted hover:bg-panelStrong rounded-md transition-colors"
+                                                        title="View Details"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </Link>
                                                     <button
                                                         onClick={() => handleEdit(org)}
                                                         className="p-2 text-muted hover:bg-panelStrong rounded-md transition-colors"
