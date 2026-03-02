@@ -22,6 +22,10 @@ class AdminAnalyticsResponse(BaseModel):
     total_items: int
     total_jobs: int
     total_ai_tokens: int = 0
+    ar_ready: int = 0
+    ar_pending: int = 0
+    ar_processing: int = 0
+    ar_failed: int = 0
 
 
 class AdminOrganizationRead(BaseModel):
@@ -43,6 +47,27 @@ class AdminOrganizationsResponse(BaseModel):
 
 class AdminJobsResponse(BaseModel):
     items: List[ImportJob]
+    total: int
+    page: int
+    size: int
+
+
+class AdminARJobRead(BaseModel):
+    id: uuid.UUID
+    name: str
+    restaurant_name: str
+    ar_status: Optional[str]
+    ar_error_message: Optional[str]
+    ar_created_at: Optional[datetime]
+    ar_updated_at: Optional[datetime]
+    ar_stage: Optional[str]
+    ar_stage_detail: Optional[str]
+    ar_progress: Optional[float]
+    ar_job_id: Optional[uuid.UUID]
+
+
+class AdminARJobsResponse(BaseModel):
+    items: List[AdminARJobRead]
     total: int
     page: int
     size: int
@@ -71,6 +96,12 @@ def get_global_analytics(session: Session = Depends(get_session)):
                 meta = {}
         if isinstance(meta, dict):
             total_ai_tokens += meta.get("ai_tokens", 0)
+
+    # AR Stats
+    ar_ready = session.exec(select(func.count(Item.id)).where(Item.ar_status == "ready")).one()
+    ar_pending = session.exec(select(func.count(Item.id)).where(Item.ar_status == "pending")).one()
+    ar_processing = session.exec(select(func.count(Item.id)).where(Item.ar_status == "processing")).one()
+    ar_failed = session.exec(select(func.count(Item.id)).where(Item.ar_status == "failed")).one()
     
     return AdminAnalyticsResponse(
         total_organizations=org_count,
@@ -78,6 +109,10 @@ def get_global_analytics(session: Session = Depends(get_session)):
         total_items=item_count,
         total_jobs=job_count,
         total_ai_tokens=total_ai_tokens,
+        ar_ready=ar_ready,
+        ar_pending=ar_pending,
+        ar_processing=ar_processing,
+        ar_failed=ar_failed,
     )
 
 
@@ -194,3 +229,91 @@ def get_job_details(job_id: uuid.UUID, session: Session = Depends(get_session)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+# ---- AR Jobs Endpoints ----
+
+@router.get("/ar-jobs", response_model=AdminARJobsResponse)
+def list_ar_jobs(
+    status: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    session: Session = Depends(get_session)
+):
+    """List all AR jobs (items with ar_status)."""
+    offset = (page - 1) * size
+    
+    query = select(Item, Organization.name).join(Category, Item.category_id == Category.id).join(Menu, Category.menu_id == Menu.id).join(Organization, Menu.org_id == Organization.id).where(Item.ar_status != None)
+    total_query = select(func.count(Item.id)).where(Item.ar_status != None)
+    
+    if status and status.upper() != "ALL":
+        query = query.where(Item.ar_status == status.lower())
+        total_query = total_query.where(Item.ar_status == status.lower())
+        
+    total = session.exec(total_query).one()
+    results = session.exec(
+        query.order_by(Item.ar_updated_at.desc()).offset(offset).limit(size)
+    ).all()
+    
+    ar_jobs = []
+    for item, org_name in results:
+        ar_jobs.append(AdminARJobRead(
+            id=item.id,
+            name=item.name,
+            restaurant_name=org_name,
+            ar_status=item.ar_status,
+            ar_error_message=item.ar_error_message,
+            ar_created_at=item.ar_created_at,
+            ar_updated_at=item.ar_updated_at,
+            ar_stage=item.ar_stage,
+            ar_stage_detail=item.ar_stage_detail,
+            ar_progress=item.ar_progress,
+            ar_job_id=item.ar_job_id
+        ))
+        
+    return AdminARJobsResponse(
+        items=ar_jobs,
+        total=total,
+        page=page,
+        size=size
+    )
+
+@router.post("/ar-jobs/{item_id}/retry")
+def retry_ar_job(item_id: uuid.UUID, session: Session = Depends(get_session)):
+    """Retry a failed or stalled AR job."""
+    item = session.get(Item, item_id)
+    if not item or not item.ar_status:
+        raise HTTPException(status_code=404, detail="AR job not found")
+        
+    item.ar_status = "pending"
+    item.ar_error_message = None
+    item.ar_stage = "pending"
+    item.ar_stage_detail = "Retried by admin"
+    item.ar_progress = 0.0
+    item.ar_job_id = None
+    item.ar_updated_at = datetime.utcnow()
+    
+    session.add(item)
+    session.commit()
+    return {"ok": True}
+
+@router.post("/ar-jobs/{item_id}/cancel")
+def cancel_ar_job(item_id: uuid.UUID, session: Session = Depends(get_session)):
+    """Cancel a pending or processing AR job."""
+    item = session.get(Item, item_id)
+    if not item or not item.ar_status:
+        raise HTTPException(status_code=404, detail="AR job not found")
+        
+    if item.ar_status not in ("pending", "processing"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel AR job with status '{item.ar_status}'."
+        )
+        
+    item.ar_status = "failed"
+    item.ar_error_message = "Canceled by admin"
+    item.ar_stage = "canceled"
+    item.ar_updated_at = datetime.utcnow()
+    
+    session.add(item)
+    session.commit()
+    return {"ok": True}

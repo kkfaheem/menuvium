@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Activity, ChevronDown, ChevronUp, RefreshCw, XCircle, RotateCcw } from "lucide-react";
-import { adminApi, AdminJob } from "@/lib/api";
+import { Activity, ChevronDown, ChevronUp, RefreshCw, XCircle, RotateCcw, FileText, Box } from "lucide-react";
+import { adminApi, AdminJob, AdminARJob } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
@@ -145,30 +145,119 @@ function JobRow({ job, onRefresh }: { job: AdminJob, onRefresh: () => void }) {
     );
 }
 
+function ARJobRow({ job, onRefresh }: { job: AdminARJob, onRefresh: () => void }) {
+    const getStatusVariant = (status: string | null): "default" | "accent" | "success" | "warning" | "danger" | "outline" => {
+        switch (status) {
+            case "ready": return "success";
+            case "failed": return "danger";
+            case "processing": return "accent";
+            case "pending": return "outline";
+            default: return "default";
+        }
+    };
+
+    const handleRetry = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!window.confirm("Are you sure you want to retry this AR processing job?")) return;
+        try {
+            await adminApi.retryARJob(job.id);
+            onRefresh();
+        } catch (err: any) {
+            alert("Failed to retry AR job: " + (err.message || "Unknown error"));
+        }
+    };
+
+    const handleCancel = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!window.confirm("Are you sure you want to cancel this AR processing job?")) return;
+        try {
+            await adminApi.cancelARJob(job.id);
+            onRefresh();
+        } catch (err: any) {
+            alert("Failed to cancel AR job: " + (err.message || "Unknown error"));
+        }
+    };
+
+    return (
+        <tr className="border-b border-border hover:bg-panelStrong/50 transition-colors group">
+            <td className="p-4 font-medium text-foreground">
+                <div className="flex flex-col">
+                    <span>{job.name}</span>
+                    <span className="text-xs text-muted font-normal mt-0.5">{job.restaurant_name}</span>
+                </div>
+            </td>
+            <td className="p-4">
+                <Badge variant={getStatusVariant(job.ar_status)}>{job.ar_status?.toUpperCase() || 'UNKNOWN'}</Badge>
+            </td>
+            <td className="p-4 text-muted font-mono text-xs max-w-[150px] truncate" title={job.id}>
+                {job.id.split("-")[0]}
+            </td>
+            <td className="p-4 text-muted">{job.ar_updated_at ? new Date(job.ar_updated_at).toLocaleString() : 'N/A'}</td>
+            <td className="p-4 text-muted">
+                <div className="flex flex-col">
+                    <span>{(job.ar_progress ? job.ar_progress * 100 : 0).toFixed(0)}%</span>
+                    {job.ar_stage && <span className="text-xs text-muted">{job.ar_stage}</span>}
+                </div>
+            </td>
+            <td className="p-4 text-right">
+                <div className="flex items-center justify-end gap-2">
+                    {(job.ar_status === "failed" || job.ar_status === "canceled") && (
+                        <button onClick={handleRetry} className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-md bg-[var(--cms-accent)] text-white hover:opacity-90 transition-opacity" title="Retry AR Job">
+                            <RotateCcw className="w-3 h-3" />
+                            Retry
+                        </button>
+                    )}
+                    {(job.ar_status === "pending" || job.ar_status === "processing") && (
+                        <button onClick={handleCancel} className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors" title="Cancel AR Job">
+                            <XCircle className="w-3 h-3" />
+                            Cancel
+                        </button>
+                    )}
+                </div>
+            </td>
+        </tr>
+    );
+}
+
 export default function AdminJobsPage() {
     const { user } = useAuthenticator((context) => [context.user]);
+    const [activeTab, setActiveTab] = useState<"importer" | "ar">("importer");
+
+    // Importer Jobs State
     const [jobs, setJobs] = useState<AdminJob[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [statusFilter, setStatusFilter] = useState("ALL");
+
+    // AR Jobs State
+    const [arJobs, setArJobs] = useState<AdminARJob[]>([]);
+    const [arPage, setArPage] = useState(1);
+    const [arTotal, setArTotal] = useState(0);
+    const [arStatusFilter, setArStatusFilter] = useState("ALL");
+
+    const [error, setError] = useState<string | null>(null);
 
     const fetchJobs = useCallback(async () => {
         if (!user) return;
         try {
             setLoading(true);
-            const data = await adminApi.getJobs(page, 50, statusFilter);
-            setJobs(data.items);
-            setTotal(data.total);
+            if (activeTab === "importer") {
+                const data = await adminApi.getJobs(page, 50, statusFilter);
+                setJobs(data.items);
+                setTotal(data.total);
+            } else {
+                const data = await adminApi.getARJobs(arPage, 50, arStatusFilter);
+                setArJobs(data.items);
+                setArTotal(data.total);
+            }
         } catch (err: any) {
             console.error("Failed to load jobs", err);
             setError(err.message || "Failed to load jobs");
         } finally {
             setLoading(false);
         }
-    }, [user, page, statusFilter]);
+    }, [user, page, statusFilter, arPage, arStatusFilter, activeTab]);
 
     useEffect(() => {
         void fetchJobs();
@@ -176,12 +265,16 @@ export default function AdminJobsPage() {
 
     // Reset pagination when filter changes
     useEffect(() => {
-        setPage(1);
-    }, [statusFilter]);
+        if (activeTab === "importer") setPage(1);
+    }, [statusFilter, activeTab]);
+
+    useEffect(() => {
+        if (activeTab === "ar") setArPage(1);
+    }, [arStatusFilter, activeTab]);
 
     return (
         <div className="space-y-6">
-            <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div className="space-y-2">
                     <h1 className="font-heading text-3xl font-bold tracking-tight flex items-center gap-3">
                         <Activity className="w-8 h-8 text-[var(--cms-accent)]" />
@@ -189,7 +282,27 @@ export default function AdminJobsPage() {
                     </h1>
                     <p className="text-muted">Monitor background workers and importer jobs.</p>
                 </div>
-                <div className="flex items-center gap-2">
+            </header>
+
+            <div className="flex bg-panel border border-border p-1 rounded-lg w-fit mb-4">
+                <button
+                    onClick={() => setActiveTab("importer")}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "importer" ? 'bg-[var(--cms-accent)] text-white shadow' : 'text-muted hover:text-foreground hover:bg-panelStrong'}`}
+                >
+                    <FileText className="w-4 h-4" />
+                    Menu Importers
+                </button>
+                <button
+                    onClick={() => setActiveTab("ar")}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === "ar" ? 'bg-[var(--cms-accent)] text-white shadow' : 'text-muted hover:text-foreground hover:bg-panelStrong'}`}
+                >
+                    <Box className="w-4 h-4" />
+                    AR Processing
+                </button>
+            </div>
+
+            <div className="flex items-center gap-2 mb-4 justify-between">
+                {activeTab === "importer" ? (
                     <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
@@ -203,16 +316,30 @@ export default function AdminJobsPage() {
                         <option value="NEEDS_INPUT">Needs Input</option>
                         <option value="CANCELED">Canceled</option>
                     </select>
-                    <button
-                        onClick={fetchJobs}
-                        disabled={loading}
-                        className="h-10 px-3 rounded-md border border-border bg-panelStrong hover:bg-panelStrong/80 transition-colors text-muted hover:text-foreground disabled:opacity-50"
-                        title="Refresh Jobs"
+                ) : (
+                    <select
+                        value={arStatusFilter}
+                        onChange={(e) => setArStatusFilter(e.target.value)}
+                        className="h-10 w-full sm:w-auto rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
-                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                    </button>
-                </div>
-            </header>
+                        <option value="ALL">All Statuses</option>
+                        <option value="READY">Ready</option>
+                        <option value="PROCESSING">Processing</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="FAILED">Failed</option>
+                        <option value="CANCELED">Canceled</option>
+                    </select>
+                )}
+
+                <button
+                    onClick={fetchJobs}
+                    disabled={loading}
+                    className="h-10 px-3 rounded-md border border-border bg-panelStrong hover:bg-panelStrong/80 transition-colors text-muted hover:text-foreground disabled:opacity-50"
+                    title="Refresh Jobs"
+                >
+                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                </button>
+            </div>
 
             {error && (
                 <div className="bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl p-4 text-sm font-semibold">
@@ -226,29 +353,37 @@ export default function AdminJobsPage() {
                         <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead>
                                 <tr className="border-b border-border bg-panelStrong/50">
-                                    <th className="p-4 font-semibold text-muted">Restaurant</th>
+                                    <th className="p-4 font-semibold text-muted">{activeTab === "importer" ? "Restaurant" : "Item"}</th>
                                     <th className="p-4 font-semibold text-muted">Status</th>
                                     <th className="p-4 font-semibold text-muted">Job ID</th>
-                                    <th className="p-4 font-semibold text-muted">Created At</th>
+                                    <th className="p-4 font-semibold text-muted">Last Updated</th>
                                     <th className="p-4 font-semibold text-muted">Progress</th>
                                     <th className="p-4 font-semibold text-muted text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {loading && jobs.length === 0 ? (
+                                {loading && ((activeTab === "importer" && jobs.length === 0) || (activeTab === "ar" && arJobs.length === 0)) ? (
                                     <tr>
                                         <td colSpan={6} className="p-8 text-center text-muted">
                                             Loading jobs...
                                         </td>
                                     </tr>
-                                ) : jobs.length === 0 ? (
+                                ) : activeTab === "importer" && jobs.length === 0 ? (
                                     <tr>
                                         <td colSpan={6} className="p-8 text-center text-muted">
-                                            No recent jobs found for this exact filter.
+                                            No recent importer jobs found for this exact filter.
                                         </td>
                                     </tr>
-                                ) : (
+                                ) : activeTab === "ar" && arJobs.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="p-8 text-center text-muted">
+                                            No recent AR processes found for this exact filter.
+                                        </td>
+                                    </tr>
+                                ) : activeTab === "importer" ? (
                                     jobs.map((job) => <JobRow key={job.id} job={job} onRefresh={fetchJobs} />)
+                                ) : (
+                                    arJobs.map((job) => <ARJobRow key={job.id} job={job} onRefresh={fetchJobs} />)
                                 )}
                             </tbody>
                         </table>

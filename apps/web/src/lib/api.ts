@@ -295,6 +295,10 @@ export interface AdminAnalytics {
     total_items: number;
     total_jobs: number;
     total_ai_tokens: number;
+    ar_ready: number;
+    ar_pending: number;
+    ar_processing: number;
+    ar_failed: number;
 }
 
 export interface AdminOrganization {
@@ -318,6 +322,20 @@ export interface AdminJob {
     finished_at?: string;
 }
 
+export interface AdminARJob {
+    id: string;
+    name: string;
+    restaurant_name: string;
+    ar_status: string | null;
+    ar_error_message: string | null;
+    ar_created_at: string | null;
+    ar_updated_at: string | null;
+    ar_stage: string | null;
+    ar_stage_detail: string | null;
+    ar_progress: number | null;
+    ar_job_id: string | null;
+}
+
 export const adminApi = {
     getAnalytics: () => api.get<AdminAnalytics>("/admin/analytics"),
     getOrganizations: (page = 1, size = 20, q?: string) => {
@@ -334,4 +352,11 @@ export const adminApi = {
     getJobDetails: (id: string) => api.get<any>(`/admin/jobs/${id}`),
     retryJob: (id: string) => api.post<any>(`/admin/menu-importer/jobs/${id}/retry`),
     cancelJob: (id: string) => api.post<any>(`/admin/menu-importer/jobs/${id}/cancel`),
+    getARJobs: (page = 1, size = 20, status?: string) => {
+        let url = `/admin/ar-jobs?page=${page}&size=${size}`;
+        if (status && status !== 'ALL') url += `&status=${status}`;
+        return api.get<{ items: AdminARJob[], total: number, page: number, size: number }>(url);
+    },
+    retryARJob: (id: string) => api.post<any>(`/admin/ar-jobs/${id}/retry`),
+    cancelARJob: (id: string) => api.post<any>(`/admin/ar-jobs/${id}/cancel`),
 };

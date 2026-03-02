@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useRouter } from "next/navigation";
-import { BarChart3, Users, UtensilsCrossed, Layers, Activity, Sparkles } from "lucide-react";
+import { BarChart3, Users, UtensilsCrossed, Layers, Activity, Sparkles, Box, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { adminApi, AdminAnalytics } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
@@ -124,6 +124,62 @@ export default function AdminAnalyticsPage() {
                         </div>
                     </CardContent>
                 </Card>
+            </div>
+
+            <div className="mt-12 space-y-4">
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                    <Box className="w-5 h-5 text-[var(--cms-accent)]" />
+                    AR Conversion Tracking
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Card>
+                        <CardContent className="p-6 flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-muted">Total Completed (Ready)</p>
+                                <h2 className="text-3xl font-bold mt-1 text-green-500">{analytics?.ar_ready ?? 0}</h2>
+                            </div>
+                            <div className="h-12 w-12 rounded-2xl bg-green-500/10 flex items-center justify-center text-green-500">
+                                <CheckCircle className="w-6 h-6" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent className="p-6 flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-muted">Processing</p>
+                                <h2 className="text-3xl font-bold mt-1 text-[var(--cms-accent)]">{analytics?.ar_processing ?? 0}</h2>
+                            </div>
+                            <div className="h-12 w-12 rounded-2xl bg-[var(--cms-accent-subtle)] flex items-center justify-center text-[var(--cms-accent)]">
+                                <Activity className="w-6 h-6" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent className="p-6 flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-muted">Queued (Pending)</p>
+                                <h2 className="text-3xl font-bold mt-1 text-yellow-500">{analytics?.ar_pending ?? 0}</h2>
+                            </div>
+                            <div className="h-12 w-12 rounded-2xl bg-yellow-500/10 flex items-center justify-center text-yellow-500">
+                                <Clock className="w-6 h-6" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardContent className="p-6 flex items-center justify-between">
+                            <div>
+                                <p className="text-sm font-medium text-muted">Failed</p>
+                                <h2 className="text-3xl font-bold mt-1 text-red-500">{analytics?.ar_failed ?? 0}</h2>
+                            </div>
+                            <div className="h-12 w-12 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500">
+                                <AlertCircle className="w-6 h-6" />
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             </div>
         </div>
     );
