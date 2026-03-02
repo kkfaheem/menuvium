@@ -159,16 +159,24 @@ def delete_organization(org_id: uuid.UUID, session: Session = Depends(get_sessio
 
 @router.get("/jobs", response_model=AdminJobsResponse)
 def list_import_jobs(
+    status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     session: Session = Depends(get_session)
 ):
-    """List all menu importer jobs."""
+    """List all menu importer jobs with optional status filter."""
     offset = (page - 1) * size
     
-    total = session.exec(select(func.count(ImportJob.id))).one()
+    query = select(ImportJob)
+    if status:
+        query = query.where(ImportJob.status == status.upper())
+        total_query = select(func.count(ImportJob.id)).where(ImportJob.status == status.upper())
+    else:
+        total_query = select(func.count(ImportJob.id))
+        
+    total = session.exec(total_query).one()
     jobs = session.exec(
-        select(ImportJob).order_by(ImportJob.created_at.desc()).offset(offset).limit(size)
+        query.order_by(ImportJob.created_at.desc()).offset(offset).limit(size)
     ).all()
     
     return AdminJobsResponse(

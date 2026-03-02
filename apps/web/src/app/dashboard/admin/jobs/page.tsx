@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Activity, ChevronDown, ChevronUp } from "lucide-react";
+import { Activity, ChevronDown, ChevronUp, RefreshCw, XCircle, RotateCcw } from "lucide-react";
 import { adminApi, AdminJob } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
-function JobRow({ job }: { job: AdminJob }) {
+function JobRow({ job, onRefresh }: { job: AdminJob, onRefresh: () => void }) {
     const [expanded, setExpanded] = useState(false);
     const [fullJob, setFullJob] = useState<any | null>(null);
     const [loadingDetails, setLoadingDetails] = useState(false);
@@ -37,6 +37,28 @@ function JobRow({ job }: { job: AdminJob }) {
         }
     };
 
+    const handleRetry = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!window.confirm("Are you sure you want to retry this job?")) return;
+        try {
+            await adminApi.retryJob(job.id);
+            onRefresh();
+        } catch (err: any) {
+            alert("Failed to retry job: " + (err.message || "Unknown error"));
+        }
+    };
+
+    const handleCancel = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!window.confirm("Are you sure you want to cancel this job?")) return;
+        try {
+            await adminApi.cancelJob(job.id);
+            onRefresh();
+        } catch (err: any) {
+            alert("Failed to cancel job: " + (err.message || "Unknown error"));
+        }
+    };
+
     return (
         <>
             <tr
@@ -58,12 +80,31 @@ function JobRow({ job }: { job: AdminJob }) {
                     {job.progress}%
                     {job.current_step && <span className="ml-2 text-xs truncate max-w-[150px] inline-block align-bottom">{job.current_step}</span>}
                 </td>
+                <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                        {(job.status === "FAILED" || job.status === "CANCELED" || job.status === "NEEDS_INPUT") && (
+                            <button onClick={handleRetry} className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-md bg-[var(--cms-accent)] text-white hover:opacity-90 transition-opacity" title="Retry Job">
+                                <RotateCcw className="w-3 h-3" />
+                                Retry
+                            </button>
+                        )}
+                        {(job.status === "QUEUED" || job.status === "RUNNING") && (
+                            <button onClick={handleCancel} className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-md bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors" title="Cancel Job">
+                                <XCircle className="w-3 h-3" />
+                                Cancel
+                            </button>
+                        )}
+                    </div>
+                </td>
             </tr>
             {expanded && (
                 <tr className="border-b border-border bg-black/20">
-                    <td colSpan={5} className="p-6">
+                    <td colSpan={6} className="p-6">
                         {loadingDetails ? (
-                            <div className="text-muted text-sm animate-pulse">Loading detailed logs...</div>
+                            <div className="flex items-center gap-2 text-muted text-sm">
+                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                Loading detailed logs...
+                            </div>
                         ) : fullJob ? (
                             <div className="space-y-4">
                                 <div>
@@ -85,7 +126,7 @@ function JobRow({ job }: { job: AdminJob }) {
                                             {(() => {
                                                 try {
                                                     const parsedLogs = JSON.parse(fullJob.logs);
-                                                    return parsedLogs.join("\n");
+                                                    return parsedLogs.map((l: any) => `[${new Date(l.time).toLocaleTimeString()}] ${l.message}`).join("\n");
                                                 } catch {
                                                     return fullJob.logs;
                                                 }
@@ -112,26 +153,31 @@ export default function AdminJobsPage() {
 
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
+    const [statusFilter, setStatusFilter] = useState("ALL");
+
+    const fetchJobs = useCallback(async () => {
+        if (!user) return;
+        try {
+            setLoading(true);
+            const data = await adminApi.getJobs(page, 50, statusFilter);
+            setJobs(data.items);
+            setTotal(data.total);
+        } catch (err: any) {
+            console.error("Failed to load jobs", err);
+            setError(err.message || "Failed to load jobs");
+        } finally {
+            setLoading(false);
+        }
+    }, [user, page, statusFilter]);
 
     useEffect(() => {
-        if (!user) return;
-
-        const fetchJobs = async () => {
-            try {
-                setLoading(true);
-                const data = await adminApi.getJobs(page, 50);
-                setJobs(data.items);
-                setTotal(data.total);
-            } catch (err: any) {
-                console.error("Failed to load jobs", err);
-                setError(err.message || "Failed to load jobs");
-            } finally {
-                setLoading(false);
-            }
-        };
-
         void fetchJobs();
-    }, [user, page]);
+    }, [fetchJobs]);
+
+    // Reset pagination when filter changes
+    useEffect(() => {
+        setPage(1);
+    }, [statusFilter]);
 
     return (
         <div className="space-y-6">
@@ -142,6 +188,29 @@ export default function AdminJobsPage() {
                         System Health
                     </h1>
                     <p className="text-muted">Monitor background workers and importer jobs.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="h-10 w-full sm:w-auto rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                        <option value="ALL">All Statuses</option>
+                        <option value="RUNNING">Running</option>
+                        <option value="QUEUED">Queued</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="FAILED">Failed</option>
+                        <option value="NEEDS_INPUT">Needs Input</option>
+                        <option value="CANCELED">Canceled</option>
+                    </select>
+                    <button
+                        onClick={fetchJobs}
+                        disabled={loading}
+                        className="h-10 px-3 rounded-md border border-border bg-panelStrong hover:bg-panelStrong/80 transition-colors text-muted hover:text-foreground disabled:opacity-50"
+                        title="Refresh Jobs"
+                    >
+                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    </button>
                 </div>
             </header>
 
@@ -154,7 +223,7 @@ export default function AdminJobsPage() {
             <Card>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
+                        <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead>
                                 <tr className="border-b border-border bg-panelStrong/50">
                                     <th className="p-4 font-semibold text-muted">Restaurant</th>
@@ -162,23 +231,24 @@ export default function AdminJobsPage() {
                                     <th className="p-4 font-semibold text-muted">Job ID</th>
                                     <th className="p-4 font-semibold text-muted">Created At</th>
                                     <th className="p-4 font-semibold text-muted">Progress</th>
+                                    <th className="p-4 font-semibold text-muted text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {loading && jobs.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="p-8 text-center text-muted">
+                                        <td colSpan={6} className="p-8 text-center text-muted">
                                             Loading jobs...
                                         </td>
                                     </tr>
                                 ) : jobs.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="p-8 text-center text-muted">
-                                            No recent jobs found.
+                                        <td colSpan={6} className="p-8 text-center text-muted">
+                                            No recent jobs found for this exact filter.
                                         </td>
                                     </tr>
                                 ) : (
-                                    jobs.map((job) => <JobRow key={job.id} job={job} />)
+                                    jobs.map((job) => <JobRow key={job.id} job={job} onRefresh={fetchJobs} />)
                                 )}
                             </tbody>
                         </table>

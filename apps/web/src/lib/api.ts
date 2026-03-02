@@ -326,6 +326,12 @@ export const adminApi = {
         return api.get<{ items: AdminOrganization[], total: number, page: number, size: number }>(url);
     },
     deleteOrganization: (id: string) => api.delete<void>(`/admin/organizations/${id}`),
-    getJobs: (page = 1, size = 20) => api.get<{ items: AdminJob[], total: number, page: number, size: number }>(`/admin/jobs?page=${page}&size=${size}`),
+    getJobs: (page = 1, size = 20, status?: string) => {
+        let url = `/admin/jobs?page=${page}&size=${size}`;
+        if (status && status !== 'ALL') url += `&status=${status}`;
+        return api.get<{ items: AdminJob[], total: number, page: number, size: number }>(url);
+    },
     getJobDetails: (id: string) => api.get<any>(`/admin/jobs/${id}`),
+    retryJob: (id: string) => api.post<any>(`/admin/menu-importer/jobs/${id}/retry`),
+    cancelJob: (id: string) => api.post<any>(`/admin/menu-importer/jobs/${id}/cancel`),
 };
