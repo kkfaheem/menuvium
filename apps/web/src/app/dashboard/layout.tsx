@@ -79,6 +79,15 @@ export default function DashboardLayout({
     const isManager = mode === "manager";
     const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").toLowerCase().split(",").map(e => e.trim());
     const isSuperAdmin = userEmail ? adminEmails.includes(userEmail) : false;
+
+    // TODO: Remove this after debugging production user missing admin status
+    console.log("[Super Admin Debug] =>", {
+        adminEmailsArr: adminEmails,
+        userEmailExtracted: userEmail,
+        evalSuperAdmin: isSuperAdmin,
+        rawEnvVar: process.env.NEXT_PUBLIC_ADMIN_EMAILS
+    });
+
     if (isModePage) {
         return (
             <div className="min-h-screen bg-background text-foreground">
