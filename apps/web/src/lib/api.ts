@@ -301,6 +301,15 @@ export interface AdminAnalytics {
     ar_failed: number;
 }
 
+export interface AdminUser {
+    username: string;
+    email: string;
+    status: string;
+    enabled: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface AdminOrganization {
     id: string;
     name: string;
@@ -359,4 +368,14 @@ export const adminApi = {
     },
     retryARJob: (id: string) => api.post<any>(`/admin/ar-jobs/${id}/retry`),
     cancelARJob: (id: string) => api.post<any>(`/admin/ar-jobs/${id}/cancel`),
+
+    // User & Organization Management
+    getUsers: () => api.get<{ items: AdminUser[] }>(`/admin/users`),
+    disableUser: (username: string) => api.post<any>(`/admin/users/${username}/disable`),
+    enableUser: (username: string) => api.post<any>(`/admin/users/${username}/enable`),
+    resetUserPassword: (username: string) => api.post<any>(`/admin/users/${username}/reset-password`),
+    impersonateUser: (username: string) => api.post<{ access_token: string }>(`/admin/users/${username}/impersonate`),
+
+    createOrganization: (data: { name: string, owner_id: string }) => api.post<AdminOrganization>(`/admin/organizations`, data),
+    updateOrganization: (id: string, data: { name?: string, owner_id?: string }) => api.patch<AdminOrganization>(`/admin/organizations/${id}`, data),
 };

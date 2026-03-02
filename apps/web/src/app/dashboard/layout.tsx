@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, QrCode, Zap, Users, Activity, BarChart3, Shield } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, QrCode, Zap, Users, Activity, BarChart3, Shield, UserCircle, CreditCard } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -264,6 +264,19 @@ export default function DashboardLayout({
                                         Platform Analytics
                                     </Link>
                                     <Link
+                                        href="/dashboard/admin/users"
+                                        onClick={() => setNavOpen(false)}
+                                        className={cn(
+                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            pathname === "/dashboard/admin/users"
+                                                ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                                : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                        )}
+                                    >
+                                        <UserCircle className="w-5 h-5" />
+                                        User Directory
+                                    </Link>
+                                    <Link
                                         href="/dashboard/admin/organizations"
                                         onClick={() => setNavOpen(false)}
                                         className={cn(
@@ -275,6 +288,19 @@ export default function DashboardLayout({
                                     >
                                         <Users className="w-5 h-5" />
                                         Organizations
+                                    </Link>
+                                    <Link
+                                        href="/dashboard/admin/subscriptions"
+                                        onClick={() => setNavOpen(false)}
+                                        className={cn(
+                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            pathname === "/dashboard/admin/subscriptions"
+                                                ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                                : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                        )}
+                                    >
+                                        <CreditCard className="w-5 h-5" />
+                                        Billing
                                     </Link>
                                     <Link
                                         href="/dashboard/admin/jobs"

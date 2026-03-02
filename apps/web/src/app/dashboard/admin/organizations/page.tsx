@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Users, Search, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, Search, Trash2, ChevronLeft, ChevronRight, Plus, Edit } from "lucide-react";
 import { adminApi, AdminOrganization } from "@/lib/api";
-import { Card, CardContent } from "@/components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 
 export default function AdminOrganizationsPage() {
     const { user } = useAuthenticator((context) => [context.user]);
@@ -15,6 +15,12 @@ export default function AdminOrganizationsPage() {
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
     const [searchQuery, setSearchQuery] = useState("");
+
+    // Create/Edit state
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [newName, setNewName] = useState("");
+    const [newOwnerId, setNewOwnerId] = useState("");
+    const [editingOrg, setEditingOrg] = useState<AdminOrganization | null>(null);
 
     useEffect(() => {
         if (!user) return;
@@ -45,6 +51,41 @@ export default function AdminOrganizationsPage() {
         setPage(1);
     }, [searchQuery]);
 
+    const handleCreate = async () => {
+        try {
+            setLoading(true);
+            if (editingOrg) {
+                const updated = await adminApi.updateOrganization(editingOrg.id, {
+                    name: newName,
+                    owner_id: newOwnerId
+                });
+                setOrganizations(orgs => orgs.map(o => o.id === editingOrg.id ? updated : o));
+            } else {
+                const created = await adminApi.createOrganization({
+                    name: newName,
+                    owner_id: newOwnerId
+                });
+                setOrganizations(orgs => [created, ...orgs]);
+                setTotal(t => t + 1);
+            }
+            setShowAddModal(false);
+            setNewName("");
+            setNewOwnerId("");
+            setEditingOrg(null);
+        } catch (err: any) {
+            alert("Failed to save organization: " + (err.message || "Unknown error"));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleEdit = (org: AdminOrganization) => {
+        setEditingOrg(org);
+        setNewName(org.name);
+        setNewOwnerId(org.owner_id);
+        setShowAddModal(true);
+    };
+
     const handleDelete = async (id: string, name: string) => {
         if (!window.confirm(`Are you absolutely sure you want to delete ${name}?\n\nThis will completely wipe all of their menus, categories, items, and team members. This action cannot be undone.`)) {
             return;
@@ -69,19 +110,74 @@ export default function AdminOrganizationsPage() {
                     </h1>
                     <p className="text-muted">Manage all onboarded companies.</p>
                 </div>
-                <div className="relative w-full max-w-sm">
-                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted">
-                        <Search className="w-4 h-4" />
+                <div className="relative w-full max-w-sm flex items-center gap-3">
+                    <button
+                        onClick={() => setShowAddModal(true)}
+                        className="h-9 px-4 rounded-md bg-[var(--cms-accent)] text-white text-sm font-semibold hover:opacity-90 transition-opacity whitespace-nowrap"
+                    >
+                        New Organization
+                    </button>
+                    <div className="relative flex-1">
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted">
+                            <Search className="w-4 h-4" />
+                        </div>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by name or slug..."
+                            className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pl-9 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        />
                     </div>
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search by name or slug..."
-                        className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pl-9 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    />
                 </div>
             </header>
+
+            {showAddModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 text-foreground">
+                    <Card className="w-full max-w-md shadow-2xl">
+                        <CardHeader>
+                            <CardTitle>{editingOrg ? "Edit Organization" : "Create New Organization"}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Company Name</label>
+                                <input
+                                    type="text"
+                                    value={newName}
+                                    onChange={(e) => setNewName(e.target.value)}
+                                    placeholder="e.g. Italian Bistro"
+                                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Owner Cognito ID (sub)</label>
+                                <input
+                                    type="text"
+                                    value={newOwnerId}
+                                    onChange={(e) => setNewOwnerId(e.target.value)}
+                                    placeholder="UUID from Cognito"
+                                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                                />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button
+                                    onClick={() => setShowAddModal(false)}
+                                    className="px-4 py-2 rounded-md border border-border hover:bg-panelStrong transition-colors text-sm"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleCreate}
+                                    disabled={!newName || !newOwnerId || loading}
+                                    className="px-4 py-2 rounded-md bg-[var(--cms-accent)] text-white font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity text-sm"
+                                >
+                                    {loading ? "Creating..." : "Create Organization"}
+                                </button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
 
             {error && (
                 <div className="bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl p-4 text-sm font-semibold">
@@ -127,13 +223,22 @@ export default function AdminOrganizationsPage() {
                                             <td className="p-4 text-muted">{org.member_count}</td>
                                             <td className="p-4 text-muted">{org.menu_count}</td>
                                             <td className="p-4 text-right">
-                                                <button
-                                                    onClick={() => handleDelete(org.id, org.name)}
-                                                    className="p-2 text-muted hover:bg-red-500/10 hover:text-red-500 rounded-md transition-colors"
-                                                    title="Delete Organization"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button
+                                                        onClick={() => handleEdit(org)}
+                                                        className="p-2 text-muted hover:bg-panelStrong rounded-md transition-colors"
+                                                        title="Edit Organization"
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(org.id, org.name)}
+                                                        className="p-2 text-muted hover:bg-red-500/10 hover:text-red-500 rounded-md transition-colors"
+                                                        title="Delete Organization"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))

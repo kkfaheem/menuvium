@@ -35,9 +35,33 @@ def verify_token(token: str):
         )
 
     # Decode without verification first to find kid
-    headers = jwt.get_unverified_header(token)
-    kid = headers["kid"]
-    
+    try:
+        headers = jwt.get_unverified_header(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token format")
+
+    # If it's an impersonation token (HS256) signed by our backend
+    if headers.get("alg") == "HS256":
+        impersonation_secret = os.getenv("IMPERSONATION_SECRET")
+        if not impersonation_secret:
+            raise HTTPException(status_code=500, detail="Impersonation not configured on backend")
+        try:
+            claims = jwt.decode(
+                token,
+                impersonation_secret,
+                algorithms=["HS256"],
+                audience=client_id,
+                options={"verify_at_hash": False}
+            )
+            return claims
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"Invalid impersonation token: {e}")
+
+    # Standard Cognito Token RS256
+    kid = headers.get("kid")
+    if not kid:
+        raise HTTPException(status_code=401, detail="Missing kid in token header")
+        
     keys = get_keys(region, user_pool_id)
     key_index = -1
     for i in range(len(keys)):
@@ -51,11 +75,14 @@ def verify_token(token: str):
     public_key = keys[key_index]
     
     # Verify signature
-    claims = jwt.decode(
-        token,
-        public_key,
-        algorithms=["RS256"],
-        audience=client_id,
-        options={"verify_at_hash": False}
-    )
-    return claims
+    try:
+        claims = jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            audience=client_id,
+            options={"verify_at_hash": False}
+        )
+        return claims
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Invalid Cognito token: {e}")

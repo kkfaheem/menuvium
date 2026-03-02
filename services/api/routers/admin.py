@@ -160,6 +160,88 @@ def list_organizations(
         size=size
     )
 
+class AdminOrganizationCreate(BaseModel):
+    name: str
+    owner_id: str
+
+@router.post("/organizations", response_model=AdminOrganizationRead)
+def create_organization(data: AdminOrganizationCreate, session: Session = Depends(get_session)):
+    """Super Admin endpoint to manually create a new company/organization."""
+    import uuid
+    from importer.utils import slugify
+
+    slug = slugify(data.name)
+    base_slug = slug
+    counter = 1
+    while session.exec(select(Organization).where(Organization.slug == slug)).first():
+        slug = f"{base_slug}-{counter}"
+        counter += 1
+
+    org = Organization(
+        id=uuid.uuid4(),
+        name=data.name,
+        slug=slug,
+        owner_id=data.owner_id,
+        created_at=datetime.utcnow()
+    )
+    session.add(org)
+    session.commit()
+    session.refresh(org)
+    
+    # Auto-add the owner as a member
+    member = OrganizationMember(
+        id=uuid.uuid4(),
+        org_id=org.id,
+        user_id=data.owner_id,
+        role="owner",
+        created_at=datetime.utcnow()
+    )
+    session.add(member)
+    session.commit()
+
+    return AdminOrganizationRead(
+        id=org.id,
+        name=org.name,
+        slug=org.slug,
+        owner_id=org.owner_id,
+        created_at=org.created_at,
+        menu_count=0,
+        member_count=1
+    )
+
+class AdminOrganizationUpdate(BaseModel):
+    name: Optional[str] = None
+    owner_id: Optional[str] = None
+
+@router.patch("/organizations/{org_id}", response_model=AdminOrganizationRead)
+def update_organization(org_id: uuid.UUID, data: AdminOrganizationUpdate, session: Session = Depends(get_session)):
+    """Super Admin endpoint to update an organization."""
+    org = session.get(Organization, org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+        
+    if data.name:
+        org.name = data.name
+    if data.owner_id:
+        org.owner_id = data.owner_id
+        
+    session.add(org)
+    session.commit()
+    session.refresh(org)
+    
+    menu_count = session.exec(select(func.count(Menu.id)).where(Menu.org_id == org.id)).one()
+    member_count = session.exec(select(func.count(OrganizationMember.id)).where(OrganizationMember.org_id == org.id)).one()
+    
+    return AdminOrganizationRead(
+        id=org.id,
+        name=org.name,
+        slug=org.slug,
+        owner_id=org.owner_id,
+        created_at=org.created_at,
+        menu_count=menu_count,
+        member_count=member_count
+    )
+
 
 @router.delete("/organizations/{org_id}")
 def delete_organization(org_id: uuid.UUID, session: Session = Depends(get_session)):
@@ -317,3 +399,129 @@ def cancel_ar_job(item_id: uuid.UUID, session: Session = Depends(get_session)):
     session.add(item)
     session.commit()
     return {"ok": True}
+
+# ---- User Management (Cognito) ----
+
+import boto3
+import os
+
+def get_cognito_client():
+    return boto3.client("cognito-idp", region_name=os.getenv("AWS_REGION", "us-east-1"))
+
+class AdminUserRead(BaseModel):
+    username: str
+    email: str
+    status: str
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+class AdminUsersResponse(BaseModel):
+    items: List[AdminUserRead]
+    # Pagination might be tricky with Cognito's PaginationToken, so doing simple approach
+
+@router.get("/users", response_model=AdminUsersResponse)
+def list_users():
+    """List users from Cognito User Pool."""
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    if not user_pool_id:
+        raise HTTPException(status_code=500, detail="COGNITO_USER_POOL_ID not configured")
+        
+    client = get_cognito_client()
+    try:
+        # Note: In a real app with many users, implement proper PaginationToken handling.
+        response = client.list_users(UserPoolId=user_pool_id, Limit=60)
+        users = []
+        for u in response.get("Users", []):
+            email = next((attr["Value"] for attr in u.get("Attributes", []) if attr["Name"] == "email"), u["Username"])
+            users.append(AdminUserRead(
+                username=u["Username"],
+                email=email,
+                status=u.get("UserStatus", "UNKNOWN"),
+                enabled=u.get("Enabled", False),
+                created_at=u.get("UserCreateDate", datetime.utcnow()),
+                updated_at=u.get("UserLastModifiedDate", datetime.utcnow())
+            ))
+        # Sort by creation date descending
+        users.sort(key=lambda x: x.created_at, reverse=True)
+        return AdminUsersResponse(items=users)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cognito error: {str(e)}")
+
+@router.post("/users/{username}/disable")
+def disable_user(username: str):
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    if not user_pool_id:
+        raise HTTPException(status_code=500, detail="COGNITO_USER_POOL_ID not configured")
+        
+    client = get_cognito_client()
+    try:
+        client.admin_disable_user(UserPoolId=user_pool_id, Username=username)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cognito error: {str(e)}")
+
+@router.post("/users/{username}/enable")
+def enable_user(username: str):
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    if not user_pool_id:
+        raise HTTPException(status_code=500, detail="COGNITO_USER_POOL_ID not configured")
+        
+    client = get_cognito_client()
+    try:
+        client.admin_enable_user(UserPoolId=user_pool_id, Username=username)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cognito error: {str(e)}")
+
+@router.post("/users/{username}/reset-password")
+def reset_user_password(username: str):
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    if not user_pool_id:
+        raise HTTPException(status_code=500, detail="COGNITO_USER_POOL_ID not configured")
+        
+    client = get_cognito_client()
+    try:
+        client.admin_reset_user_password(UserPoolId=user_pool_id, Username=username)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cognito error: {str(e)}")
+
+@router.post("/users/{username}/impersonate")
+def impersonate_user(username: str, session: Session = Depends(get_session)):
+    """Generate a valid backend-signed JWT acting as the specified Cognito user."""
+    impersonation_secret = os.getenv("IMPERSONATION_SECRET")
+    client_id = os.getenv("COGNITO_CLIENT_ID")
+    if not impersonation_secret:
+        raise HTTPException(status_code=500, detail="Impersonation not configured on backend")
+        
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    if not user_pool_id:
+        raise HTTPException(status_code=500, detail="COGNITO_USER_POOL_ID not configured")
+
+    # Fetch email from Cognito to embed in the token
+    client = get_cognito_client()
+    try:
+        response = client.admin_get_user(UserPoolId=user_pool_id, Username=username)
+        email = next((attr["Value"] for attr in response.get("UserAttributes", []) if attr["Name"] == "email"), username)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"User not found in Cognito: {e}")
+
+    import time
+    from jose import jwt
+    
+    # Generate an HS256 token valid for 1 hour
+    now = int(time.time())
+    payload = {
+        "sub": username,
+        "email": email,
+        "aud": client_id,
+        "iss": f"https://cognito-idp.{os.getenv('AWS_REGION', 'us-east-1')}.amazonaws.com/{user_pool_id}",
+        "exp": now + 3600,
+        "iat": now,
+        "auth_time": now,
+        "impersonated": True
+    }
+    
+    token = jwt.encode(payload, impersonation_secret, algorithm="HS256")
+    return {"access_token": token, "token_type": "bearer", "expires_in": 3600}

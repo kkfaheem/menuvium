@@ -28,6 +28,14 @@ const isTokenValidSoon = (token: string): boolean => {
 };
 
 export const getAuthToken = async (): Promise<string> => {
+    // Check for impersonation token first
+    if (typeof window !== "undefined") {
+        const impersonationToken = window.localStorage.getItem("menuvium_impersonation_token");
+        if (impersonationToken && isTokenValidSoon(impersonationToken)) {
+            return impersonationToken;
+        }
+    }
+
     if (cachedToken && now() - cachedToken.fetchedAt < CACHE_MS && isTokenValidSoon(cachedToken.token)) {
         return cachedToken.token;
     }
