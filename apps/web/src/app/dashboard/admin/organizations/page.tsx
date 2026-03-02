@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Users } from "lucide-react";
+import { Users, Search, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { adminApi, AdminOrganization } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/Card";
 
@@ -12,9 +12,9 @@ export default function AdminOrganizationsPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Placeholder for pagination
     const [page, setPage] = useState(1);
     const [total, setTotal] = useState(0);
+    const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {
         if (!user) return;
@@ -22,7 +22,7 @@ export default function AdminOrganizationsPage() {
         const fetchOrgs = async () => {
             try {
                 setLoading(true);
-                const data = await adminApi.getOrganizations(page, 50);
+                const data = await adminApi.getOrganizations(page, 20, searchQuery);
                 setOrganizations(data.items);
                 setTotal(data.total);
             } catch (err: any) {
@@ -33,8 +33,31 @@ export default function AdminOrganizationsPage() {
             }
         };
 
-        void fetchOrgs();
-    }, [user, page]);
+        const timer = setTimeout(() => {
+            void fetchOrgs();
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [user, page, searchQuery]);
+
+    // Reset page to 1 when search query changes
+    useEffect(() => {
+        setPage(1);
+    }, [searchQuery]);
+
+    const handleDelete = async (id: string, name: string) => {
+        if (!window.confirm(`Are you absolutely sure you want to delete ${name}?\n\nThis will completely wipe all of their menus, categories, items, and team members. This action cannot be undone.`)) {
+            return;
+        }
+
+        try {
+            await adminApi.deleteOrganization(id);
+            setOrganizations(orgs => orgs.filter(o => o.id !== id));
+            setTotal(t => t - 1);
+        } catch (err: any) {
+            alert("Failed to delete organization: " + (err.message || "Unknown error"));
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -45,6 +68,18 @@ export default function AdminOrganizationsPage() {
                         Organizations
                     </h1>
                     <p className="text-muted">Manage all onboarded companies.</p>
+                </div>
+                <div className="relative w-full max-w-sm">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted">
+                        <Search className="w-4 h-4" />
+                    </div>
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search by name or slug..."
+                        className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pl-9 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
                 </div>
             </header>
 
@@ -57,7 +92,7 @@ export default function AdminOrganizationsPage() {
             <Card>
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
+                        <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead>
                                 <tr className="border-b border-border bg-panelStrong/50">
                                     <th className="p-4 font-semibold text-muted">Company Name</th>
@@ -65,19 +100,20 @@ export default function AdminOrganizationsPage() {
                                     <th className="p-4 font-semibold text-muted">Created At</th>
                                     <th className="p-4 font-semibold text-muted">Members</th>
                                     <th className="p-4 font-semibold text-muted">Menus</th>
+                                    <th className="p-4 font-semibold text-muted text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {loading && organizations.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="p-8 text-center text-muted">
+                                        <td colSpan={6} className="p-8 text-center text-muted">
                                             Loading organizations...
                                         </td>
                                     </tr>
                                 ) : organizations.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="p-8 text-center text-muted">
-                                            No organizations found.
+                                        <td colSpan={6} className="p-8 text-center text-muted">
+                                            No organizations found matching your criteria.
                                         </td>
                                     </tr>
                                 ) : (
@@ -90,12 +126,44 @@ export default function AdminOrganizationsPage() {
                                             </td>
                                             <td className="p-4 text-muted">{org.member_count}</td>
                                             <td className="p-4 text-muted">{org.menu_count}</td>
+                                            <td className="p-4 text-right">
+                                                <button
+                                                    onClick={() => handleDelete(org.id, org.name)}
+                                                    className="p-2 text-muted hover:bg-red-500/10 hover:text-red-500 rounded-md transition-colors"
+                                                    title="Delete Organization"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </td>
                                         </tr>
                                     ))
                                 )}
                             </tbody>
                         </table>
                     </div>
+                    {total > 0 && (
+                        <div className="flex items-center justify-between p-4 border-t border-border">
+                            <div className="text-sm text-muted">
+                                Showing <span className="font-medium text-foreground">{organizations.length}</span> of <span className="font-medium text-foreground">{total}</span> organizations
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                                    disabled={page === 1 || loading}
+                                    className="p-2 border border-border rounded-md hover:bg-panelStrong disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setPage(p => p + 1)}
+                                    disabled={page * 20 >= total || loading}
+                                    className="p-2 border border-border rounded-md hover:bg-panelStrong disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>

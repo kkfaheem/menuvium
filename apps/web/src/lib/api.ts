@@ -320,7 +320,12 @@ export interface AdminJob {
 
 export const adminApi = {
     getAnalytics: () => api.get<AdminAnalytics>("/admin/analytics"),
-    getOrganizations: (page = 1, size = 20) => api.get<{ items: AdminOrganization[], total: number, page: number, size: number }>(`/admin/organizations?page=${page}&size=${size}`),
+    getOrganizations: (page = 1, size = 20, q?: string) => {
+        let url = `/admin/organizations?page=${page}&size=${size}`;
+        if (q) url += `&q=${encodeURIComponent(q)}`;
+        return api.get<{ items: AdminOrganization[], total: number, page: number, size: number }>(url);
+    },
+    deleteOrganization: (id: string) => api.delete<void>(`/admin/organizations/${id}`),
     getJobs: (page = 1, size = 20) => api.get<{ items: AdminJob[], total: number, page: number, size: number }>(`/admin/jobs?page=${page}&size=${size}`),
     getJobDetails: (id: string) => api.get<any>(`/admin/jobs/${id}`),
 };
