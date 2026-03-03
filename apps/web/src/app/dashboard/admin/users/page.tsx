@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Users as UsersIcon, Search, Shield, ShieldOff, Key, UserCheck, LogOut, Eye, Trash2, Building2 } from "lucide-react";
+import { Users as UsersIcon, Search, Shield, ShieldOff, Key, UserCheck, LogOut, Trash2, Building2 } from "lucide-react";
 import { adminApi, AdminUser } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import Link from "next/link";
 
 export default function AdminUsersPage() {
+    const router = useRouter();
     const { user: currentUser } = useAuthenticator((context) => [context.user]);
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [loading, setLoading] = useState(true);
@@ -180,7 +181,11 @@ export default function AdminUsersPage() {
                                     </tr>
                                 ) : (
                                     filteredUsers.map((u) => (
-                                        <tr key={u.username} className="border-b border-border last:border-0 hover:bg-panelStrong/50 transition-colors">
+                                        <tr
+                                            key={u.username}
+                                            className="border-b border-border last:border-0 hover:bg-panelStrong/50 transition-colors cursor-pointer"
+                                            onClick={() => router.push(`/dashboard/admin/users/${u.username}`)}
+                                        >
                                             <td className="p-4">
                                                 <div className="flex flex-col">
                                                     <span className="font-medium text-foreground">{u.email}</span>
@@ -212,14 +217,7 @@ export default function AdminUsersPage() {
                                                 </div>
                                             </td>
                                             <td className="p-4 text-right">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    <Link
-                                                        href={`/dashboard/admin/users/${u.username}`}
-                                                        className="p-2 text-muted hover:bg-panelStrong rounded-md transition-colors"
-                                                        title="View Profile"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </Link>
+                                                <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
                                                     <button
                                                         onClick={() => handleResetPassword(u.username)}
                                                         className="p-2 text-muted hover:bg-panelStrong rounded-md transition-colors"

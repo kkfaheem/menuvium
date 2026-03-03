@@ -172,6 +172,17 @@ def list_organizations(
         # Try to find owner's email
         owner_email = next((m.email for m in all_members if m.user_id == org.owner_id or m.role == "owner"), None)
         
+        # Ensure the owner always appears in the members list
+        owner_in_members = any(m.user_id == org.owner_id or m.role == "owner" for m in all_members)
+        if not owner_in_members and org.owner_id:
+            # Owner doesn't have a membership record — add a synthetic entry
+            member_reads.insert(0, AdminMemberRead(
+                id=uuid.UUID(int=0),
+                email=owner_email or org.owner_id,
+                role="owner",
+                user_id=org.owner_id
+            ))
+        
         results.append(AdminOrganizationRead(
             id=org.id,
             name=org.name,
@@ -180,7 +191,7 @@ def list_organizations(
             owner_email=owner_email,
             created_at=org.created_at,
             menu_count=menu_count,
-            member_count=len(all_members),
+            member_count=len(member_reads),
             members=member_reads
         ))
         
@@ -677,8 +688,9 @@ def reset_user_password(username: str):
         raise HTTPException(status_code=500, detail=f"Cognito error: {str(e)}")
 
 @router.delete("/users/{username}")
-def delete_user(username: str, session: Session = Depends(get_session), admin: dict = Depends(get_admin_user)):
+def delete_user(username: str, session: Session = Depends(get_session)):
     """Permanently delete a user from Cognito and remove all their DB memberships."""
+    print(f"DEBUG: delete_user called for username={username}")
     user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
     if not user_pool_id:
         raise HTTPException(status_code=500, detail="COGNITO_USER_POOL_ID not configured")
@@ -689,13 +701,17 @@ def delete_user(username: str, session: Session = Depends(get_session), admin: d
     try:
         response = client.admin_get_user(UserPoolId=user_pool_id, Username=username)
         email = next((attr["Value"] for attr in response.get("UserAttributes", []) if attr["Name"] == "email"), username)
+        print(f"DEBUG: Found user email={email}")
     except Exception as e:
+        print(f"DEBUG: admin_get_user failed: {e}")
         raise HTTPException(status_code=404, detail=f"User not found in Cognito: {e}")
 
     # 2. Delete from Cognito
     try:
         client.admin_delete_user(UserPoolId=user_pool_id, Username=username)
+        print(f"DEBUG: Deleted user {username} from Cognito")
     except Exception as e:
+        print(f"DEBUG: admin_delete_user failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete from Cognito: {e}")
 
     # 3. Clean up DB memberships
@@ -710,10 +726,11 @@ def delete_user(username: str, session: Session = Depends(get_session), admin: d
         for m in memberships:
             session.delete(m)
         session.commit()
+        print(f"DEBUG: Removed {removed_count} memberships for {username}")
     except Exception as e:
-        print(f"DEBUG: DB cleanup warning for deleted user {username}: {e}")
+        print(f"DEBUG: DB cleanup failed for {username}: {e}")
 
-    return {"ok": True, "detail": f"User {username} deleted from Cognito and {removed_count} memberships removed."}
+    return {"ok": True, "detail": f"User {username} deleted and {removed_count} memberships removed."}
 
 @router.post("/users/{username}/impersonate")
 def impersonate_user(username: str, session: Session = Depends(get_session)):

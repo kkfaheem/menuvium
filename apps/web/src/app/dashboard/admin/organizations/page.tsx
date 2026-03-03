@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Building2, Search, Trash2, Edit, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { Building2, Search, Trash2, Edit, ChevronLeft, ChevronRight } from "lucide-react";
 import { adminApi, AdminOrganization } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import Link from "next/link";
 
 export default function AdminOrganizationsPage() {
+    const router = useRouter();
     const { user } = useAuthenticator((context) => [context.user]);
     const [organizations, setOrganizations] = useState<AdminOrganization[]>([]);
     const [loading, setLoading] = useState(true);
@@ -202,7 +203,11 @@ export default function AdminOrganizationsPage() {
                                     </tr>
                                 ) : (
                                     organizations.map((org) => (
-                                        <tr key={org.id} className="border-b border-border last:border-0 hover:bg-panelStrong/50 transition-colors">
+                                        <tr
+                                            key={org.id}
+                                            className="border-b border-border last:border-0 hover:bg-panelStrong/50 transition-colors cursor-pointer"
+                                            onClick={() => router.push(`/dashboard/admin/organizations/${org.id}`)}
+                                        >
                                             <td className="p-4">
                                                 <div className="flex flex-col">
                                                     <span className="font-medium text-foreground">{org.name}</span>
@@ -235,14 +240,7 @@ export default function AdminOrganizationsPage() {
                                             </td>
                                             <td className="p-4 text-muted">{org.menu_count}</td>
                                             <td className="p-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Link
-                                                        href={`/dashboard/admin/organizations/${org.id}`}
-                                                        className="p-2 text-muted hover:bg-panelStrong rounded-md transition-colors"
-                                                        title="View Details"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </Link>
+                                                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                                                     <button
                                                         onClick={() => handleEdit(org)}
                                                         className="p-2 text-muted hover:bg-panelStrong rounded-md transition-colors"
