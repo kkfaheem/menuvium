@@ -677,7 +677,7 @@ def reset_user_password(username: str):
         raise HTTPException(status_code=500, detail=f"Cognito error: {str(e)}")
 
 @router.delete("/users/{username}")
-def delete_user(username: str, session: Session = Depends(get_session)):
+def delete_user(username: str, session: Session = Depends(get_session), admin: dict = Depends(get_admin_user)):
     """Permanently delete a user from Cognito and remove all their DB memberships."""
     user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
     if not user_pool_id:
@@ -699,19 +699,21 @@ def delete_user(username: str, session: Session = Depends(get_session)):
         raise HTTPException(status_code=500, detail=f"Failed to delete from Cognito: {e}")
 
     # 3. Clean up DB memberships
+    removed_count = 0
     try:
         memberships = session.exec(
             select(OrganizationMember).where(
                 (OrganizationMember.user_id == username) | (OrganizationMember.email == email)
             )
         ).all()
+        removed_count = len(memberships)
         for m in memberships:
             session.delete(m)
         session.commit()
     except Exception as e:
         print(f"DEBUG: DB cleanup warning for deleted user {username}: {e}")
 
-    return {"ok": True, "detail": f"User {username} deleted from Cognito and {len(memberships) if 'memberships' in dir() else 0} memberships removed."}
+    return {"ok": True, "detail": f"User {username} deleted from Cognito and {removed_count} memberships removed."}
 
 @router.post("/users/{username}/impersonate")
 def impersonate_user(username: str, session: Session = Depends(get_session)):
