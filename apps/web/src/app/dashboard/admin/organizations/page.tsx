@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Building2, Search, Trash2, Edit, Plus, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { Building2, Search, Trash2, Edit, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import { adminApi, AdminOrganization } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -62,13 +62,6 @@ export default function AdminOrganizationsPage() {
                     owner_id: newOwnerId
                 });
                 setOrganizations(orgs => orgs.map(o => o.id === editingOrg.id ? updated : o));
-            } else {
-                const created = await adminApi.createOrganization({
-                    name: newName,
-                    owner_id: newOwnerId
-                });
-                setOrganizations(orgs => [created, ...orgs]);
-                setTotal(t => t + 1);
             }
             setShowAddModal(false);
             setNewName("");
@@ -112,8 +105,8 @@ export default function AdminOrganizationsPage() {
                     </h1>
                     <p className="text-muted">Manage all restaurant companies and their locations on the platform.</p>
                 </div>
-                <div className="relative w-full max-w-sm flex items-center gap-3">
-                    <div className="relative flex-1">
+                <div className="relative w-full max-w-sm">
+                    <div className="relative">
                         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted">
                             <Search className="w-4 h-4" />
                         </div>
@@ -125,18 +118,6 @@ export default function AdminOrganizationsPage() {
                             className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pl-9 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         />
                     </div>
-                    <button
-                        onClick={() => {
-                            setEditingOrg(null);
-                            setNewName("");
-                            setNewOwnerId("");
-                            setShowAddModal(true);
-                        }}
-                        className="flex items-center gap-2 px-3 py-1.5 h-9 bg-[var(--cms-accent)] text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity whitespace-nowrap"
-                    >
-                        <Plus className="w-4 h-4" />
-                        New Company
-                    </button>
                 </div>
             </header>
 
@@ -144,7 +125,7 @@ export default function AdminOrganizationsPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 text-foreground">
                     <Card className="w-full max-w-md shadow-2xl">
                         <CardHeader>
-                            <CardTitle>{editingOrg ? "Edit Company" : "Create New Company"}</CardTitle>
+                            <CardTitle>Edit Company</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2">

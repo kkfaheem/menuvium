@@ -407,7 +407,32 @@ export const adminApi = {
     enableUser: (username: string) => api.post<any>(`/admin/users/${username}/enable`),
     resetUserPassword: (username: string) => api.post<any>(`/admin/users/${username}/reset-password`),
     impersonateUser: (username: string) => api.post<{ access_token: string }>(`/admin/users/${username}/impersonate`),
+    deleteUser: (username: string) => api.delete<void>(`/admin/users/${username}`),
 
     createOrganization: (data: { name: string, owner_id: string }) => api.post<AdminOrganization>(`/admin/organizations`, data),
     updateOrganization: (id: string, data: { name?: string, owner_id?: string }) => api.patch<AdminOrganization>(`/admin/organizations/${id}`, data),
+
+    // Menu Importer
+    getImporterJobs: (status?: string) => api.get<AdminJob[]>(`/admin/menu-importer/jobs${status ? `?status=${status}` : ""}`),
+    createImporterJob: (data: { restaurant_name: string; location_hint?: string; website_override?: string }) =>
+        api.post<AdminJob>("/admin/menu-importer/jobs", data),
+    getImporterJobDetails: (id: string) => api.get<any>(`/admin/menu-importer/jobs/${id}`),
+    downloadImporterZip: async (jobId: string, restaurantName: string) => {
+        const base = getApiBase();
+        const token = await getAuthToken();
+        const res = await fetch(`${base}/admin/menu-importer/jobs/${jobId}/download`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error("Download failed");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const safeName = restaurantName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "");
+        a.download = `${safeName}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    }
 };

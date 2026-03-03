@@ -439,10 +439,11 @@ async def _parse_with_openai(text: str, log_fn) -> ParsedMenu:
         return _fallback_parse(text)
 
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    log_fn(f"Requesting OpenAI parse with model {model}...")
 
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key)
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key)
 
         prompt = (
             "You are a menu parser. Given the following restaurant menu text, extract all menu items "
@@ -455,14 +456,15 @@ async def _parse_with_openai(text: str, log_fn) -> ParsedMenu:
             "- Description should be the item description or null\n"
             "- If categories aren't clear, use 'Menu Items' as the default category\n"
             "- Return ONLY valid JSON, no markdown formatting\n\n"
-            f"Menu text:\n{text[:8000]}"
+            f"Menu text:\n{text[:16000]}"
         )
 
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
             response_format={"type": "json_object"},
+            timeout=60.0,
         )
 
         import json
@@ -483,7 +485,7 @@ async def _parse_with_openai(text: str, log_fn) -> ParsedMenu:
         return ParsedMenu(categories=categories, ai_tokens=tokens)
 
     except Exception as e:
-        log_fn(f"OpenAI parsing failed: {e}, using fallback")
+        log_fn(f"OpenAI parsing failed or timed out: {e}, using fallback")
         return _fallback_parse(text)
 
 
@@ -601,14 +603,15 @@ async def enrich_items_with_ai(parsed_menu: ParsedMenu, log_fn=None) -> ParsedMe
     )
 
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key)
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key)
 
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
             response_format={"type": "json_object"},
+            timeout=60.0,
         )
 
         result = json.loads(response.choices[0].message.content)
@@ -661,10 +664,10 @@ async def generate_style_template(
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
     try:
-        from openai import OpenAI
+        from openai import AsyncOpenAI
         import json
 
-        client = OpenAI(api_key=api_key)
+        client = AsyncOpenAI(api_key=api_key)
 
         prompt = (
             f"You are a food photography art director. A restaurant called \"{restaurant_name}\" "
@@ -682,11 +685,12 @@ async def generate_style_template(
             "warm lighting, 45 degree angle, shallow depth of field\", \"background\": \"dark\"}"
         )
 
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
             response_format={"type": "json_object"},
+            timeout=30.0,
         )
 
         result = json.loads(response.choices[0].message.content)

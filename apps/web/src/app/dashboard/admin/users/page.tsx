@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Users as UsersIcon, Search, Shield, ShieldOff, Key, UserCheck, LogOut, Eye } from "lucide-react";
+import { Users as UsersIcon, Search, Shield, ShieldOff, Key, UserCheck, LogOut, Eye, Trash2, Building2 } from "lucide-react";
 import { adminApi, AdminUser } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -83,6 +83,23 @@ export default function AdminUsersPage() {
         }
     };
 
+    const handleDelete = async (username: string, email: string) => {
+        if (!window.confirm(
+            `Are you absolutely sure you want to permanently delete this user?\n\n` +
+            `Email: ${email}\nUsername: ${username}\n\n` +
+            `This will:\n` +
+            `• Delete their account from Cognito\n` +
+            `• Remove all company memberships\n\n` +
+            `This action CANNOT be undone.`
+        )) return;
+        try {
+            await adminApi.deleteUser(username);
+            setUsers(items => items.filter(u => u.username !== username));
+        } catch (err: any) {
+            alert("Failed to delete user: " + (err.message || "Unknown error"));
+        }
+    };
+
     const stopImpersonating = () => {
         window.localStorage.removeItem("menuvium_impersonation_token");
         window.location.reload();
@@ -112,7 +129,7 @@ export default function AdminUsersPage() {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search by email..."
+                            placeholder="Search by email or username..."
                             className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pl-9 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         />
                     </div>
@@ -140,23 +157,24 @@ export default function AdminUsersPage() {
                         <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead>
                                 <tr className="border-b border-border bg-panelStrong/50">
-                                    <th className="p-4 font-semibold text-muted">Email / Username</th>
+                                    <th className="p-4 font-semibold text-muted">User</th>
                                     <th className="p-4 font-semibold text-muted">Status</th>
                                     <th className="p-4 font-semibold text-muted">Account</th>
                                     <th className="p-4 font-semibold text-muted">Joined</th>
+                                    <th className="p-4 font-semibold text-muted">Last Modified</th>
                                     <th className="p-4 font-semibold text-muted text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={5} className="p-8 text-center text-muted">
+                                        <td colSpan={6} className="p-8 text-center text-muted">
                                             Loading user directory...
                                         </td>
                                     </tr>
                                 ) : filteredUsers.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="p-8 text-center text-muted">
+                                        <td colSpan={6} className="p-8 text-center text-muted">
                                             No users found.
                                         </td>
                                     </tr>
@@ -181,11 +199,20 @@ export default function AdminUsersPage() {
                                                     <Badge variant="danger">Disabled</Badge>
                                                 )}
                                             </td>
-                                            <td className="p-4 text-muted">
-                                                {new Date(u.created_at).toLocaleDateString()}
+                                            <td className="p-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-foreground">{new Date(u.created_at).toLocaleDateString()}</span>
+                                                    <span className="text-[10px] text-muted">{new Date(u.created_at).toLocaleTimeString()}</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-foreground">{new Date(u.updated_at).toLocaleDateString()}</span>
+                                                    <span className="text-[10px] text-muted">{new Date(u.updated_at).toLocaleTimeString()}</span>
+                                                </div>
                                             </td>
                                             <td className="p-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
+                                                <div className="flex items-center justify-end gap-1.5">
                                                     <Link
                                                         href={`/dashboard/admin/users/${u.username}`}
                                                         className="p-2 text-muted hover:bg-panelStrong rounded-md transition-colors"
@@ -220,10 +247,18 @@ export default function AdminUsersPage() {
                                                     )}
 
                                                     <button
-                                                        onClick={() => handleImpersonate(u.username)}
-                                                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-md text-xs font-semibold hover:bg-blue-500/20 transition-colors"
+                                                        onClick={() => handleDelete(u.username, u.email)}
+                                                        className="p-2 text-muted hover:bg-red-500/10 hover:text-red-500 rounded-md transition-colors"
+                                                        title="Delete User"
                                                     >
-                                                        <UserCheck className="w-4 h-4" />
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+
+                                                    <button
+                                                        onClick={() => handleImpersonate(u.username)}
+                                                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-500/10 text-blue-500 border border-blue-500/20 rounded-md text-xs font-semibold hover:bg-blue-500/20 transition-colors"
+                                                    >
+                                                        <UserCheck className="w-3.5 h-3.5" />
                                                         Impersonate
                                                     </button>
                                                 </div>

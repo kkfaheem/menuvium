@@ -316,11 +316,11 @@ export default function DashboardLayout({
                                         System Health
                                     </Link>
                                     <Link
-                                        href="/admin/menu-importer"
+                                        href="/dashboard/admin/importer"
                                         onClick={() => setNavOpen(false)}
                                         className={cn(
                                             "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
-                                            pathname.startsWith("/admin/menu-importer")
+                                            pathname.startsWith("/dashboard/admin/importer")
                                                 ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                                 : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
                                         )}
