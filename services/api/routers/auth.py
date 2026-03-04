@@ -123,6 +123,64 @@ class LinkAccountsResponse(BaseModel):
     detail: str = ""
 
 
+class SessionInfoResponse(BaseModel):
+    email: str | None = None
+    cognito_username: str | None = None
+    is_admin: bool
+
+
+def get_admin_emails() -> list[str]:
+    raw = os.getenv("ADMIN_EMAILS", "")
+    return [e.strip().lower() for e in raw.split(",") if e.strip()]
+
+
+def resolve_email_for_user(user: dict) -> str | None:
+    email = user.get("email")
+    if isinstance(email, str):
+        normalized = email.strip().lower()
+        if normalized:
+            return normalized
+
+    cognito_username = user.get("cognito:username", user.get("sub", ""))
+    if not cognito_username:
+        return None
+
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    if not user_pool_id:
+        return None
+
+    try:
+        client = get_cognito_client()
+        response = client.admin_get_user(
+            UserPoolId=user_pool_id,
+            Username=cognito_username,
+        )
+        attrs = response.get("UserAttributes", [])
+        attr_email = next(
+            (a.get("Value") for a in attrs if a.get("Name") == "email"),
+            None,
+        )
+        if isinstance(attr_email, str):
+            normalized = attr_email.strip().lower()
+            return normalized or None
+    except Exception as error:
+        print(f"DEBUG: resolve_email_for_user admin_get_user failed: {error}")
+
+    return None
+
+
+@router.get("/session-info", response_model=SessionInfoResponse)
+def session_info(user: dict = Depends(get_current_user)):
+    email = resolve_email_for_user(user)
+    admin_emails = get_admin_emails()
+    cognito_username = user.get("cognito:username", user.get("sub", ""))
+    return SessionInfoResponse(
+        email=email,
+        cognito_username=cognito_username or None,
+        is_admin=bool(email and email in admin_emails),
+    )
+
+
 @router.get("/check-link", response_model=CheckLinkResponse)
 def check_link(user: dict = Depends(get_current_user)):
     """

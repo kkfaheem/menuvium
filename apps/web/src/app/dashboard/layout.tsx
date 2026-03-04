@@ -4,14 +4,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, Zap, Activity, BarChart3, Shield, UserCircle, CreditCard } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchAuthSession } from "aws-amplify/auth";
+import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/cn";
 import { getApiBase } from "@/lib/apiBase";
+import { decodeJwtPayload } from "@/lib/jwt";
 
 const LINK_PROMPT_SKIP_KEY = "menuvium_skip_link_prompt";
+const OPAQUE_USERNAME_PREFIX = /^(google|facebook|loginwithamazon|signinwithapple|oidc|saml)_/i;
 
 export default function DashboardLayout({
     children,
@@ -27,6 +29,7 @@ export default function DashboardLayout({
     const [modeReady, setModeReady] = useState(false);
     const [linkCheckReady, setLinkCheckReady] = useState(false);
     const [userEmail, setUserEmail] = useState<string>("");
+    const [isSuperAdminFromApi, setIsSuperAdminFromApi] = useState<boolean | null>(null);
     const isModePage = pathname.startsWith("/dashboard/mode");
 
     useEffect(() => {
@@ -39,6 +42,8 @@ export default function DashboardLayout({
             if (typeof window !== "undefined") {
                 window.sessionStorage.removeItem(LINK_PROMPT_SKIP_KEY);
             }
+            setUserEmail("");
+            setIsSuperAdminFromApi(null);
             router.replace("/login");
         }
     }, [mounted, authStatus, router]);
@@ -105,17 +110,82 @@ export default function DashboardLayout({
     useEffect(() => {
         if (!mounted || !user || !modeReady || !linkCheckReady) return;
 
-        // Extract email if logging in directly
-        if (typeof user.signInDetails?.loginId === 'string') {
-            setUserEmail(user.signInDetails.loginId.toLowerCase());
-        } else {
-            // Federated SSO users (Google) don't have signInDetails, so we fetch their attributes
-            import("aws-amplify/auth").then(({ fetchUserAttributes }) => {
-                fetchUserAttributes().then((attrs) => {
-                    if (attrs.email) setUserEmail(attrs.email.toLowerCase());
-                }).catch(console.error);
-            });
-        }
+        const resolveIdentityContext = async () => {
+            setIsSuperAdminFromApi(null);
+
+            try {
+                const session = await fetchAuthSession();
+                const idToken = session.tokens?.idToken?.toString();
+                if (idToken) {
+                    const res = await fetch(`${getApiBase()}/auth/session-info`, {
+                        headers: { Authorization: `Bearer ${idToken}` },
+                    });
+                    if (res.ok) {
+                        const data = (await res.json()) as {
+                            email?: string | null;
+                            is_admin?: boolean;
+                        };
+                        const apiEmail =
+                            typeof data.email === "string"
+                                ? data.email.trim().toLowerCase()
+                                : "";
+                        if (apiEmail) {
+                            setUserEmail(apiEmail);
+                        }
+                        if (typeof data.is_admin === "boolean") {
+                            setIsSuperAdminFromApi(data.is_admin);
+                        }
+                        if (apiEmail || typeof data.is_admin === "boolean") {
+                            return;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch session-info", error);
+            }
+
+            const loginId =
+                typeof user.signInDetails?.loginId === "string"
+                    ? user.signInDetails.loginId.trim().toLowerCase()
+                    : "";
+
+            // For native/email logins this is reliable.
+            // For federated users it can be an opaque id like `google_123...`, so ignore those.
+            if (loginId && loginId.includes("@") && !OPAQUE_USERNAME_PREFIX.test(loginId)) {
+                setUserEmail(loginId);
+                return;
+            }
+
+            try {
+                const attrs = await fetchUserAttributes();
+                const attrEmail = attrs.email?.trim().toLowerCase();
+                if (attrEmail) {
+                    setUserEmail(attrEmail);
+                    return;
+                }
+            } catch (error) {
+                console.error("Failed to fetch user attributes for email", error);
+            }
+
+            try {
+                const session = await fetchAuthSession();
+                const idToken = session.tokens?.idToken?.toString();
+                if (idToken) {
+                    const payload = decodeJwtPayload<{ email?: string }>(idToken);
+                    const claimEmail = payload?.email?.trim().toLowerCase();
+                    if (claimEmail) {
+                        setUserEmail(claimEmail);
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to read id token email claim", error);
+            }
+
+            setUserEmail("");
+        };
+
+        void resolveIdentityContext();
 
         if (mode === null && !isModePage) {
             router.replace("/dashboard/mode");
@@ -138,7 +208,8 @@ export default function DashboardLayout({
 
     const isManager = mode === "manager";
     const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").toLowerCase().split(",").map(e => e.trim());
-    const isSuperAdmin = userEmail ? adminEmails.includes(userEmail) : false;
+    const isSuperAdminByEmail = userEmail ? adminEmails.includes(userEmail) : false;
+    const isSuperAdmin = isSuperAdminFromApi ?? isSuperAdminByEmail;
 
     if (isModePage) {
         return (
