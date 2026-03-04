@@ -10,6 +10,7 @@ class Organization(SQLModel, table=True):
     name: str
     slug: str = Field(index=True, unique=True)
     owner_id: str = Field(index=True) # Cognito sub
+    address: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     menus: List["Menu"] = Relationship(back_populates="organization")
@@ -197,6 +198,7 @@ class MenuUpdate(SQLModel):
 class OrganizationUpdate(SQLModel):
     name: Optional[str] = None
     slug: Optional[str] = None
+    address: Optional[str] = None
 
 
 class OrganizationMemberCreate(SQLModel):

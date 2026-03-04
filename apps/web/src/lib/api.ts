@@ -245,6 +245,7 @@ export interface Organization {
     name: string;
     slug: string;
     owner_id?: string;
+    address?: string | null;
 }
 
 export const organizationApi = {
@@ -265,7 +266,7 @@ export const organizationApi = {
         api.get<OrgPermissions>(`/organizations/${orgId}/permissions`),
 
     /** Update an organization */
-    update: (id: string, data: { name?: string; slug?: string }) =>
+    update: (id: string, data: { name?: string; slug?: string; address?: string | null }) =>
         api.patch<Organization>(`/organizations/${id}`, data),
 
     /** Delete an organization */

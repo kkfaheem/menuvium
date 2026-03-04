@@ -23,7 +23,7 @@ type SoldOutDisplay = "dim" | "hide";
 
 export default function SettingsPage() {
     const apiBase = getApiBase();
-    const { theme, resolvedTheme, setTheme } = useTheme();
+    const { theme, setTheme } = useTheme();
     const { toast } = useToast();
     const [soldOutDisplay, setSoldOutDisplay] = useState<SoldOutDisplay>("dim");
     const [tags, setTags] = useState<DietaryTag[]>([]);
@@ -37,9 +37,9 @@ export default function SettingsPage() {
     const [newSpiceTag, setNewSpiceTag] = useState("");
     const [newHighlightTag, setNewHighlightTag] = useState("");
     const [newAllergenTag, setNewAllergenTag] = useState("");
-    const activeOptionClasses = "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]";
+    const activeOptionClasses = "bg-[var(--cms-accent)] text-white";
     const activeOptionButtonClasses =
-        "border-[var(--cms-accent)] bg-[var(--cms-accent-subtle)] text-[var(--cms-text)] hover:bg-[var(--cms-accent-subtle)]";
+        "border-[var(--cms-accent)] bg-[var(--cms-accent)] text-white hover:border-[var(--cms-accent-strong)] hover:bg-[var(--cms-accent-strong)]";
 
     const normalize = (value: string) => value.trim().toLowerCase();
     const normalizeKey = (value: string) => value.trim();
@@ -391,9 +391,6 @@ export default function SettingsPage() {
                                     System
                                 </Button>
                             </div>
-                            <p className="text-xs text-muted">
-                                Active: <span className="font-semibold text-foreground">{resolvedTheme}</span>
-                            </p>
                         </CardContent>
                     </Card>
 

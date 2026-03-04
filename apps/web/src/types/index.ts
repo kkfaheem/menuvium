@@ -90,6 +90,7 @@ export interface Organization {
     name: string;
     slug: string;
     owner_id: string;
+    address?: string | null;
 }
 
 export interface OrgPermissions {

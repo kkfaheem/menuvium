@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2, Check, ChevronDown, ChevronRight, Download, PencilLine, MoreHorizontal, Box } from "lucide-react";
+import { Plus, ArrowLeft, GripVertical, Trash2, X, Image as ImageIcon, Loader2, Check, ChevronDown, ChevronRight, Download, PencilLine, MoreHorizontal, Box, QrCode, Copy, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useParams, useRouter } from "next/navigation";
@@ -70,6 +70,9 @@ export default function MenuDetailPage() {
     const [tagGroups, setTagGroups] = useState<Record<string, "diet" | "spice" | "highlights">>({});
     const [mode, setMode] = useState<"admin" | "manager" | null>(null);
     const [orgPermissions, setOrgPermissions] = useState<OrgPermissions | null>(null);
+    const [baseOrigin, setBaseOrigin] = useState("https://menuvium.com");
+    const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+    const [copiedPublicUrl, setCopiedPublicUrl] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const arVideoInputRef = useRef<HTMLInputElement | null>(null);
     const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -150,6 +153,20 @@ export default function MenuDetailPage() {
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [isPhotoPreviewOpen]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        setBaseOrigin(window.location.origin);
+    }, []);
+
+    useEffect(() => {
+        if (!isQrModalOpen) return;
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setIsQrModalOpen(false);
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [isQrModalOpen]);
 
     const normalize = (value: string) => value.trim().toLowerCase();
     const orderTags = <T extends { id: string; name: string }>(source: T[], names: string[]) =>
@@ -1206,6 +1223,28 @@ export default function MenuDetailPage() {
     const canEditItems = Boolean(orgPermissions?.can_edit_items);
     const canManageAvailability = Boolean(orgPermissions?.can_manage_availability);
     const canOpenItemModal = canEditItems || canManageAvailability;
+    const publicMenuUrl = `${baseOrigin}/r/${menu.id}`;
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(publicMenuUrl)}`;
+
+    const openQrModal = () => {
+        setCopiedPublicUrl(false);
+        setIsQrModalOpen(true);
+    };
+
+    const closeQrModal = () => {
+        setIsQrModalOpen(false);
+        setCopiedPublicUrl(false);
+    };
+
+    const copyPublicUrl = async () => {
+        try {
+            await navigator.clipboard.writeText(publicMenuUrl);
+            setCopiedPublicUrl(true);
+            setTimeout(() => setCopiedPublicUrl(false), 1800);
+        } catch {
+            setCopiedPublicUrl(false);
+        }
+    };
 
     return (
         <div className="w-full max-w-5xl mx-auto">
@@ -1329,6 +1368,14 @@ export default function MenuDetailPage() {
                             >
                                 View Public Page
                             </Link>
+                            <button
+                                type="button"
+                                onClick={openQrModal}
+                                className="h-9 px-3.5 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-xs font-semibold inline-flex items-center justify-center gap-1.5 text-[var(--cms-muted)] transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none"
+                            >
+                                <QrCode className="w-3.5 h-3.5" />
+                                QR Code
+                            </button>
                             {canManageMenus && (
                                 <details className="relative">
                                     <summary className="list-none h-9 px-3 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-xs font-semibold inline-flex items-center justify-center gap-1.5 text-[var(--cms-muted)] cursor-pointer transition-colors duration-150 hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
@@ -1679,6 +1726,87 @@ export default function MenuDetailPage() {
                         >
                             {isDeletingMenu ? "Deleting..." : "Delete Menu"}
                         </button>
+                    </div>
+                )}
+
+                {isQrModalOpen && (
+                    <div
+                        className="fixed inset-0 cms-modal-overlay z-50 flex items-center justify-center p-4 animate-fade-in motion-reduce:animate-none"
+                        onClick={(event) => {
+                            if (event.target === event.currentTarget) closeQrModal();
+                        }}
+                    >
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="menu-qr-modal-title"
+                            className="cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-xl rounded-[28px] max-h-[90vh] flex flex-col backdrop-blur-xl animate-fade-in-scale motion-reduce:animate-none"
+                        >
+                            <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex items-start justify-between border-b border-[var(--cms-border)] rounded-t-[28px]">
+                                <div>
+                                    <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[var(--cms-muted)]">Publish</p>
+                                    <h2 id="menu-qr-modal-title" className="mt-1 text-xl font-bold tracking-tight">
+                                        Menu QR Code
+                                    </h2>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={closeQrModal}
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] text-[var(--cms-muted)] transition-colors hover:bg-[var(--cms-panel-strong)] hover:text-[var(--cms-text)]"
+                                    aria-label="Close QR popup"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+
+                            <div className="p-6 pt-5 space-y-5 overflow-y-auto">
+                                <div className="rounded-2xl border border-border bg-panelStrong p-5 flex items-center justify-center">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={qrImageUrl}
+                                        alt={`QR code for ${menu.name}`}
+                                        className="h-64 w-64 max-w-full rounded-xl bg-white p-2"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-semibold text-muted">Public URL</label>
+                                    <div className="flex items-center gap-2 rounded-xl border border-border bg-panelStrong px-3 py-2.5">
+                                        <span className="truncate text-sm text-foreground">{publicMenuUrl}</span>
+                                        <button
+                                            type="button"
+                                            onClick={copyPublicUrl}
+                                            className="ml-auto inline-flex h-8 items-center justify-center gap-1 rounded-lg px-2 text-xs font-semibold text-muted transition-colors hover:bg-pill hover:text-foreground"
+                                            aria-label="Copy public URL"
+                                        >
+                                            <Copy className="h-3.5 w-3.5" />
+                                            {copiedPublicUrl ? "Copied" : "Copy"}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex flex-col gap-3 sm:flex-row sm:justify-end flex-shrink-0 rounded-b-[28px]">
+                                <a
+                                    href={publicMenuUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill"
+                                >
+                                    <ExternalLink className="h-4 w-4" />
+                                    Open Menu
+                                </a>
+                                <a
+                                    href={qrImageUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]"
+                                >
+                                    <QrCode className="h-4 w-4" />
+                                    Open QR Image
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 )}
 
