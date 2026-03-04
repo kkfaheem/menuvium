@@ -11,6 +11,8 @@ import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/cn";
 import { getApiBase } from "@/lib/apiBase";
 
+const LINK_PROMPT_SKIP_KEY = "menuvium_skip_link_prompt";
+
 export default function DashboardLayout({
     children,
 }: {
@@ -34,6 +36,9 @@ export default function DashboardLayout({
     useEffect(() => {
         if (!mounted) return;
         if (authStatus === "unauthenticated") {
+            if (typeof window !== "undefined") {
+                window.sessionStorage.removeItem(LINK_PROMPT_SKIP_KEY);
+            }
             router.replace("/login");
         }
     }, [mounted, authStatus, router]);
@@ -50,6 +55,14 @@ export default function DashboardLayout({
         if (!mounted || authStatus !== "authenticated" || !user) {
             setLinkCheckReady(false);
             return;
+        }
+
+        if (typeof window !== "undefined") {
+            const skipLinkPrompt = window.sessionStorage.getItem(LINK_PROMPT_SKIP_KEY);
+            if (skipLinkPrompt === "1") {
+                setLinkCheckReady(true);
+                return;
+            }
         }
 
         let cancelled = false;
@@ -394,7 +407,12 @@ export default function DashboardLayout({
                             <ThemeToggle />
                         </div>
                         <button
-                            onClick={() => signOut()}
+                            onClick={() => {
+                                if (typeof window !== "undefined") {
+                                    window.sessionStorage.removeItem(LINK_PROMPT_SKIP_KEY);
+                                }
+                                signOut();
+                            }}
                             className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-muted hover:text-[var(--cms-text)] hover:bg-pill transition-colors"
                         >
                             <LogOut className="w-5 h-5" />

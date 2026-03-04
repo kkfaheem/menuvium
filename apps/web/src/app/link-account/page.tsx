@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { getApiBase } from "@/lib/apiBase";
 
+const LINK_PROMPT_SKIP_KEY = "menuvium_skip_link_prompt";
+
 export default function LinkAccountPage() {
     const router = useRouter();
     const { user, authStatus, signOut } = useAuthenticator(context => [context.user, context.authStatus]);
@@ -82,8 +84,19 @@ export default function LinkAccountPage() {
 
     useEffect(() => {
         if (authStatus !== "authenticated") {
+            if (typeof window !== "undefined") {
+                window.sessionStorage.removeItem(LINK_PROMPT_SKIP_KEY);
+            }
             router.push("/login");
             return;
+        }
+
+        if (typeof window !== "undefined") {
+            const skipLinkPrompt = window.sessionStorage.getItem(LINK_PROMPT_SKIP_KEY);
+            if (skipLinkPrompt === "1") {
+                proceedToDashboard();
+                return;
+            }
         }
 
         const checkLinkWithRetry = async () => {
@@ -135,6 +148,9 @@ export default function LinkAccountPage() {
         setError(null);
         try {
             await callLinkApi<{ ok: boolean; detail: string }>("/auth/link-accounts", "POST", true);
+            if (typeof window !== "undefined") {
+                window.sessionStorage.removeItem(LINK_PROMPT_SKIP_KEY);
+            }
             setSuccess(true);
             setTimeout(() => {
                 void proceedAfterSuccessfulLink();
@@ -147,6 +163,9 @@ export default function LinkAccountPage() {
     };
 
     const handleSkip = () => {
+        if (typeof window !== "undefined") {
+            window.sessionStorage.setItem(LINK_PROMPT_SKIP_KEY, "1");
+        }
         proceedToDashboard();
     };
 
