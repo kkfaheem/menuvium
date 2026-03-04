@@ -97,7 +97,7 @@ export default function AdminUsersPage() {
             await adminApi.deleteUser(username);
             setUsers(items => items.filter(u => u.username !== username));
         } catch (err: any) {
-            alert("Failed to delete user: " + (err.message || "Unknown error"));
+            alert("Failed to delete user: " + (err.detail || err.message || "Unknown error"));
         }
     };
 

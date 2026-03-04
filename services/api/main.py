@@ -37,7 +37,7 @@ if os.getenv("LOCAL_UPLOADS") == "1":
     upload_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
 
-from routers import organizations, menus, categories, items, metadata, imports, export, ar_jobs, menu_importer, admin
+from routers import organizations, menus, categories, items, metadata, imports, export, ar_jobs, menu_importer, admin, auth
 app.include_router(organizations.router)
 app.include_router(menus.router)
 app.include_router(categories.router)
@@ -48,6 +48,7 @@ app.include_router(imports.router)
 app.include_router(export.router)
 app.include_router(menu_importer.router)
 app.include_router(admin.router)
+app.include_router(auth.router)
 
 @app.get("/health")
 def health_check():

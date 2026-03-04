@@ -14,15 +14,9 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (authStatus !== 'authenticated') return;
-        // Keep current mode sticky across refresh/reloads.
-        if (typeof window !== "undefined") {
-            const stored = localStorage.getItem("menuvium_user_mode");
-            if (stored === "admin" || stored === "manager") {
-                router.push("/dashboard/menus");
-                return;
-            }
-        }
-        router.push("/dashboard/mode");
+        // Route through link-account page — it checks for duplicate accounts
+        // and either shows the merge UI or auto-redirects to dashboard.
+        router.push("/link-account");
     }, [authStatus, router]);
 
     const isConfigured = process.env.NEXT_PUBLIC_USER_POOL_ID && process.env.NEXT_PUBLIC_USER_POOL_ID !== 'us-east-1_dummy';
@@ -132,7 +126,7 @@ export default function LoginPage() {
                                         <View className="auth-wrapper">
                                             <Authenticator
                                                 loginMechanisms={["email"]}
-                                                socialProviders={hasOAuth ? ["google", "apple", "facebook"] : []}
+                                                socialProviders={hasOAuth ? ["google"] : []}
                                                 signUpAttributes={["email", "name"]}
                                             />
                                         </View>

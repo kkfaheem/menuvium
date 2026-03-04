@@ -436,3 +436,14 @@ export const adminApi = {
         URL.revokeObjectURL(url);
     }
 };
+
+// ============================================================================
+// Auth API (account linking)
+// ============================================================================
+
+export const authApi = {
+    checkLink: () =>
+        api.get<{ needs_link: boolean; provider: string | null; existing_email: string | null }>("/auth/check-link"),
+    linkAccounts: () =>
+        api.post<{ ok: boolean; detail: string }>("/auth/link-accounts"),
+};
