@@ -5,6 +5,7 @@ import io
 import base64
 from datetime import datetime
 from typing import List, Optional
+from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select, delete
@@ -95,13 +96,80 @@ def _data_url_from_logo_url(logo_url: str) -> str:
         )
 
 
-def _external_origin(request: Request) -> str:
+def _normalize_origin(origin_like: Optional[str]) -> Optional[str]:
+    if not origin_like:
+        return None
+
+    candidate = origin_like.strip()
+    if not candidate:
+        return None
+
+    if "://" not in candidate:
+        candidate = f"https://{candidate}"
+
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+
+    return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+
+def _public_web_origin(request: Request) -> str:
     """
-    Resolve externally reachable origin without forwarded prefix.
+    Resolve the public web app origin used in QR links.
+
+    Priority:
+    1) Explicit environment vars (recommended in production)
+    2) Configured `CORS_ORIGINS`
+    3) Browser `Origin` / `Referer` headers
+    4) Forwarded host/proto from reverse proxy
     """
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    for env_key in (
+        "PUBLIC_WEB_BASE_URL",
+        "WEB_APP_BASE_URL",
+        "APP_BASE_URL",
+        "NEXT_PUBLIC_APP_URL",
+        "NEXT_PUBLIC_SITE_URL",
+        "NEXT_PUBLIC_AUTH_REDIRECT_SIGNIN",
+    ):
+        explicit = _normalize_origin(os.getenv(env_key))
+        if explicit:
+            return explicit
+
+    cors_origins = os.getenv("CORS_ORIGINS", "")
+    local_cors_fallback: Optional[str] = None
+    for entry in cors_origins.split(","):
+        normalized = _normalize_origin(entry)
+        if not normalized:
+            continue
+        host = (urlparse(normalized).hostname or "").lower()
+        if host in {"localhost", "127.0.0.1"}:
+            if not local_cors_fallback:
+                local_cors_fallback = normalized
+            continue
+        return normalized
+    if local_cors_fallback:
+        return local_cors_fallback
+
+    request_origin = _normalize_origin(request.headers.get("origin"))
+    if request_origin:
+        return request_origin
+
+    request_referer = _normalize_origin(request.headers.get("referer"))
+    if request_referer:
+        return request_referer
+
+    host = (
+        request.headers.get("x-forwarded-host")
+        or request.headers.get("host")
+        or request.url.netloc
+    )
     proto = request.headers.get("x-forwarded-proto") or request.url.scheme
-    return f"{proto}://{host}".rstrip("/")
+    fallback = _normalize_origin(f"{proto}://{host}")
+    if fallback:
+        return fallback
+
+    raise HTTPException(status_code=500, detail="Unable to resolve public web origin")
 
 
 def _decode_data_url(data_url: str) -> tuple[bytes, str]:
@@ -193,7 +261,7 @@ def _fetch_qr_png(public_url: str) -> bytes:
 
     qr_url = (
         "https://api.qrserver.com/v1/create-qr-code/"
-        f"?size=1024x1024&margin=0&ecc=H&format=png&data={quote(public_url, safe='')}"
+        f"?size=2048x2048&margin=0&ecc=H&format=png&data={quote(public_url, safe='')}"
     )
     with httpx.Client(timeout=20.0, follow_redirects=True) as client:
         res = client.get(qr_url)
@@ -453,7 +521,7 @@ def generate_logo_qr(
         raise HTTPException(status_code=400, detail="Logo must be uploaded first")
 
     try:
-        public_url = f"{_external_origin(request)}/r/{menu.id}"
+        public_url = f"{_public_web_origin(request)}/r/{menu.id}"
         logo_data_url = _data_url_from_logo_url(menu.logo_url)
         style = _analyze_logo_qr_style(logo_data_url)
         qr_png = _fetch_qr_png(public_url)

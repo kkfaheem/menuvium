@@ -108,7 +108,8 @@ export default function MenuPublishPage() {
     };
 
     const publicUrl = `${baseOrigin}/r/${menu?.id || menuId}`;
-    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(publicUrl)}`;
+    const qrPreviewUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(publicUrl)}`;
+    const qrOpenUrl = `https://api.qrserver.com/v1/create-qr-code/?size=2048x2048&data=${encodeURIComponent(publicUrl)}`;
 
     const sampleItems = useMemo(() => {
         return categories.flatMap((category) =>
@@ -216,7 +217,7 @@ export default function MenuPublishPage() {
 
                         <div className="rounded-2xl border border-border bg-panelStrong p-5 flex items-center justify-center">
                             <img
-                                src={qrImageUrl}
+                                src={qrPreviewUrl}
                                 alt={`QR code for ${menu.name}`}
                                 className="h-64 w-64 max-w-full rounded-xl bg-white p-2"
                             />
@@ -245,7 +246,7 @@ export default function MenuPublishPage() {
                                 <ExternalLink className="w-3 h-3" /> Open guest page
                             </Link>
                             <Link
-                                href={qrImageUrl}
+                                href={qrOpenUrl}
                                 target="_blank"
                                 className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-border bg-panelStrong px-4 text-xs font-semibold text-foreground transition-colors hover:bg-pill"
                             >

@@ -1397,12 +1397,15 @@ export default function MenuDetailPage() {
   );
   const canOpenItemModal = canEditItems || canManageAvailability;
   const publicMenuUrl = `${baseOrigin}/r/${menu.id}`;
-  const standardQrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(publicMenuUrl)}`;
+  const standardQrPreviewUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(publicMenuUrl)}`;
+  const standardQrOpenUrl = `https://api.qrserver.com/v1/create-qr-code/?size=2048x2048&data=${encodeURIComponent(publicMenuUrl)}`;
   const logoQrImageUrl = menu.logo_qr_url || null;
   const activeQrVariant =
     qrVariant === "logo" && logoQrImageUrl ? "logo" : "standard";
-  const activeQrImageUrl =
-    activeQrVariant === "logo" ? logoQrImageUrl! : standardQrImageUrl;
+  const activeQrPreviewUrl =
+    activeQrVariant === "logo" ? logoQrImageUrl! : standardQrPreviewUrl;
+  const activeQrOpenUrl =
+    activeQrVariant === "logo" ? logoQrImageUrl! : standardQrOpenUrl;
 
   const openQrModal = () => {
     setCopiedPublicUrl(false);
@@ -2033,7 +2036,7 @@ export default function MenuDetailPage() {
                 <div className="rounded-2xl border border-border bg-panelStrong p-5 flex items-center justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={activeQrImageUrl}
+                    src={activeQrPreviewUrl}
                     alt={`${activeQrVariant === "logo" ? "Branded" : "Standard"} QR code for ${menu.name}`}
                     className="h-64 w-64 max-w-full rounded-xl bg-white p-2"
                   />
@@ -2071,7 +2074,7 @@ export default function MenuDetailPage() {
                   Open Menu
                 </a>
                 <a
-                  href={activeQrImageUrl}
+                  href={activeQrOpenUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]"
