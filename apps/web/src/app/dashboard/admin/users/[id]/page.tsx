@@ -79,8 +79,12 @@ export default function UserProfilePage() {
                             <UsersIcon className="w-8 h-8 text-[var(--cms-accent)]" />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-bold tracking-tight font-heading">{userDetail.email}</h1>
+                            <h1 className="text-3xl font-bold tracking-tight font-heading">
+                                {userDetail.name || userDetail.email}
+                            </h1>
                             <div className="flex items-center gap-3 text-sm text-muted mt-1">
+                                <span>{userDetail.email}</span>
+                                <span>•</span>
                                 <span className="font-mono text-xs">{userDetail.username}</span>
                                 <span>•</span>
                                 <Badge variant={userDetail.enabled ? 'success' : 'danger'} className="text-[10px] py-0">
@@ -210,6 +214,10 @@ export default function UserProfilePage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-muted uppercase">Name</label>
+                                <div className="text-xs truncate">{userDetail.name || "Not set"}</div>
+                            </div>
+                            <div className="space-y-1">
                                 <label className="text-[10px] font-bold text-muted uppercase">Username (Sub)</label>
                                 <div className="flex items-center gap-2">
                                     <Fingerprint className="w-4 h-4 text-muted" />
@@ -286,4 +294,3 @@ export default function UserProfilePage() {
         </div>
     );
 }
-

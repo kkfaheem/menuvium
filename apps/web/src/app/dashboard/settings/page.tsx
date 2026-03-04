@@ -11,6 +11,7 @@ import { Camera, Monitor, Moon, Plus, Sun, UserCircle, X } from "lucide-react";
 import { ALLERGEN_TAGS, DIET_TAGS, HIGHLIGHT_TAGS, SPICE_TAGS, TAG_LABELS_DEFAULTS } from "@/lib/menuTagPresets";
 import { getApiBase } from "@/lib/apiBase";
 import { getAuthToken } from "@/lib/authToken";
+import { decodeJwtPayload } from "@/lib/jwt";
 import type { DietaryTag, Allergen } from "@/types";
 import { useTheme } from "@/components/ThemeProvider";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -33,6 +34,16 @@ type ProfileDraft = {
     phone: string;
     email: string;
     picture: string;
+};
+
+type ProfileClaims = {
+    name?: string;
+    given_name?: string;
+    family_name?: string;
+    preferred_username?: string;
+    email?: string;
+    phone_number?: string;
+    picture?: string;
 };
 
 export default function SettingsPage() {
@@ -88,6 +99,28 @@ export default function SettingsPage() {
         if (digits.length === 10) return `+1${digits}`;
         if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
         return `+${digits}`;
+    };
+    const asCleanString = (value: unknown) => {
+        if (typeof value !== "string") return "";
+        return value.trim();
+    };
+    const deriveNameFromClaims = (claims: ProfileClaims) => {
+        const directName = asCleanString(claims.name);
+        if (directName) return directName;
+        const given = asCleanString(claims.given_name);
+        const family = asCleanString(claims.family_name);
+        const combined = [given, family].filter(Boolean).join(" ").trim();
+        if (combined) return combined;
+        const preferred = asCleanString(claims.preferred_username);
+        return preferred || "";
+    };
+    const readProfileClaims = async (): Promise<ProfileClaims> => {
+        try {
+            const token = await getAuthToken();
+            return decodeJwtPayload<ProfileClaims>(token) || {};
+        } catch {
+            return {};
+        }
     };
     const profileDirty = useMemo(() => {
         return (
@@ -188,12 +221,17 @@ export default function SettingsPage() {
     const fetchProfile = async () => {
         setLoadingProfile(true);
         try {
-            const attrs = await fetchUserAttributes();
+            const attrs = (await fetchUserAttributes().catch(
+                () => ({})
+            )) as Partial<Record<UserAttributeKey, string>>;
+            const claims = await readProfileClaims();
             const next: ProfileDraft = {
-                name: (attrs.name || "").trim(),
-                phone: (attrs.phone_number || "").trim(),
-                email: (attrs.email || "").trim(),
-                picture: (attrs.picture || "").trim(),
+                name: asCleanString(attrs.name) || deriveNameFromClaims(claims),
+                phone:
+                    asCleanString(attrs.phone_number) ||
+                    asCleanString(claims.phone_number),
+                email: asCleanString(attrs.email) || asCleanString(claims.email),
+                picture: asCleanString(attrs.picture) || asCleanString(claims.picture),
             };
             setProfileDraft(next);
             setProfileBaseline(next);
@@ -280,25 +318,9 @@ export default function SettingsPage() {
 
     const saveProfile = async () => {
         const nextName = profileDraft.name.trim();
-        const nextEmail = profileDraft.email.trim();
         const nextPhone = normalizePhone(profileDraft.phone);
         const nextPicture = profileDraft.picture.trim();
 
-        if (!nextEmail) {
-            toast({
-                variant: "error",
-                title: "Email is required",
-            });
-            return;
-        }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
-            toast({
-                variant: "error",
-                title: "Invalid email",
-                description: "Please enter a valid email address.",
-            });
-            return;
-        }
         if (profileDraft.phone.trim() && !/^\+[1-9]\d{7,14}$/.test(nextPhone)) {
             toast({
                 variant: "error",
@@ -312,7 +334,6 @@ export default function SettingsPage() {
         const updates: Record<string, string> = {};
         const attributesToDelete: DeletableProfileAttributeKey[] = [];
         if (nextName !== profileBaseline.name.trim()) updates.name = nextName;
-        if (nextEmail !== profileBaseline.email.trim()) updates.email = nextEmail;
         if (!nextPhone && normalizePhone(profileBaseline.phone)) {
             attributesToDelete.push("phone_number");
         } else if (nextPhone !== normalizePhone(profileBaseline.phone)) {
@@ -701,10 +722,12 @@ export default function SettingsPage() {
                                 <Input
                                     type="email"
                                     value={profileDraft.email}
-                                    onChange={(e) => setProfileField("email", e.target.value)}
                                     placeholder="you@company.com"
                                     autoComplete="email"
+                                    readOnly
+                                    disabled
                                 />
+                                <p className="text-xs text-muted">Email is managed by your login provider and cannot be changed here.</p>
                             </div>
                             <div className="space-y-1.5 sm:col-span-2">
                                 <label className="text-xs font-semibold uppercase tracking-[0.2em] text-muted">

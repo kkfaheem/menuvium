@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Users as UsersIcon, Search, Shield, ShieldOff, Key, UserCheck, LogOut, Trash2, Building2 } from "lucide-react";
+import { Users as UsersIcon, Search, Shield, ShieldOff, Key, UserCheck, LogOut, Trash2 } from "lucide-react";
 import { adminApi, AdminUser } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -107,6 +107,7 @@ export default function AdminUsersPage() {
     };
 
     const filteredUsers = users.filter(u =>
+        (u.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.username.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -130,7 +131,7 @@ export default function AdminUsersPage() {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search by email or username..."
+                            placeholder="Search by name, email, or username..."
                             className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 pl-9 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         />
                     </div>
@@ -188,8 +189,9 @@ export default function AdminUsersPage() {
                                         >
                                             <td className="p-4">
                                                 <div className="flex flex-col">
-                                                    <span className="font-medium text-foreground">{u.email}</span>
-                                                    <span className="text-xs text-muted font-mono">{u.username}</span>
+                                                    <span className="font-medium text-foreground">{u.name || "Unnamed User"}</span>
+                                                    <span className="text-xs text-muted">{u.email}</span>
+                                                    <span className="text-[10px] text-muted font-mono">{u.username}</span>
                                                 </div>
                                             </td>
                                             <td className="p-4">

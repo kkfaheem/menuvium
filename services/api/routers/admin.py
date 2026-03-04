@@ -548,6 +548,7 @@ def get_cognito_client():
 
 class AdminUserRead(BaseModel):
     username: str
+    name: Optional[str] = None
     email: str
     status: str
     enabled: bool
@@ -567,6 +568,28 @@ class AdminUsersResponse(BaseModel):
     items: List[AdminUserRead]
     # Pagination might be tricky with Cognito's PaginationToken, so doing simple approach
 
+
+def _get_attr(attributes: List[dict], key: str) -> Optional[str]:
+    value = next((attr.get("Value") for attr in attributes if attr.get("Name") == key), None)
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    return value or None
+
+
+def _derive_user_name(attributes: List[dict]) -> Optional[str]:
+    direct_name = _get_attr(attributes, "name")
+    if direct_name:
+        return direct_name
+    given = _get_attr(attributes, "given_name")
+    family = _get_attr(attributes, "family_name")
+    combined = " ".join([part for part in [given, family] if part]).strip()
+    if combined:
+        return combined
+    preferred = _get_attr(attributes, "preferred_username")
+    return preferred
+
+
 @router.get("/users", response_model=AdminUsersResponse)
 def list_users():
     """List users from Cognito User Pool."""
@@ -581,9 +604,12 @@ def list_users():
         users = []
         from datetime import timezone
         for u in response.get("Users", []):
-            email = next((attr["Value"] for attr in u.get("Attributes", []) if attr["Name"] == "email"), u["Username"])
+            attributes = u.get("Attributes", [])
+            email = _get_attr(attributes, "email") or u["Username"]
+            name = _derive_user_name(attributes)
             users.append(AdminUserRead(
                 username=u["Username"],
+                name=name,
                 email=email,
                 status=u.get("UserStatus", "UNKNOWN"),
                 enabled=u.get("Enabled", False),
@@ -605,10 +631,13 @@ def get_user_detail(username: str, session: Session = Depends(get_session)):
     
     try:
         response = client.admin_get_user(UserPoolId=user_pool_id, Username=username)
-        email = next((attr["Value"] for attr in response.get("UserAttributes", []) if attr["Name"] == "email"), username)
+        attributes = response.get("UserAttributes", [])
+        email = _get_attr(attributes, "email") or username
+        name = _derive_user_name(attributes)
         
         user_read = AdminUserRead(
             username=response["Username"],
+            name=name,
             email=email,
             status=response.get("UserStatus", "UNKNOWN"),
             enabled=response.get("Enabled", False),

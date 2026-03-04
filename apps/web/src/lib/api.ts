@@ -320,6 +320,7 @@ export interface AdminAnalytics {
 
 export interface AdminUser {
     username: string;
+    name: string | null;
     email: string;
     status: string;
     enabled: boolean;
