@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, QrCode, Zap, Users, Activity, BarChart3, Shield, UserCircle, CreditCard } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, QrCode, Zap, Activity, BarChart3, Shield, UserCircle, CreditCard } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -242,7 +242,7 @@ export default function DashboardLayout({
                         </Link>
                     </nav>
 
-                    <div className="mt-auto pt-4 border-t border-border space-y-2">
+                    <div className={cn("mt-auto pt-4 space-y-2", isSuperAdmin && "border-t border-border")}>
                         {isSuperAdmin && (
                             <div className="px-3 pb-2">
                                 <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--cms-muted)] mb-3 mt-2">
