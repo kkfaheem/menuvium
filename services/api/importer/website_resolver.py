@@ -135,35 +135,70 @@ async def resolve_website(
 
 
 async def _resolve_via_google_places(query: str, api_key: str) -> Optional[str]:
-    """Use Google Places Text Search → Place Details to find restaurant website."""
+    """Use Places API (New) Search Text + Place Details to find restaurant website."""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            search_url = "https://maps.googleapis.com/maps/api/place/textsearch/json"
-            search_resp = await client.get(
+            search_url = "https://places.googleapis.com/v1/places:searchText"
+            search_resp = await client.post(
                 search_url,
-                params={"query": f"{query} restaurant", "key": api_key},
-            )
-            search_data = search_resp.json()
-            results = search_data.get("results", [])
-            if not results:
-                return None
-
-            place_id = results[0].get("place_id")
-            if not place_id:
-                return None
-
-            details_url = "https://maps.googleapis.com/maps/api/place/details/json"
-            details_resp = await client.get(
-                details_url,
-                params={
-                    "place_id": place_id,
-                    "fields": "website,name",
-                    "key": api_key,
+                headers={
+                    "X-Goog-Api-Key": api_key,
+                    "X-Goog-FieldMask": "places.id,places.name",
                 },
+                json={"textQuery": f"{query} restaurant", "languageCode": "en"},
             )
-            details_data = details_resp.json()
-            website = details_data.get("result", {}).get("website")
-            return website or None
+            if search_resp.status_code >= 400:
+                return None
+
+            search_data = search_resp.json()
+            places = search_data.get("places", [])
+            if not places:
+                return None
+
+            details_headers = {
+                "X-Goog-Api-Key": api_key,
+                "X-Goog-FieldMask": "websiteUri,movedPlace,movedPlaceId",
+            }
+
+            # Try the top few places to improve hit rate for ambiguous names.
+            for place in places[:5]:
+                place_id = place.get("id")
+                if not place_id:
+                    place_name = place.get("name")
+                    if isinstance(place_name, str) and place_name.startswith("places/"):
+                        place_id = place_name.split("/", 1)[1]
+                if not place_id:
+                    continue
+
+                details_url = f"https://places.googleapis.com/v1/places/{place_id}"
+                details_resp = await client.get(details_url, headers=details_headers)
+                if details_resp.status_code >= 400:
+                    continue
+
+                details_data = details_resp.json()
+                website = details_data.get("websiteUri")
+                if website:
+                    return website
+
+                # Handle moved places by retrying details on the moved place id.
+                moved_place = details_data.get("movedPlace")
+                moved_place_id = details_data.get("movedPlaceId")
+                next_id: Optional[str] = None
+                if isinstance(moved_place_id, str) and moved_place_id:
+                    next_id = moved_place_id
+                elif isinstance(moved_place, str) and moved_place.startswith("places/"):
+                    next_id = moved_place.split("/", 1)[1]
+
+                if next_id:
+                    moved_details_url = f"https://places.googleapis.com/v1/places/{next_id}"
+                    moved_details_resp = await client.get(moved_details_url, headers=details_headers)
+                    if moved_details_resp.status_code < 400:
+                        moved_details_data = moved_details_resp.json()
+                        moved_website = moved_details_data.get("websiteUri")
+                        if moved_website:
+                            return moved_website
+
+            return None
     except Exception:
         return None
 
