@@ -18,6 +18,12 @@ type Company = {
     slug: string;
     owner_id?: string;
     address?: string | null;
+    address_line1?: string | null;
+    address_line2?: string | null;
+    city?: string | null;
+    state_province?: string | null;
+    country?: string | null;
+    postal_code?: string | null;
 };
 
 export default function CompaniesPage() {

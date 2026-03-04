@@ -17,6 +17,12 @@ type Company = {
     name: string;
     slug: string;
     address?: string | null;
+    address_line1?: string | null;
+    address_line2?: string | null;
+    city?: string | null;
+    state_province?: string | null;
+    country?: string | null;
+    postal_code?: string | null;
 };
 
 type Member = {
@@ -36,8 +42,20 @@ type MemberPatch = Partial<
 >;
 
 type AddressSuggestion = {
-    place_id: number;
+    place_id: string;
     display_name: string;
+    main_text?: string;
+    secondary_text?: string;
+};
+
+type AddressPlaceDetails = {
+    address_line1?: string;
+    address_line2?: string;
+    city?: string;
+    state_province?: string;
+    country?: string;
+    postal_code?: string;
+    formatted_address?: string;
 };
 
 const permissionRows: Array<{
@@ -70,6 +88,26 @@ const slugify = (value: string) =>
         .replace(/\s+/g, "-")
         .replace(/-+/g, "-");
 
+const formatAddressFromParts = (parts: {
+    addressLine1?: string;
+    addressLine2?: string;
+    city?: string;
+    stateProvince?: string;
+    country?: string;
+    postalCode?: string;
+}) => {
+    const statePostal = [parts.stateProvince?.trim(), parts.postalCode?.trim()].filter(Boolean).join(" ");
+    return [
+        parts.addressLine1?.trim(),
+        parts.addressLine2?.trim(),
+        parts.city?.trim(),
+        statePostal,
+        parts.country?.trim(),
+    ]
+        .filter(Boolean)
+        .join(", ");
+};
+
 export default function CompanyDetailPage() {
     const params = useParams();
     const router = useRouter();
@@ -96,12 +134,18 @@ export default function CompanyDetailPage() {
     const [membersError, setMembersError] = useState<string | null>(null);
 
     const [companyNameDraft, setCompanyNameDraft] = useState("");
-    const [companyAddressDraft, setCompanyAddressDraft] = useState("");
+    const [companyAddressLine1Draft, setCompanyAddressLine1Draft] = useState("");
+    const [companyAddressLine2Draft, setCompanyAddressLine2Draft] = useState("");
+    const [companyCityDraft, setCompanyCityDraft] = useState("");
+    const [companyStateProvinceDraft, setCompanyStateProvinceDraft] = useState("");
+    const [companyCountryDraft, setCompanyCountryDraft] = useState("");
+    const [companyPostalCodeDraft, setCompanyPostalCodeDraft] = useState("");
 
     const [addressSearch, setAddressSearch] = useState("");
     const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
     const [addressLoading, setAddressLoading] = useState(false);
     const [addressDropdownOpen, setAddressDropdownOpen] = useState(false);
+    const [addressLookupConfigured, setAddressLookupConfigured] = useState(true);
     const addressPickerRef = useRef<HTMLDivElement | null>(null);
 
     const [inviteEmail, setInviteEmail] = useState("");
@@ -135,9 +179,14 @@ export default function CompanyDetailPage() {
 
             setCompany(org);
             setCompanyNameDraft(org.name);
-            const nextAddress = org.address || "";
-            setCompanyAddressDraft(nextAddress);
-            setAddressSearch(nextAddress);
+            const nextAddressLine1 = org.address_line1 || org.address || "";
+            setCompanyAddressLine1Draft(nextAddressLine1);
+            setCompanyAddressLine2Draft(org.address_line2 || "");
+            setCompanyCityDraft(org.city || "");
+            setCompanyStateProvinceDraft(org.state_province || "");
+            setCompanyCountryDraft(org.country || "");
+            setCompanyPostalCodeDraft(org.postal_code || "");
+            setAddressSearch(nextAddressLine1);
 
             const perms = await fetchOrgPermissions({ apiBase, token, orgId });
             setOrgPermissions({ can_manage_users: perms.can_manage_users });
@@ -186,23 +235,26 @@ export default function CompanyDetailPage() {
         const timeoutId = window.setTimeout(async () => {
             setAddressLoading(true);
             try {
-                const res = await fetch(
-                    `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q=${encodeURIComponent(query)}`,
-                    {
-                        signal: controller.signal,
-                        headers: { Accept: "application/json" }
-                    }
-                );
+                const res = await fetch(`/api/address-suggestions?q=${encodeURIComponent(query)}`, {
+                    signal: controller.signal,
+                });
                 if (!res.ok) {
                     setAddressSuggestions([]);
                     return;
                 }
-                const data = (await res.json()) as AddressSuggestion[];
+                const payload = (await res.json()) as {
+                    suggestions?: AddressSuggestion[];
+                    configured?: boolean;
+                };
+                const data = payload.suggestions || [];
+                setAddressLookupConfigured(payload.configured !== false);
                 setAddressSuggestions(
                     Array.isArray(data)
                         ? data.map((item) => ({
-                            place_id: Number(item.place_id),
+                            place_id: String(item.place_id),
                             display_name: item.display_name,
+                            main_text: item.main_text,
+                            secondary_text: item.secondary_text,
                         }))
                         : []
                 );
@@ -233,13 +285,63 @@ export default function CompanyDetailPage() {
         return () => document.removeEventListener("mousedown", onPointerDown);
     }, [addressDropdownOpen]);
 
+    const applyAddressSuggestion = async (suggestion: AddressSuggestion) => {
+        setAddressLoading(true);
+        try {
+            const res = await fetch(`/api/address-place-details?placeId=${encodeURIComponent(suggestion.place_id)}`);
+            if (!res.ok) {
+                throw new Error("Failed to fetch place details");
+            }
+            const details = (await res.json()) as AddressPlaceDetails;
+            const nextLine1 = details.address_line1 || suggestion.main_text || suggestion.display_name;
+            setCompanyAddressLine1Draft(nextLine1);
+            setCompanyAddressLine2Draft(details.address_line2 || "");
+            setCompanyCityDraft(details.city || "");
+            setCompanyStateProvinceDraft(details.state_province || "");
+            setCompanyCountryDraft(details.country || "");
+            setCompanyPostalCodeDraft(details.postal_code || "");
+            setAddressSearch(nextLine1);
+            setAddressDropdownOpen(false);
+            setAddressSuggestions([]);
+        } catch (e) {
+            console.error("Address detail lookup failed", e);
+            const fallback = suggestion.main_text || suggestion.display_name;
+            setCompanyAddressLine1Draft(fallback);
+            setAddressSearch(fallback);
+            setAddressDropdownOpen(false);
+            setAddressSuggestions([]);
+            toast({
+                variant: "warning",
+                title: "Could not auto-fill all fields",
+                description: "Address line 1 was set. You can complete the remaining fields manually.",
+            });
+        } finally {
+            setAddressLoading(false);
+        }
+    };
+
     const detailsDirty = useMemo(() => {
         if (!company) return false;
+        const currentAddressLine1 = company.address_line1 || company.address || "";
         return (
             companyNameDraft.trim() !== company.name ||
-            companyAddressDraft.trim() !== (company.address || "")
+            companyAddressLine1Draft.trim() !== currentAddressLine1 ||
+            companyAddressLine2Draft.trim() !== (company.address_line2 || "") ||
+            companyCityDraft.trim() !== (company.city || "") ||
+            companyStateProvinceDraft.trim() !== (company.state_province || "") ||
+            companyCountryDraft.trim() !== (company.country || "") ||
+            companyPostalCodeDraft.trim() !== (company.postal_code || "")
         );
-    }, [company, companyNameDraft, companyAddressDraft]);
+    }, [
+        company,
+        companyNameDraft,
+        companyAddressLine1Draft,
+        companyAddressLine2Draft,
+        companyCityDraft,
+        companyStateProvinceDraft,
+        companyCountryDraft,
+        companyPostalCodeDraft,
+    ]);
 
     const canManageUsers = Boolean(orgPermissions?.can_manage_users);
 
@@ -257,6 +359,20 @@ export default function CompanyDetailPage() {
 
         setIsSavingDetails(true);
         try {
+            const nextAddressLine1Value = companyAddressLine1Draft.trim();
+            const nextAddressLine2Value = companyAddressLine2Draft.trim();
+            const nextCity = companyCityDraft.trim();
+            const nextStateProvince = companyStateProvinceDraft.trim();
+            const nextCountry = companyCountryDraft.trim();
+            const nextPostalCode = companyPostalCodeDraft.trim();
+            const formattedAddress = formatAddressFromParts({
+                addressLine1: nextAddressLine1Value,
+                addressLine2: nextAddressLine2Value,
+                city: nextCity,
+                stateProvince: nextStateProvince,
+                country: nextCountry,
+                postalCode: nextPostalCode,
+            });
             const token = await getAuthToken();
             const res = await fetch(`${apiBase}/organizations/${orgId}`, {
                 method: "PATCH",
@@ -267,7 +383,13 @@ export default function CompanyDetailPage() {
                 body: JSON.stringify({
                     name: nextName,
                     slug: slugify(nextName),
-                    address: companyAddressDraft.trim() || null,
+                    address: formattedAddress || null,
+                    address_line1: nextAddressLine1Value || null,
+                    address_line2: nextAddressLine2Value || null,
+                    city: nextCity || null,
+                    state_province: nextStateProvince || null,
+                    country: nextCountry || null,
+                    postal_code: nextPostalCode || null,
                 })
             });
             if (!res.ok) {
@@ -287,9 +409,14 @@ export default function CompanyDetailPage() {
             const updated = (await res.json()) as Company;
             setCompany(updated);
             setCompanyNameDraft(updated.name);
-            const nextAddress = updated.address || "";
-            setCompanyAddressDraft(nextAddress);
-            setAddressSearch(nextAddress);
+            const nextAddressLine1 = updated.address_line1 || updated.address || "";
+            setCompanyAddressLine1Draft(nextAddressLine1);
+            setCompanyAddressLine2Draft(updated.address_line2 || "");
+            setCompanyCityDraft(updated.city || "");
+            setCompanyStateProvinceDraft(updated.state_province || "");
+            setCompanyCountryDraft(updated.country || "");
+            setCompanyPostalCodeDraft(updated.postal_code || "");
+            setAddressSearch(nextAddressLine1);
             setAddressSuggestions([]);
             setAddressDropdownOpen(false);
             toast({ variant: "success", title: "Company updated" });
@@ -530,16 +657,16 @@ export default function CompanyDetailPage() {
                     </div>
 
                     <div className="space-y-2" ref={addressPickerRef}>
-                        <label className="text-sm font-semibold">Address</label>
+                        <label className="text-sm font-semibold">Address line 1</label>
                         <div className="relative">
                             <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--cms-muted)]">
                                 <MapPin className="w-4 h-4" />
                             </div>
                             <input
-                                value={companyAddressDraft}
+                                value={companyAddressLine1Draft}
                                 onChange={(e) => {
                                     const next = e.target.value;
-                                    setCompanyAddressDraft(next);
+                                    setCompanyAddressLine1Draft(next);
                                     setAddressSearch(next);
                                     setAddressDropdownOpen(true);
                                 }}
@@ -553,6 +680,10 @@ export default function CompanyDetailPage() {
                             <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] overflow-hidden">
                                 {addressLoading ? (
                                     <div className="px-4 py-3 text-sm text-[var(--cms-muted)]">Searching addresses…</div>
+                                ) : !addressLookupConfigured ? (
+                                    <div className="px-4 py-3 text-sm text-[var(--cms-muted)]">
+                                        Address autocomplete is not configured yet.
+                                    </div>
                                 ) : addressSearch.trim().length < 3 ? (
                                     <div className="px-4 py-3 text-sm text-[var(--cms-muted)]">Type at least 3 characters.</div>
                                 ) : addressSuggestions.length ? (
@@ -561,15 +692,13 @@ export default function CompanyDetailPage() {
                                             <button
                                                 key={suggestion.place_id}
                                                 type="button"
-                                                onClick={() => {
-                                                    setCompanyAddressDraft(suggestion.display_name);
-                                                    setAddressSearch(suggestion.display_name);
-                                                    setAddressDropdownOpen(false);
-                                                    setAddressSuggestions([]);
-                                                }}
+                                                onClick={() => void applyAddressSuggestion(suggestion)}
                                                 className="block w-full px-4 py-3 text-left text-sm hover:bg-[var(--cms-panel-strong)]"
                                             >
-                                                {suggestion.display_name}
+                                                <span className="block">{suggestion.main_text || suggestion.display_name}</span>
+                                                {suggestion.secondary_text && (
+                                                    <span className="mt-1 block text-xs text-[var(--cms-muted)]">{suggestion.secondary_text}</span>
+                                                )}
                                             </button>
                                         ))}
                                     </div>
@@ -578,8 +707,61 @@ export default function CompanyDetailPage() {
                                 )}
                             </div>
                         )}
+                        <p className="text-xs text-[var(--cms-muted)]">
+                            Pick a suggestion to auto-fill city, state/province, country, and postal code.
+                        </p>
+                    </div>
 
-                        <p className="text-xs text-[var(--cms-muted)]">Pick an address from suggestions or keep your own text.</p>
+                    <div className="space-y-2">
+                        <label className="text-sm font-semibold">Address line 2</label>
+                        <input
+                            value={companyAddressLine2Draft}
+                            onChange={(e) => setCompanyAddressLine2Draft(e.target.value)}
+                            placeholder="Unit, suite, floor (optional)"
+                            className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)]"
+                        />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold">City</label>
+                            <input
+                                value={companyCityDraft}
+                                onChange={(e) => setCompanyCityDraft(e.target.value)}
+                                placeholder="City"
+                                className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)]"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold">State / Province</label>
+                            <input
+                                value={companyStateProvinceDraft}
+                                onChange={(e) => setCompanyStateProvinceDraft(e.target.value)}
+                                placeholder="State or province"
+                                className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)]"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold">Country</label>
+                            <input
+                                value={companyCountryDraft}
+                                onChange={(e) => setCompanyCountryDraft(e.target.value)}
+                                placeholder="Country"
+                                className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)]"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold">Zip / Postal code</label>
+                            <input
+                                value={companyPostalCodeDraft}
+                                onChange={(e) => setCompanyPostalCodeDraft(e.target.value)}
+                                placeholder="Zip or postal code"
+                                className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl px-4 py-3 focus:outline-none focus:border-[var(--cms-text)]"
+                            />
+                        </div>
                     </div>
 
                     <div className="flex justify-end">

@@ -66,6 +66,7 @@ NEXT_PUBLIC_USER_POOL_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
 NEXT_PUBLIC_COGNITO_DOMAIN=your-domain.auth.us-east-1.amazoncognito.com
 NEXT_PUBLIC_AUTH_REDIRECT_SIGNIN=http://localhost:3000/login
 NEXT_PUBLIC_AUTH_REDIRECT_SIGNOUT=http://localhost:3000/login
+GOOGLE_PLACES_API_KEY=AIza...
 ```
 
 Reference list:
@@ -85,6 +86,7 @@ Reference list:
   - `NEXT_PUBLIC_COGNITO_DOMAIN`
   - `NEXT_PUBLIC_AUTH_REDIRECT_SIGNIN`
   - `NEXT_PUBLIC_AUTH_REDIRECT_SIGNOUT`
+  - `GOOGLE_PLACES_API_KEY` (for company address autocomplete + field auto-fill)
 
 ## Authentication (Cognito)
 ### Local + AWS

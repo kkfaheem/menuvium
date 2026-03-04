@@ -246,6 +246,12 @@ export interface Organization {
     slug: string;
     owner_id?: string;
     address?: string | null;
+    address_line1?: string | null;
+    address_line2?: string | null;
+    city?: string | null;
+    state_province?: string | null;
+    country?: string | null;
+    postal_code?: string | null;
 }
 
 export const organizationApi = {
@@ -266,7 +272,17 @@ export const organizationApi = {
         api.get<OrgPermissions>(`/organizations/${orgId}/permissions`),
 
     /** Update an organization */
-    update: (id: string, data: { name?: string; slug?: string; address?: string | null }) =>
+    update: (id: string, data: {
+        name?: string;
+        slug?: string;
+        address?: string | null;
+        address_line1?: string | null;
+        address_line2?: string | null;
+        city?: string | null;
+        state_province?: string | null;
+        country?: string | null;
+        postal_code?: string | null;
+    }) =>
         api.patch<Organization>(`/organizations/${id}`, data),
 
     /** Delete an organization */
