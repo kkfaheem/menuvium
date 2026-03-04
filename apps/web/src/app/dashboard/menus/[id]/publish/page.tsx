@@ -108,8 +108,10 @@ export default function MenuPublishPage() {
     };
 
     const publicUrl = `${baseOrigin}/r/${menu?.id || menuId}`;
-    const qrPreviewUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(publicUrl)}`;
-    const qrOpenUrl = `https://api.qrserver.com/v1/create-qr-code/?size=2048x2048&data=${encodeURIComponent(publicUrl)}`;
+    const qrBaseUrl = `${apiBase}/menus/${menu?.id || menuId}/qr`;
+    const qrPreviewUrl = `${qrBaseUrl}?variant=standard&format=png&size=640`;
+    const qrOpenUrl = `${qrBaseUrl}?variant=standard&format=png&size=1000`;
+    const qrPdfUrl = `${qrBaseUrl}?variant=standard&format=pdf&size=1000`;
 
     const sampleItems = useMemo(() => {
         return categories.flatMap((category) =>
@@ -251,6 +253,12 @@ export default function MenuPublishPage() {
                                 className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-border bg-panelStrong px-4 text-xs font-semibold text-foreground transition-colors hover:bg-pill"
                             >
                                 <QrCode className="w-3 h-3" /> Open QR image
+                            </Link>
+                            <Link
+                                href={qrPdfUrl}
+                                className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-border bg-panelStrong px-4 text-xs font-semibold text-foreground transition-colors hover:bg-pill"
+                            >
+                                <QrCode className="w-3 h-3" /> Download QR PDF
                             </Link>
                         </div>
                     </div>

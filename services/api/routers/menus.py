@@ -6,7 +6,7 @@ import base64
 from datetime import datetime
 from typing import List, Optional
 from urllib.parse import urlparse
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, Response
 from pydantic import BaseModel
 from sqlmodel import Session, select, delete
 from sqlalchemy.orm import selectinload
@@ -255,18 +255,39 @@ def _analyze_logo_qr_style(logo_data_url: str) -> dict:
         return defaults
 
 
-def _fetch_qr_png(public_url: str) -> bytes:
+def _fetch_qr_png(public_url: str, size_px: int = 1000) -> bytes:
     from urllib.parse import quote
     import httpx
 
+    qr_size = max(256, min(1000, int(size_px)))
     qr_url = (
         "https://api.qrserver.com/v1/create-qr-code/"
-        f"?size=2048x2048&margin=0&ecc=H&format=png&data={quote(public_url, safe='')}"
+        f"?size={qr_size}x{qr_size}&margin=0&ecc=H&format=png&data={quote(public_url, safe='')}"
     )
     with httpx.Client(timeout=20.0, follow_redirects=True) as client:
         res = client.get(qr_url)
         res.raise_for_status()
         return res.content
+
+
+def _trim_qr_whitespace(qr_img: Image.Image) -> Image.Image:
+    """
+    Remove outer white padding to keep the exported QR tightly framed.
+    """
+    grayscale = qr_img.convert("L")
+    mask = grayscale.point(lambda px: 255 if px < 245 else 0)
+    bounds = mask.getbbox()
+    if not bounds:
+        return qr_img
+    return qr_img.crop(bounds)
+
+
+def _png_to_pdf_bytes(png_bytes: bytes) -> bytes:
+    png_image = Image.open(io.BytesIO(png_bytes)).convert("RGB")
+    output = io.BytesIO()
+    # 300 DPI metadata helps print workflows while keeping file size moderate.
+    png_image.save(output, format="PDF", resolution=300.0)
+    return output.getvalue()
 
 
 def _compose_logo_qr_png(qr_png: bytes, logo_data_url: str, style: dict) -> bytes:
@@ -303,9 +324,29 @@ def _compose_logo_qr_png(qr_png: bytes, logo_data_url: str, style: dict) -> byte
     frame_y = (qr_img.height - frame_size) // 2
     qr_img.alpha_composite(frame, (frame_x, frame_y))
 
+    final_qr = _trim_qr_whitespace(qr_img.convert("RGB"))
     output = io.BytesIO()
-    qr_img.convert("RGB").save(output, format="PNG", optimize=True)
+    final_qr.save(output, format="PNG", optimize=True)
     return output.getvalue()
+
+
+def _render_standard_qr_png(public_url: str, size_px: int = 1000) -> bytes:
+    qr_img = Image.open(io.BytesIO(_fetch_qr_png(public_url, size_px=size_px))).convert("RGB")
+    trimmed = _trim_qr_whitespace(qr_img)
+    output = io.BytesIO()
+    trimmed.save(output, format="PNG", optimize=True)
+    return output.getvalue()
+
+
+def _render_logo_qr_png(menu: Menu, public_url: str, size_px: int = 1000) -> bytes:
+    if not menu.logo_url:
+        raise HTTPException(status_code=400, detail="Logo must be uploaded first")
+
+    logo_data_url = _data_url_from_logo_url(menu.logo_url)
+    # Keep export deterministic and cost-free (no per-request OpenAI call).
+    style = {"logo_scale": 0.2, "frame_color": "#111827"}
+    qr_png = _fetch_qr_png(public_url, size_px=size_px)
+    return _compose_logo_qr_png(qr_png, logo_data_url, style)
 
 
 def _store_generated_qr(png_bytes: bytes, request: Request, key_prefix: str = "menus/qr") -> str:
@@ -545,6 +586,55 @@ def generate_logo_qr(
             status_code=500,
             detail=f"Failed to generate branded QR code: {str(e)}",
         )
+
+
+@router.get("/{menu_id}/qr")
+def get_menu_qr_asset(
+    menu_id: uuid.UUID,
+    request: Request,
+    variant: str = Query(default="standard", description="standard or logo"),
+    fmt: str = Query(default="png", alias="format", description="png or pdf"),
+    size: int = Query(default=1000, ge=256, le=1000, description="PNG render size in px"),
+    session: Session = SessionDep,
+):
+    menu = session.get(Menu, menu_id)
+    if not menu:
+        raise HTTPException(status_code=404, detail="Menu not found")
+
+    variant_key = variant.strip().lower()
+    if variant_key not in {"standard", "logo"}:
+        raise HTTPException(status_code=400, detail="Invalid variant")
+
+    format_key = fmt.strip().lower()
+    if format_key not in {"png", "pdf"}:
+        raise HTTPException(status_code=400, detail="Invalid format")
+
+    public_url = f"{_public_web_origin(request)}/r/{menu.id}"
+    if variant_key == "logo":
+        png_bytes = _render_logo_qr_png(menu, public_url, size_px=size)
+    else:
+        png_bytes = _render_standard_qr_png(public_url, size_px=size)
+
+    safe_name = (menu.name or "menu").strip().replace("/", "-")
+    if format_key == "pdf":
+        pdf_bytes = _png_to_pdf_bytes(png_bytes)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_name}-{variant_key}-qr.pdf"',
+                "Cache-Control": "no-store",
+            },
+        )
+
+    return Response(
+        content=png_bytes,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": f'inline; filename="{safe_name}-{variant_key}-qr.png"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 @router.get("/", response_model=List[Menu])
 def list_menus(org_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep):

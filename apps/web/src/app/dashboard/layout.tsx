@@ -357,7 +357,10 @@ export default function DashboardLayout({
                 </aside>
 
                 {/* Main Content */}
-                <main className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 md:px-0 md:py-0">
+                <main
+                    data-dashboard-main-region="true"
+                    className="flex-1 min-w-0 px-4 py-6 sm:px-6 sm:py-8 md:px-0 md:py-0"
+                >
                     <div className="mx-auto w-full max-w-7xl">
                         {modeReady && mode ? (
                             children

@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import {
   Plus,
   ArrowLeft,
@@ -125,6 +132,14 @@ export default function MenuDetailPage() {
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [qrVariant, setQrVariant] = useState<"standard" | "logo">("standard");
   const [copiedPublicUrl, setCopiedPublicUrl] = useState(false);
+  const [modalPortalTarget, setModalPortalTarget] = useState<HTMLElement | null>(
+    null,
+  );
+  const [modalOverlayBounds, setModalOverlayBounds] = useState<{
+    left: number;
+    right: number;
+  } | null>(null);
+  const contentShellRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const arVideoInputRef = useRef<HTMLInputElement | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -215,6 +230,52 @@ export default function MenuDetailPage() {
     if (typeof window === "undefined") return;
     setBaseOrigin(window.location.origin);
   }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    setModalPortalTarget(document.body);
+  }, []);
+
+  const syncModalOverlayInsets = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const mainRegion = document.querySelector<HTMLElement>(
+      '[data-dashboard-main-region="true"]',
+    );
+    const anchor = mainRegion || contentShellRef.current;
+    if (!anchor || window.innerWidth < 768) {
+      setModalOverlayBounds(null);
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
+    setModalOverlayBounds({
+      left: Math.max(0, Math.round(rect.left)),
+      right: Math.max(0, Math.round(window.innerWidth - rect.right)),
+    });
+  }, []);
+
+  useEffect(() => {
+    syncModalOverlayInsets();
+    if (typeof window === "undefined") return;
+    window.addEventListener("resize", syncModalOverlayInsets);
+    let observer: ResizeObserver | null = null;
+    if (typeof window !== "undefined" && "ResizeObserver" in window) {
+      observer = new ResizeObserver(() => syncModalOverlayInsets());
+      const mainRegion = document.querySelector<HTMLElement>(
+        '[data-dashboard-main-region="true"]',
+      );
+      if (mainRegion) observer.observe(mainRegion);
+      if (contentShellRef.current) observer.observe(contentShellRef.current);
+    }
+    return () => {
+      window.removeEventListener("resize", syncModalOverlayInsets);
+      observer?.disconnect();
+    };
+  }, [syncModalOverlayInsets]);
+
+  useEffect(() => {
+    if (!isQrModalOpen && !editingItem) return;
+    syncModalOverlayInsets();
+  }, [isQrModalOpen, editingItem, syncModalOverlayInsets]);
 
   useEffect(() => {
     if (!isQrModalOpen) return;
@@ -1397,15 +1458,36 @@ export default function MenuDetailPage() {
   );
   const canOpenItemModal = canEditItems || canManageAvailability;
   const publicMenuUrl = `${baseOrigin}/r/${menu.id}`;
-  const standardQrPreviewUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(publicMenuUrl)}`;
-  const standardQrOpenUrl = `https://api.qrserver.com/v1/create-qr-code/?size=2048x2048&data=${encodeURIComponent(publicMenuUrl)}`;
-  const logoQrImageUrl = menu.logo_qr_url || null;
+  const qrBaseUrl = `${apiBase}/menus/${menu.id}/qr`;
+  const standardQrPreviewUrl = `${qrBaseUrl}?variant=standard&format=png&size=640`;
+  const standardQrOpenUrl = `${qrBaseUrl}?variant=standard&format=png&size=1000`;
+  const standardQrPdfUrl = `${qrBaseUrl}?variant=standard&format=pdf&size=1000`;
+  const hasLogoQrVariant = Boolean(menu.logo_url);
+  const logoQrPreviewUrl = hasLogoQrVariant
+    ? `${qrBaseUrl}?variant=logo&format=png&size=640`
+    : null;
+  const logoQrOpenUrl = hasLogoQrVariant
+    ? `${qrBaseUrl}?variant=logo&format=png&size=1000`
+    : null;
+  const logoQrPdfUrl = hasLogoQrVariant
+    ? `${qrBaseUrl}?variant=logo&format=pdf&size=1000`
+    : null;
   const activeQrVariant =
-    qrVariant === "logo" && logoQrImageUrl ? "logo" : "standard";
+    qrVariant === "logo" && hasLogoQrVariant ? "logo" : "standard";
   const activeQrPreviewUrl =
-    activeQrVariant === "logo" ? logoQrImageUrl! : standardQrPreviewUrl;
+    activeQrVariant === "logo" ? logoQrPreviewUrl! : standardQrPreviewUrl;
   const activeQrOpenUrl =
-    activeQrVariant === "logo" ? logoQrImageUrl! : standardQrOpenUrl;
+    activeQrVariant === "logo" ? logoQrOpenUrl! : standardQrOpenUrl;
+  const activeQrPdfUrl =
+    activeQrVariant === "logo" ? logoQrPdfUrl! : standardQrPdfUrl;
+  const modalContentAlignmentStyle = modalOverlayBounds
+    ? {
+        marginLeft: `${modalOverlayBounds.left}px`,
+        marginRight: `${modalOverlayBounds.right}px`,
+      }
+    : undefined;
+  const renderInModalPortal = (content: ReactNode) =>
+    modalPortalTarget ? createPortal(content, modalPortalTarget) : null;
 
   const openQrModal = () => {
     setCopiedPublicUrl(false);
@@ -1429,7 +1511,7 @@ export default function MenuDetailPage() {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto">
+    <div ref={contentShellRef} className="w-full max-w-5xl mx-auto">
       <div className="cms-surface-0 rounded-2xl p-4 sm:p-6">
         <header className="mb-6 space-y-3 sm:mb-8">
           <Link
@@ -1965,142 +2047,162 @@ export default function MenuDetailPage() {
           </div>
         )}
 
-        {isQrModalOpen && (
-          <div
-            className="fixed inset-0 cms-modal-overlay z-50 flex items-center justify-center p-4 animate-fade-in motion-reduce:animate-none"
-            onClick={(event) => {
-              if (event.target === event.currentTarget) closeQrModal();
-            }}
-          >
+        {isQrModalOpen &&
+          renderInModalPortal(
             <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="menu-qr-modal-title"
-              className="cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-xl rounded-[28px] max-h-[90vh] flex flex-col backdrop-blur-xl animate-fade-in-scale motion-reduce:animate-none"
+              className="fixed inset-0 cms-modal-overlay z-[110] flex items-center justify-center p-4 animate-fade-in motion-reduce:animate-none"
+              onClick={closeQrModal}
             >
-              <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex items-start justify-between border-b border-[var(--cms-border)] rounded-t-[28px]">
-                <div>
-                  <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[var(--cms-muted)]">
-                    Publish
-                  </p>
-                  <h2
-                    id="menu-qr-modal-title"
-                    className="mt-1 text-xl font-bold tracking-tight"
-                  >
-                    Menu QR Code
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={closeQrModal}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] text-[var(--cms-muted)] transition-colors hover:bg-[var(--cms-panel-strong)] hover:text-[var(--cms-text)]"
-                  aria-label="Close QR popup"
+              <div
+                className="pointer-events-none flex h-full w-full items-center justify-center"
+                style={modalContentAlignmentStyle}
+              >
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="menu-qr-modal-title"
+                  className="pointer-events-auto cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-xl rounded-[28px] max-h-[90vh] flex flex-col backdrop-blur-xl animate-fade-in-scale motion-reduce:animate-none"
+                  onClick={(event) => event.stopPropagation()}
                 >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <div className="p-6 pt-5 space-y-5 overflow-y-auto">
-                <div className="inline-flex w-full rounded-xl border border-border bg-panelStrong p-1">
-                  <button
-                    type="button"
-                    onClick={() => setQrVariant("standard")}
-                    className={`h-9 flex-1 rounded-lg text-xs font-semibold transition-colors ${
-                      activeQrVariant === "standard"
-                        ? "bg-[var(--cms-accent)] text-white"
-                        : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
-                    }`}
-                  >
-                    Standard QR
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setQrVariant("logo")}
-                    disabled={!logoQrImageUrl}
-                    className={`h-9 flex-1 rounded-lg text-xs font-semibold transition-colors ${
-                      activeQrVariant === "logo"
-                        ? "bg-[var(--cms-accent)] text-white"
-                        : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
-                    } ${!logoQrImageUrl ? "cursor-not-allowed opacity-45" : ""}`}
-                  >
-                    Logo QR
-                  </button>
-                </div>
-                {!logoQrImageUrl ? (
-                  <p className="text-xs text-[var(--cms-muted)]">
-                    Upload a logo in Design Studio to generate a branded QR
-                    option.
-                  </p>
-                ) : null}
-
-                <div className="rounded-2xl border border-border bg-panelStrong p-5 flex items-center justify-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={activeQrPreviewUrl}
-                    alt={`${activeQrVariant === "logo" ? "Branded" : "Standard"} QR code for ${menu.name}`}
-                    className="h-64 w-64 max-w-full rounded-xl bg-white p-2"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-muted">
-                    Public URL
-                  </label>
-                  <div className="flex items-center gap-2 rounded-xl border border-border bg-panelStrong px-3 py-2.5">
-                    <span className="truncate text-sm text-foreground">
-                      {publicMenuUrl}
-                    </span>
+                  <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex items-start justify-between border-b border-[var(--cms-border)] rounded-t-[28px]">
+                    <div>
+                      <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[var(--cms-muted)]">
+                        Publish
+                      </p>
+                      <h2
+                        id="menu-qr-modal-title"
+                        className="mt-1 text-xl font-bold tracking-tight"
+                      >
+                        Menu QR Code
+                      </h2>
+                    </div>
                     <button
                       type="button"
-                      onClick={copyPublicUrl}
-                      className="ml-auto inline-flex h-8 items-center justify-center gap-1 rounded-lg px-2 text-xs font-semibold text-muted transition-colors hover:bg-pill hover:text-foreground"
-                      aria-label="Copy public URL"
+                      onClick={closeQrModal}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] text-[var(--cms-muted)] transition-colors hover:bg-[var(--cms-panel-strong)] hover:text-[var(--cms-text)]"
+                      aria-label="Close QR popup"
                     >
-                      <Copy className="h-3.5 w-3.5" />
-                      {copiedPublicUrl ? "Copied" : "Copy"}
+                      <X className="h-4 w-4" />
                     </button>
+                  </div>
+
+                  <div className="p-6 pt-5 space-y-5 overflow-y-auto">
+                    <div className="inline-flex w-full rounded-xl border border-border bg-panelStrong p-1">
+                      <button
+                        type="button"
+                        onClick={() => setQrVariant("standard")}
+                        className={`h-9 flex-1 rounded-lg text-xs font-semibold transition-colors ${
+                          activeQrVariant === "standard"
+                            ? "bg-[var(--cms-accent)] text-white"
+                            : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
+                        }`}
+                      >
+                        Standard QR
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setQrVariant("logo")}
+                        disabled={!hasLogoQrVariant}
+                        className={`h-9 flex-1 rounded-lg text-xs font-semibold transition-colors ${
+                          activeQrVariant === "logo"
+                            ? "bg-[var(--cms-accent)] text-white"
+                            : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
+                        } ${!hasLogoQrVariant ? "cursor-not-allowed opacity-45" : ""}`}
+                      >
+                        Logo QR
+                      </button>
+                    </div>
+                    {!hasLogoQrVariant ? (
+                      <p className="text-xs text-[var(--cms-muted)]">
+                        Upload a logo in Design Studio to generate a branded QR
+                        option.
+                      </p>
+                    ) : null}
+
+                    <div className="rounded-2xl border border-border bg-panelStrong p-5 flex items-center justify-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={activeQrPreviewUrl}
+                        alt={`${activeQrVariant === "logo" ? "Branded" : "Standard"} QR code for ${menu.name}`}
+                        className="h-64 w-64 max-w-full rounded-xl bg-white p-2"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm font-semibold text-muted">
+                        Public URL
+                      </label>
+                      <div className="flex items-center gap-2 rounded-xl border border-border bg-panelStrong px-3 py-2.5">
+                        <span className="truncate text-sm text-foreground">
+                          {publicMenuUrl}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={copyPublicUrl}
+                          className="ml-auto inline-flex h-8 items-center justify-center gap-1 rounded-lg px-2 text-xs font-semibold text-muted transition-colors hover:bg-pill hover:text-foreground"
+                          aria-label="Copy public URL"
+                        >
+                          <Copy className="h-3.5 w-3.5" />
+                          {copiedPublicUrl ? "Copied" : "Copy"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex flex-col gap-3 sm:flex-row sm:justify-end flex-shrink-0 rounded-b-[28px]">
+                    <a
+                      href={publicMenuUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      Open Menu
+                    </a>
+                    <a
+                      href={activeQrOpenUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]"
+                    >
+                      <QrCode className="h-4 w-4" />
+                      Open QR Image
+                    </a>
+                    <a
+                      href={activeQrPdfUrl}
+                      rel="noreferrer"
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill"
+                    >
+                      <Download className="h-4 w-4" />
+                      Download QR PDF
+                    </a>
                   </div>
                 </div>
               </div>
-
-              <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex flex-col gap-3 sm:flex-row sm:justify-end flex-shrink-0 rounded-b-[28px]">
-                <a
-                  href={publicMenuUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Open Menu
-                </a>
-                <a
-                  href={activeQrOpenUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]"
-                >
-                  <QrCode className="h-4 w-4" />
-                  Open QR Image
-                </a>
-              </div>
-            </div>
-          </div>
-        )}
+            </div>,
+          )}
 
         {/* Item Editor Modal */}
-        {editingItem && (
-          <div className="fixed inset-0 cms-modal-overlay z-50 flex items-center justify-center p-3 sm:p-4 animate-fade-in motion-reduce:animate-none">
+        {editingItem &&
+          renderInModalPortal(
             <div
-              className="cms-modal-shell cms-surface-3 ring-1 ring-[var(--cms-border)] w-full max-w-2xl rounded-[28px] max-h-[min(92vh,880px)] flex flex-col animate-fade-in-scale motion-reduce:animate-none"
-              onKeyDown={(e) => {
-                const target = e.target as HTMLElement;
-                const isTextarea = target.tagName === "TEXTAREA";
-                if (e.key === "Enter" && !isTextarea) {
-                  e.preventDefault();
-                  handleSaveItem();
-                }
-              }}
+              className="fixed inset-0 cms-modal-overlay z-[110] flex items-center justify-center p-3 sm:p-4 animate-fade-in motion-reduce:animate-none"
             >
+              <div
+                className="pointer-events-none flex h-full w-full items-center justify-center"
+                style={modalContentAlignmentStyle}
+              >
+                <div
+                  className="pointer-events-auto cms-modal-shell cms-surface-3 ring-1 ring-[var(--cms-border)] w-full max-w-2xl rounded-[28px] max-h-[min(92vh,880px)] flex flex-col animate-fade-in-scale motion-reduce:animate-none"
+                  onKeyDown={(e) => {
+                    const target = e.target as HTMLElement;
+                    const isTextarea = target.tagName === "TEXTAREA";
+                    if (e.key === "Enter" && !isTextarea) {
+                      e.preventDefault();
+                      handleSaveItem();
+                    }
+                  }}
+                >
               <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex justify-between items-center border-b border-[var(--cms-border)] rounded-t-[28px]">
                 <div>
                   <h2 className="font-heading text-xl font-bold tracking-tight">
@@ -2395,33 +2497,35 @@ export default function MenuDetailPage() {
                         Selected: {fileToUpload.name}
                       </div>
                     )}
-                    {isPhotoPreviewOpen && editingItemDisplayPhotoUrl && (
-                      <div
-                        className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-                        role="dialog"
-                        aria-modal="true"
-                        onClick={() => setIsPhotoPreviewOpen(false)}
-                      >
+                    {isPhotoPreviewOpen &&
+                      editingItemDisplayPhotoUrl &&
+                      renderInModalPortal(
                         <div
-                          className="relative w-full max-w-4xl"
-                          onClick={(e) => e.stopPropagation()}
+                          className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+                          role="dialog"
+                          aria-modal="true"
+                          onClick={() => setIsPhotoPreviewOpen(false)}
                         >
-                          <button
-                            type="button"
-                            className="absolute -top-3 -right-3 w-10 h-10 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] text-[var(--cms-text)] flex items-center justify-center shadow-lg hover:bg-[var(--cms-panel-strong)] transition-colors duration-150 motion-reduce:transition-none"
-                            onClick={() => setIsPhotoPreviewOpen(false)}
-                            aria-label="Close"
+                          <div
+                            className="relative w-full max-w-4xl"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <X className="w-5 h-5" />
-                          </button>
-                          <img
-                            src={editingItemDisplayPhotoUrl}
-                            alt=""
-                            className="w-full max-h-[80vh] object-contain rounded-2xl bg-black/20 ring-1 ring-white/10"
-                          />
-                        </div>
-                      </div>
-                    )}
+                            <button
+                              type="button"
+                              className="absolute -top-3 -right-3 w-10 h-10 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel)] text-[var(--cms-text)] flex items-center justify-center shadow-lg hover:bg-[var(--cms-panel-strong)] transition-colors duration-150 motion-reduce:transition-none"
+                              onClick={() => setIsPhotoPreviewOpen(false)}
+                              aria-label="Close"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                            <img
+                              src={editingItemDisplayPhotoUrl}
+                              alt=""
+                              className="w-full max-h-[80vh] object-contain rounded-2xl bg-black/20 ring-1 ring-white/10"
+                            />
+                          </div>
+                        </div>,
+                      )}
                   </div>
                 </details>
 
@@ -2753,7 +2857,8 @@ export default function MenuDetailPage() {
               </div>
             </div>
           </div>
-        )}
+          </div>,
+          )}
       </div>
     </div>
   );
