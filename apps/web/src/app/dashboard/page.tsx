@@ -3,12 +3,12 @@
 import { LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchUserAttributes } from "aws-amplify/auth";
 import { useEffect, useMemo, useState } from "react";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import { getCachedOrFetch, getCachedValue } from "@/lib/dashboardCache";
+import { fetchDisplayName } from "@/lib/userProfile";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
@@ -137,13 +137,8 @@ export default function DashboardPage() {
     useEffect(() => {
         const loadProfile = async () => {
             if (!user) return;
-            try {
-                const attrs = await fetchUserAttributes();
-                const name = attrs.name || attrs.preferred_username || attrs.email || user.username;
-                setDisplayName(name || "User");
-            } catch {
-                setDisplayName(user.username || "User");
-            }
+            const name = await fetchDisplayName(user, "User");
+            setDisplayName(name);
         };
         loadProfile();
     }, [user]);

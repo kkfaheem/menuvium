@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchUserAttributes } from "aws-amplify/auth";
 import { Briefcase, ShieldCheck } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
+import { fetchDisplayName } from "@/lib/userProfile";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
@@ -34,13 +34,8 @@ export default function ModeSelectPage() {
         const load = async () => {
             if (!user) return;
             setLoading(true);
-            try {
-                const attrs = await fetchUserAttributes();
-                const name = attrs.name || attrs.preferred_username || attrs.email || user.username;
-                setDisplayName(name || "User");
-            } catch {
-                setDisplayName(user.username || "User");
-            }
+            const name = await fetchDisplayName(user, "User");
+            setDisplayName(name);
 
             try {
                 const token = await getAuthToken();

@@ -3,11 +3,11 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { fetchUserAttributes } from "aws-amplify/auth";
 import CreateMenuFlow from "@/components/menus/CreateMenuFlow";
 import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
+import { fetchDisplayName } from "@/lib/userProfile";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Button } from "@/components/ui/Button";
@@ -204,13 +204,8 @@ export default function OnboardingPage() {
     useEffect(() => {
         const loadProfile = async () => {
             if (!user) return;
-            try {
-                const attrs = await fetchUserAttributes();
-                const name = attrs.name || attrs.preferred_username || attrs.email || user.username;
-                setDisplayName(name || "Menuvium Owner");
-            } catch {
-                setDisplayName(user.username || "Menuvium Owner");
-            }
+            const name = await fetchDisplayName(user, "Menuvium Owner");
+            setDisplayName(name);
         };
         loadProfile();
     }, [user]);
