@@ -1,4 +1,6 @@
 import { fetchUserAttributes } from "aws-amplify/auth";
+import { getAuthToken } from "@/lib/authToken";
+import { decodeJwtPayload } from "@/lib/jwt";
 
 type AuthLikeUser = {
     username?: string;
@@ -53,6 +55,11 @@ const deriveDisplayName = (
         return preferredUsername;
     }
 
+    const cognitoUsername = asCleanString(attributes["cognito:username"]);
+    if (cognitoUsername && !isOpaqueUsername(cognitoUsername)) {
+        return cognitoUsername;
+    }
+
     const email = asCleanString(attributes.email) || asCleanString(user?.signInDetails?.loginId);
     if (email) return formatEmailLocalPart(email);
 
@@ -65,10 +72,20 @@ const deriveDisplayName = (
 };
 
 export const fetchDisplayName = async (user: AuthLikeUser | undefined, fallback: string): Promise<string> => {
+    let claimsDisplayName: string | null = null;
+
+    try {
+        const token = await getAuthToken();
+        const claims = decodeJwtPayload<Record<string, unknown>>(token) || {};
+        claimsDisplayName = deriveDisplayName(claims, user);
+    } catch {
+        claimsDisplayName = null;
+    }
+
     try {
         const attributes = await fetchUserAttributes();
-        return deriveDisplayName(attributes, user) || fallback;
+        return deriveDisplayName(attributes, user) || claimsDisplayName || fallback;
     } catch {
-        return deriveDisplayName({}, user) || fallback;
+        return deriveDisplayName({}, user) || claimsDisplayName || fallback;
     }
 };
