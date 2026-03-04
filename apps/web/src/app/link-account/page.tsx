@@ -2,17 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { useEffect, useState } from "react";
-import { Link2, ArrowRight, SkipForward, Loader2, Mail, ShieldCheck } from "lucide-react";
+import { fetchAuthSession } from "aws-amplify/auth";
+import { useCallback, useEffect, useState } from "react";
+import { Link2, SkipForward, Loader2, Mail, ShieldCheck } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
-import { authApi } from "@/lib/api";
+import { getApiBase } from "@/lib/apiBase";
 
 export default function LinkAccountPage() {
     const router = useRouter();
     const { user, authStatus } = useAuthenticator(context => [context.user, context.authStatus]);
+    const apiBase = getApiBase();
 
     const [checking, setChecking] = useState(true);
     const [needsLink, setNeedsLink] = useState(false);
@@ -22,6 +24,49 @@ export default function LinkAccountPage() {
     const [linking, setLinking] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+
+    const callLinkApi = useCallback(async <T,>(
+        path: "/auth/check-link" | "/auth/link-accounts",
+        method: "GET" | "POST",
+        forceRefresh = false,
+    ): Promise<T> => {
+        const session = await fetchAuthSession({ forceRefresh });
+        const token = session.tokens?.idToken?.toString();
+        if (!token) {
+            throw new Error("Not authenticated");
+        }
+
+        const response = await fetch(`${apiBase}${path}`, {
+            method,
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        const text = await response.text();
+        const body = text ? JSON.parse(text) : {};
+
+        if (!response.ok) {
+            const detail =
+                typeof body === "object" && body && "detail" in body
+                    ? String((body as { detail?: string }).detail || "")
+                    : "";
+            throw new Error(detail || `Request failed (${response.status})`);
+        }
+
+        return body as T;
+    }, [apiBase]);
+
+    const proceedToDashboard = useCallback(() => {
+        if (typeof window !== "undefined") {
+            const stored = localStorage.getItem("menuvium_user_mode");
+            if (stored === "admin" || stored === "manager") {
+                router.push("/dashboard/menus");
+                return;
+            }
+        }
+        router.push("/dashboard/mode");
+    }, [router]);
 
     useEffect(() => {
         if (authStatus !== "authenticated") {
@@ -34,7 +79,12 @@ export default function LinkAccountPage() {
             let lastError: unknown = null;
             for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
                 try {
-                    return await authApi.checkLink();
+                    return await callLinkApi<{
+                        needs_link: boolean;
+                        provider: string | null;
+                        existing_email: string | null;
+                        existing_name: string | null;
+                    }>("/auth/check-link", "GET", attempt > 0);
                 } catch (err) {
                     lastError = err;
                     if (attempt < maxAttempts - 1) {
@@ -66,24 +116,13 @@ export default function LinkAccountPage() {
         };
 
         void check();
-    }, [authStatus, router]);
-
-    const proceedToDashboard = () => {
-        if (typeof window !== "undefined") {
-            const stored = localStorage.getItem("menuvium_user_mode");
-            if (stored === "admin" || stored === "manager") {
-                router.push("/dashboard/menus");
-                return;
-            }
-        }
-        router.push("/dashboard/mode");
-    };
+    }, [authStatus, router, callLinkApi, proceedToDashboard]);
 
     const handleLink = async () => {
         setLinking(true);
         setError(null);
         try {
-            await authApi.linkAccounts();
+            await callLinkApi<{ ok: boolean; detail: string }>("/auth/link-accounts", "POST", true);
             setSuccess(true);
             setTimeout(() => proceedToDashboard(), 1500);
         } catch (err: any) {
@@ -156,7 +195,9 @@ export default function LinkAccountPage() {
                                     <Link2 className="w-5 h-5 text-[var(--cms-accent)]" />
                                     Link Accounts
                                 </CardTitle>
-                                <CardDescription>Merge your Google sign-in with your existing account.</CardDescription>
+                                <CardDescription>
+                                    Merge your {provider || "Google"} sign-in with your existing account.
+                                </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-5">
                                 {success ? (

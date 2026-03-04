@@ -1,4 +1,5 @@
 import os
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from dependencies import get_current_user
@@ -45,6 +46,37 @@ def is_federated_username(username: str) -> bool:
     return parse_federated_username(username) is not None
 
 
+def get_federated_provider_info(user: dict, cognito_username: str) -> tuple[str, str] | None:
+    # Primary: infer from cognito username (e.g. google_12345)
+    parsed = parse_federated_username(cognito_username)
+    if parsed:
+        return parsed
+
+    # Fallback: infer from identities claim when username shape is opaque.
+    raw_identities = user.get("identities")
+    if isinstance(raw_identities, str):
+        try:
+            identities = json.loads(raw_identities)
+        except Exception:
+            identities = []
+    elif isinstance(raw_identities, list):
+        identities = raw_identities
+    else:
+        identities = []
+
+    if not identities:
+        return None
+
+    first = identities[0] if isinstance(identities[0], dict) else {}
+    provider_key = str(first.get("providerName") or "").strip().lower()
+    provider_name = FEDERATED_PROVIDER_MAP.get(provider_key)
+    provider_user_id = str(first.get("userId") or "").strip()
+    if not provider_name or not provider_user_id:
+        return None
+
+    return provider_name, provider_user_id
+
+
 class CheckLinkResponse(BaseModel):
     needs_link: bool
     provider: str | None = None
@@ -67,7 +99,7 @@ def check_link(user: dict = Depends(get_current_user)):
     # cognito:username holds the actual Cognito username (e.g. "Google_12345")
     # sub is a UUID that differs from Username for federated users
     cognito_username = user.get("cognito:username", user.get("sub", ""))
-    current_provider = parse_federated_username(cognito_username)
+    current_provider = get_federated_provider_info(user, cognito_username)
 
     print(
         f"DEBUG: check_link: email={email}, cognito_username={cognito_username}, "
@@ -138,7 +170,7 @@ def link_accounts(user: dict = Depends(get_current_user)):
     """
     email = (user.get("email") or "").strip().lower()
     cognito_username = user.get("cognito:username", user.get("sub", ""))
-    provider_info = parse_federated_username(cognito_username)
+    provider_info = get_federated_provider_info(user, cognito_username)
 
     print(f"DEBUG: link_accounts: email={email}, cognito_username={cognito_username}")
 

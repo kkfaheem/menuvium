@@ -2,17 +2,26 @@ import { fetchAuthSession } from "aws-amplify/auth";
 import { decodeJwtPayload } from "@/lib/jwt";
 
 const CACHE_MS = 10_000;
-let cachedToken: { token: string; fetchedAt: number } | null = null;
+let cachedToken: { token: string; fetchedAt: number; lastAuthUser: string | null } | null =
+    null;
 
 const now = () => Date.now();
+
+const getLastAuthUser = (): string | null => {
+    if (typeof window === "undefined") return null;
+    const clientId = process.env.NEXT_PUBLIC_USER_POOL_CLIENT_ID;
+    if (!clientId) return null;
+
+    const lastUserKey = `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`;
+    return window.localStorage.getItem(lastUserKey);
+};
 
 const getIdTokenFromLocalStorage = (): string | null => {
     if (typeof window === "undefined") return null;
     const clientId = process.env.NEXT_PUBLIC_USER_POOL_CLIENT_ID;
     if (!clientId) return null;
 
-    const lastUserKey = `CognitoIdentityServiceProvider.${clientId}.LastAuthUser`;
-    const username = window.localStorage.getItem(lastUserKey);
+    const username = getLastAuthUser();
     if (!username) return null;
 
     const tokenKey = `CognitoIdentityServiceProvider.${clientId}.${username}.idToken`;
@@ -36,13 +45,23 @@ export const getAuthToken = async (): Promise<string> => {
         }
     }
 
-    if (cachedToken && now() - cachedToken.fetchedAt < CACHE_MS && isTokenValidSoon(cachedToken.token)) {
+    const currentLastAuthUser = getLastAuthUser();
+    if (
+        cachedToken &&
+        cachedToken.lastAuthUser === currentLastAuthUser &&
+        now() - cachedToken.fetchedAt < CACHE_MS &&
+        isTokenValidSoon(cachedToken.token)
+    ) {
         return cachedToken.token;
     }
 
     const stored = getIdTokenFromLocalStorage();
     if (stored && isTokenValidSoon(stored)) {
-        cachedToken = { token: stored, fetchedAt: now() };
+        cachedToken = {
+            token: stored,
+            fetchedAt: now(),
+            lastAuthUser: currentLastAuthUser,
+        };
         return stored;
     }
 
@@ -51,7 +70,10 @@ export const getAuthToken = async (): Promise<string> => {
     if (!token) {
         throw new Error("Not authenticated");
     }
-    cachedToken = { token, fetchedAt: now() };
+    cachedToken = {
+        token,
+        fetchedAt: now(),
+        lastAuthUser: currentLastAuthUser,
+    };
     return token;
 };
-
