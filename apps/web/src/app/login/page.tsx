@@ -128,6 +128,14 @@ export default function LoginPage() {
                                                 loginMechanisms={["email"]}
                                                 socialProviders={hasOAuth ? ["google"] : []}
                                                 signUpAttributes={["email", "name"]}
+                                                formFields={{
+                                                    signUp: {
+                                                        email: { label: "Email", placeholder: "Enter your email", order: 1 },
+                                                        name: { label: "Full Name", placeholder: "Enter your full name", order: 2 },
+                                                        password: { label: "Password", placeholder: "Create a password", order: 3 },
+                                                        confirm_password: { label: "Confirm Password", placeholder: "Confirm your password", order: 4 },
+                                                    }
+                                                }}
                                             />
                                         </View>
                                     </ThemeProvider>

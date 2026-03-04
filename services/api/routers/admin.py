@@ -714,7 +714,42 @@ def delete_user(username: str, session: Session = Depends(get_session)):
         print(f"DEBUG: admin_delete_user failed: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete from Cognito: {e}")
 
-    # 3. Clean up DB memberships
+    # 3. Delete organizations owned by this user
+    orgs_deleted = 0
+    try:
+        owned_orgs = session.exec(
+            select(Organization).where(Organization.owner_id == username)
+        ).all()
+        for org in owned_orgs:
+            # Delete all menus and their nested data
+            menus = session.exec(select(Menu).where(Menu.org_id == org.id)).all()
+            for menu in menus:
+                categories = session.exec(select(Category).where(Category.menu_id == menu.id)).all()
+                for cat in categories:
+                    items = session.exec(select(Item).where(Item.category_id == cat.id)).all()
+                    for item in items:
+                        # Delete item photos, dietary tag links, allergen links
+                        for photo in session.exec(select(ItemPhoto).where(ItemPhoto.item_id == item.id)).all():
+                            session.delete(photo)
+                        for link in session.exec(select(ItemDietaryTagLink).where(ItemDietaryTagLink.item_id == item.id)).all():
+                            session.delete(link)
+                        for link in session.exec(select(ItemAllergenLink).where(ItemAllergenLink.item_id == item.id)).all():
+                            session.delete(link)
+                        session.delete(item)
+                    session.delete(cat)
+                session.delete(menu)
+            # Delete org members
+            for m in session.exec(select(OrganizationMember).where(OrganizationMember.org_id == org.id)).all():
+                session.delete(m)
+            session.delete(org)
+            orgs_deleted += 1
+        session.commit()
+        print(f"DEBUG: Deleted {orgs_deleted} owned organizations for {username}")
+    except Exception as e:
+        print(f"DEBUG: Org cascade delete failed for {username}: {e}")
+        session.rollback()
+
+    # 4. Clean up remaining DB memberships (where user was a member, not owner)
     removed_count = 0
     try:
         memberships = session.exec(
@@ -726,11 +761,11 @@ def delete_user(username: str, session: Session = Depends(get_session)):
         for m in memberships:
             session.delete(m)
         session.commit()
-        print(f"DEBUG: Removed {removed_count} memberships for {username}")
+        print(f"DEBUG: Removed {removed_count} remaining memberships for {username}")
     except Exception as e:
         print(f"DEBUG: DB cleanup failed for {username}: {e}")
 
-    return {"ok": True, "detail": f"User {username} deleted and {removed_count} memberships removed."}
+    return {"ok": True, "detail": f"User {username} deleted, {orgs_deleted} companies removed, {removed_count} memberships cleaned up."}
 
 @router.post("/users/{username}/impersonate")
 def impersonate_user(username: str, session: Session = Depends(get_session)):

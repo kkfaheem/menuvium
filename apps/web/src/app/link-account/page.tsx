@@ -81,6 +81,13 @@ export default function LinkAccountPage() {
         proceedToDashboard();
     };
 
+    // While checking or redirecting, show a minimal blank screen
+    if (checking || (!needsLink && !success)) {
+        return (
+            <div className="min-h-screen bg-transparent" />
+        );
+    }
+
     return (
         <div className="landing-shell relative isolate min-h-screen overflow-x-hidden bg-transparent text-foreground selection:bg-[var(--cms-accent-subtle)] transition-colors">
             <div aria-hidden="true" className="landing-bg">
@@ -136,12 +143,7 @@ export default function LinkAccountPage() {
                                 <CardDescription>Merge your Google sign-in with your existing account.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-5">
-                                {checking ? (
-                                    <div className="flex items-center justify-center py-8 gap-3 text-muted">
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        <span className="text-sm">Checking accounts...</span>
-                                    </div>
-                                ) : success ? (
+                                {success ? (
                                     <div className="flex flex-col items-center justify-center gap-3 py-8">
                                         <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center">
                                             <ShieldCheck className="w-6 h-6 text-emerald-500" />
@@ -149,7 +151,7 @@ export default function LinkAccountPage() {
                                         <p className="text-sm font-semibold text-emerald-500">Accounts linked successfully!</p>
                                         <p className="text-xs text-muted">Redirecting to your dashboard...</p>
                                     </div>
-                                ) : needsLink ? (
+                                ) : (
                                     <>
                                         {/* Current Google account */}
                                         <div className="rounded-xl border border-border p-4 space-y-1">
@@ -214,11 +216,6 @@ export default function LinkAccountPage() {
                                             </button>
                                         </div>
                                     </>
-                                ) : (
-                                    <div className="flex items-center justify-center py-8 gap-3 text-muted">
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        <span className="text-sm">Redirecting...</span>
-                                    </div>
                                 )}
                             </CardContent>
                         </Card>
@@ -228,3 +225,4 @@ export default function LinkAccountPage() {
         </div>
     );
 }
+
