@@ -29,9 +29,25 @@ export default function LinkAccountPage() {
             return;
         }
 
+        const checkLinkWithRetry = async () => {
+            const maxAttempts = 3;
+            let lastError: unknown = null;
+            for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                try {
+                    return await authApi.checkLink();
+                } catch (err) {
+                    lastError = err;
+                    if (attempt < maxAttempts - 1) {
+                        await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+                    }
+                }
+            }
+            throw lastError;
+        };
+
         const check = async () => {
             try {
-                const result = await authApi.checkLink();
+                const result = await checkLinkWithRetry();
                 if (result.needs_link) {
                     setNeedsLink(true);
                     setExistingEmail(result.existing_email);
@@ -50,7 +66,7 @@ export default function LinkAccountPage() {
         };
 
         void check();
-    }, [authStatus]);
+    }, [authStatus, router]);
 
     const proceedToDashboard = () => {
         if (typeof window !== "undefined") {
@@ -225,4 +241,3 @@ export default function LinkAccountPage() {
         </div>
     );
 }
-

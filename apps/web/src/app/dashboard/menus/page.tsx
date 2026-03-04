@@ -257,7 +257,7 @@ export default function MenusPage() {
                                 onClick={() => router.push("/onboarding")}
                                 className="inline-flex items-center gap-2 rounded-xl bg-[var(--cms-accent)] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                             >
-                                Continue onboarding <ArrowRight className="h-4 w-4" />
+                                Start onboarding <ArrowRight className="h-4 w-4" />
                             </button>
                         </CardContent>
                     ) : null}

@@ -5,6 +5,13 @@ from dependencies import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+FEDERATED_PROVIDER_MAP = {
+    "google": "Google",
+    "facebook": "Facebook",
+    "signinwithapple": "SignInWithApple",
+    "loginwithamazon": "LoginWithAmazon",
+}
+
 
 def get_cognito_client():
     import boto3
@@ -12,6 +19,30 @@ def get_cognito_client():
         "cognito-idp",
         region_name=os.getenv("AWS_REGION", "us-east-1")
     )
+
+
+def parse_federated_username(username: str) -> tuple[str, str] | None:
+    """
+    Parse Cognito federated usernames like:
+      - Google_12345
+      - google_12345
+      - SignInWithApple_abcdef
+    Returns (ProviderNameForCognito, provider_subject_id) or None.
+    """
+    if not username or "_" not in username:
+        return None
+
+    raw_provider, provider_user_id = username.split("_", 1)
+    provider_key = raw_provider.strip().lower()
+    canonical_provider = FEDERATED_PROVIDER_MAP.get(provider_key)
+    if not canonical_provider or not provider_user_id:
+        return None
+
+    return canonical_provider, provider_user_id
+
+
+def is_federated_username(username: str) -> bool:
+    return parse_federated_username(username) is not None
 
 
 class CheckLinkResponse(BaseModel):
@@ -36,14 +67,18 @@ def check_link(user: dict = Depends(get_current_user)):
     # cognito:username holds the actual Cognito username (e.g. "Google_12345")
     # sub is a UUID that differs from Username for federated users
     cognito_username = user.get("cognito:username", user.get("sub", ""))
+    current_provider = parse_federated_username(cognito_username)
 
-    print(f"DEBUG: check_link: email={email}, cognito_username={cognito_username}")
+    print(
+        f"DEBUG: check_link: email={email}, cognito_username={cognito_username}, "
+        f"is_federated={bool(current_provider)}"
+    )
 
     if not email:
         return CheckLinkResponse(needs_link=False)
 
-    # Only check for federated users (Google_, Facebook_, etc.)
-    if not any(cognito_username.startswith(p) for p in ["Google_", "Facebook_", "SignInWithApple_"]):
+    # Only check for federated users (Google/Facebook/Apple/etc.)
+    if not current_provider:
         return CheckLinkResponse(needs_link=False)
 
     user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
@@ -65,10 +100,12 @@ def check_link(user: dict = Depends(get_current_user)):
     users = response.get("Users", [])
     print(f"DEBUG: check_link found {len(users)} users with email={email}: {[u['Username'] for u in users]}")
 
-    # Find native (non-federated) accounts with the same email
+    # Find native (non-federated) accounts with the same email.
+    # Exclude the current username if returned.
     native_accounts = [
         u for u in users
-        if not any(u["Username"].startswith(p) for p in ["Google_", "Facebook_", "SignInWithApple_"])
+        if not is_federated_username(u.get("Username", ""))
+        and u.get("Username") != cognito_username
     ]
 
     if not native_accounts:
@@ -84,9 +121,10 @@ def check_link(user: dict = Depends(get_current_user)):
         None
     )
 
+    provider_name, _ = current_provider
     return CheckLinkResponse(
         needs_link=True,
-        provider="Google",
+        provider=provider_name,
         existing_email=existing_email_attr,
         existing_name=existing_name_attr
     )
@@ -100,6 +138,7 @@ def link_accounts(user: dict = Depends(get_current_user)):
     """
     email = (user.get("email") or "").strip().lower()
     cognito_username = user.get("cognito:username", user.get("sub", ""))
+    provider_info = parse_federated_username(cognito_username)
 
     print(f"DEBUG: link_accounts: email={email}, cognito_username={cognito_username}")
 
@@ -107,7 +146,7 @@ def link_accounts(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Missing user info")
 
     # Verify this is a federated user
-    if "_" not in cognito_username:
+    if not provider_info:
         raise HTTPException(status_code=400, detail="Current user is not a federated identity")
 
     user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
@@ -129,7 +168,8 @@ def link_accounts(user: dict = Depends(get_current_user)):
     users = response.get("Users", [])
     existing = next(
         (u for u in users
-         if not any(u["Username"].startswith(p) for p in ["Google_", "Facebook_", "SignInWithApple_"])),
+         if not is_federated_username(u.get("Username", ""))
+         and u.get("Username") != cognito_username),
         None
     )
 
@@ -137,8 +177,7 @@ def link_accounts(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="No existing account found to link")
 
     # 2. Extract provider info from cognito_username (e.g. "Google_123456789")
-    provider_name = cognito_username.split("_")[0]
-    provider_user_id = cognito_username.split("_", 1)[1]
+    provider_name, provider_user_id = provider_info
 
     print(f"DEBUG: Linking {provider_name}:{provider_user_id} -> {existing['Username']}")
 
