@@ -17,6 +17,7 @@ export default function LinkAccountPage() {
     const [checking, setChecking] = useState(true);
     const [needsLink, setNeedsLink] = useState(false);
     const [existingEmail, setExistingEmail] = useState<string | null>(null);
+    const [existingName, setExistingName] = useState<string | null>(null);
     const [provider, setProvider] = useState<string | null>(null);
     const [linking, setLinking] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export default function LinkAccountPage() {
                 if (result.needs_link) {
                     setNeedsLink(true);
                     setExistingEmail(result.existing_email);
+                    setExistingName(result.existing_name);
                     setProvider(result.provider);
                 } else {
                     // No linking needed — proceed to dashboard
@@ -176,7 +178,10 @@ export default function LinkAccountPage() {
                                                 <Mail className="w-4 h-4" />
                                                 Existing Account
                                             </div>
-                                            <p className="text-sm font-medium text-foreground">{existingEmail}</p>
+                                            {existingName && (
+                                                <p className="text-sm font-semibold text-foreground">{existingName}</p>
+                                            )}
+                                            <p className="text-sm text-muted">{existingEmail}</p>
                                         </div>
 
                                         {error && (

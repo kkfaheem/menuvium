@@ -18,6 +18,7 @@ class CheckLinkResponse(BaseModel):
     needs_link: bool
     provider: str | None = None
     existing_email: str | None = None
+    existing_name: str | None = None
 
 
 class LinkAccountsResponse(BaseModel):
@@ -78,11 +79,16 @@ def check_link(user: dict = Depends(get_current_user)):
         (a["Value"] for a in existing.get("Attributes", []) if a["Name"] == "email"),
         email
     )
+    existing_name_attr = next(
+        (a["Value"] for a in existing.get("Attributes", []) if a["Name"] == "name"),
+        None
+    )
 
     return CheckLinkResponse(
         needs_link=True,
         provider="Google",
-        existing_email=existing_email_attr
+        existing_email=existing_email_attr,
+        existing_name=existing_name_attr
     )
 
 
