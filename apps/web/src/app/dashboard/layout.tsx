@@ -4,10 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, Zap, Activity, BarChart3, Shield, UserCircle, CreditCard } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
+import { fetchAuthSession } from "aws-amplify/auth";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/cn";
+import { getApiBase } from "@/lib/apiBase";
 
 export default function DashboardLayout({
     children,
@@ -21,6 +23,7 @@ export default function DashboardLayout({
     const [navOpen, setNavOpen] = useState(false);
     const [mode, setMode] = useState<"admin" | "manager" | null>(null);
     const [modeReady, setModeReady] = useState(false);
+    const [linkCheckReady, setLinkCheckReady] = useState(false);
     const [userEmail, setUserEmail] = useState<string>("");
     const isModePage = pathname.startsWith("/dashboard/mode");
 
@@ -44,7 +47,50 @@ export default function DashboardLayout({
     }, [pathname]);
 
     useEffect(() => {
-        if (!mounted || !user || !modeReady) return;
+        if (!mounted || authStatus !== "authenticated" || !user) {
+            setLinkCheckReady(false);
+            return;
+        }
+
+        let cancelled = false;
+        setLinkCheckReady(false);
+
+        const checkLinkRequirement = async () => {
+            try {
+                const session = await fetchAuthSession({ forceRefresh: true });
+                const token = session.tokens?.idToken?.toString();
+                if (!token) {
+                    if (!cancelled) setLinkCheckReady(true);
+                    return;
+                }
+
+                const res = await fetch(`${getApiBase()}/auth/check-link`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+
+                if (res.ok) {
+                    const data = (await res.json()) as { needs_link?: boolean };
+                    if (data.needs_link) {
+                        router.replace("/link-account");
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error("dashboard link-check failed:", error);
+            }
+
+            if (!cancelled) setLinkCheckReady(true);
+        };
+
+        void checkLinkRequirement();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [mounted, authStatus, user, router]);
+
+    useEffect(() => {
+        if (!mounted || !user || !modeReady || !linkCheckReady) return;
 
         // Extract email if logging in directly
         if (typeof user.signInDetails?.loginId === 'string') {
@@ -71,10 +117,11 @@ export default function DashboardLayout({
                 router.replace("/dashboard/menus");
             }
         }
-    }, [mounted, user, mode, pathname, router, isModePage, modeReady]);
+    }, [mounted, user, mode, pathname, router, isModePage, modeReady, linkCheckReady]);
 
     if (!mounted) return <div className="min-h-screen bg-background" suppressHydrationWarning />;
     if (!user) return null;
+    if (!linkCheckReady) return <div className="min-h-screen bg-background" suppressHydrationWarning />;
 
     const isManager = mode === "manager";
     const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").toLowerCase().split(",").map(e => e.trim());
