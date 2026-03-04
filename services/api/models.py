@@ -52,6 +52,8 @@ class MenuBase(SQLModel):
     show_item_images: bool = Field(default=True)  # Whether to show item images on public page
     banner_url: Optional[str] = None
     logo_url: Optional[str] = None
+    logo_qr_url: Optional[str] = None
+    logo_qr_generated_at: Optional[datetime] = None
     title_design_config: Optional[dict] = Field(
         default=None,
         sa_column=Column(JSON().with_variant(JSONB, "postgresql")),

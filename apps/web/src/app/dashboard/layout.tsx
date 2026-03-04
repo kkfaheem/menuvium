@@ -82,27 +82,53 @@ export default function DashboardLayout({
 
     if (isModePage) {
         return (
-            <div className="min-h-screen bg-background text-foreground">
-                <header className="sticky top-0 z-40 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
-                    <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-                        <div className="flex-1" />
-                        <Logo size="lg" />
-                        <div className="flex flex-1 items-center justify-end gap-3">
-                            <ThemeToggle />
-                        </div>
-                    </div>
-                </header>
+            <div className="landing-shell relative isolate min-h-screen overflow-x-hidden bg-transparent text-foreground">
+                <div aria-hidden="true" className="landing-bg dashboard-bg">
+                    <span className="landing-bg-blob landing-bg-blob-emerald" />
+                    <span className="landing-bg-blob landing-bg-blob-blue" />
+                    <span className="landing-bg-blob landing-bg-blob-orange" />
+                    <span className="landing-bg-blob landing-bg-blob-teal" />
+                    <span className="landing-bg-sheen" />
+                    <span className="landing-bg-prism" />
+                    <span className="landing-bg-noise" />
+                    <span className="landing-bg-vignette" />
+                    <span className="landing-bg-fade" />
+                </div>
 
-                <main className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-5xl items-center px-4 py-10 sm:px-6">
-                    {children}
-                </main>
+                <div className="relative z-10">
+                    <header className="sticky top-0 z-40 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
+                        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+                            <div className="flex-1" />
+                            <Logo size="lg" />
+                            <div className="flex flex-1 items-center justify-end gap-3">
+                                <ThemeToggle />
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-5xl items-center px-4 py-10 sm:px-6">
+                        {children}
+                    </main>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-background text-foreground">
-            <div className="flex min-h-screen flex-col md:flex-row md:gap-6 md:px-6 md:py-6">
+        <div className="landing-shell relative isolate min-h-screen overflow-x-hidden bg-transparent text-foreground">
+            <div aria-hidden="true" className="landing-bg dashboard-bg">
+                <span className="landing-bg-blob landing-bg-blob-emerald" />
+                <span className="landing-bg-blob landing-bg-blob-blue" />
+                <span className="landing-bg-blob landing-bg-blob-orange" />
+                <span className="landing-bg-blob landing-bg-blob-teal" />
+                <span className="landing-bg-sheen" />
+                <span className="landing-bg-prism" />
+                <span className="landing-bg-noise" />
+                <span className="landing-bg-vignette" />
+                <span className="landing-bg-fade" />
+            </div>
+
+            <div className="relative z-10 flex min-h-screen flex-col md:flex-row md:gap-6 md:px-6 md:py-6">
                 <div className="md:hidden sticky top-0 z-40 border-b border-border bg-panel/90 supports-[backdrop-filter]:bg-panel/80 backdrop-blur-xl">
                     <div className="flex items-center justify-between px-4 py-3">
                         <button

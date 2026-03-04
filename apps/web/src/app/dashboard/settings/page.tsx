@@ -38,15 +38,23 @@ export default function SettingsPage() {
     const [newHighlightTag, setNewHighlightTag] = useState("");
     const [newAllergenTag, setNewAllergenTag] = useState("");
     const activeOptionClasses = "bg-[var(--cms-accent)] text-white";
-    const activeOptionButtonClasses =
-        "border-[var(--cms-accent)] bg-[var(--cms-accent)] text-white hover:border-[var(--cms-accent-strong)] hover:bg-[var(--cms-accent-strong)]";
+    const optionButtonClasses = (isActive: boolean) =>
+        cn(
+            "inline-flex h-11 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30",
+            isActive
+                ? "border-[var(--cms-accent)] bg-[var(--cms-accent)] text-white"
+                : "border-[var(--cms-border)] bg-transparent text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
+        );
 
     const normalize = (value: string) => value.trim().toLowerCase();
     const normalizeKey = (value: string) => value.trim();
 
     useEffect(() => {
         if (typeof window !== "undefined") {
-            const savedSoldOut = (localStorage.getItem("menuvium_sold_out_display") as SoldOutDisplay) || "dim";
+            const savedSoldOutRaw = localStorage.getItem("menuvium_sold_out_display");
+            const savedSoldOut: SoldOutDisplay =
+                savedSoldOutRaw === "dim" || savedSoldOutRaw === "hide" ? savedSoldOutRaw : "dim";
             setSoldOutDisplay(savedSoldOut);
             const storedLabels = localStorage.getItem("menuvium_tag_labels");
             if (storedLabels) {
@@ -363,33 +371,33 @@ export default function SettingsPage() {
                         </CardHeader>
                         <CardContent className="space-y-3">
                             <div className="flex flex-wrap gap-2">
-                                <Button
+                                <button
                                     type="button"
-                                    variant="outline"
-                                    className={theme === "light" ? activeOptionButtonClasses : undefined}
+                                    className={optionButtonClasses(theme === "light")}
                                     onClick={() => setTheme("light")}
+                                    aria-pressed={theme === "light"}
                                 >
                                     <Sun className="h-4 w-4" />
                                     Light
-                                </Button>
-                                <Button
+                                </button>
+                                <button
                                     type="button"
-                                    variant="outline"
-                                    className={theme === "dark" ? activeOptionButtonClasses : undefined}
+                                    className={optionButtonClasses(theme === "dark")}
                                     onClick={() => setTheme("dark")}
+                                    aria-pressed={theme === "dark"}
                                 >
                                     <Moon className="h-4 w-4" />
                                     Dark
-                                </Button>
-                                <Button
+                                </button>
+                                <button
                                     type="button"
-                                    variant="outline"
-                                    className={theme === "system" ? activeOptionButtonClasses : undefined}
+                                    className={optionButtonClasses(theme === "system")}
                                     onClick={() => setTheme("system")}
+                                    aria-pressed={theme === "system"}
                                 >
                                     <Monitor className="h-4 w-4" />
                                     System
-                                </Button>
+                                </button>
                             </div>
                         </CardContent>
                     </Card>
@@ -401,22 +409,22 @@ export default function SettingsPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="flex flex-wrap gap-2">
-                                <Button
+                                <button
                                     type="button"
-                                    variant="outline"
-                                    className={soldOutDisplay === "dim" ? activeOptionButtonClasses : undefined}
+                                    className={optionButtonClasses(soldOutDisplay === "dim")}
                                     onClick={() => setSoldOutDisplayAndPersist("dim")}
+                                    aria-pressed={soldOutDisplay === "dim"}
                                 >
                                     Dim items
-                                </Button>
-                                <Button
+                                </button>
+                                <button
                                     type="button"
-                                    variant="outline"
-                                    className={soldOutDisplay === "hide" ? activeOptionButtonClasses : undefined}
+                                    className={optionButtonClasses(soldOutDisplay === "hide")}
                                     onClick={() => setSoldOutDisplayAndPersist("hide")}
+                                    aria-pressed={soldOutDisplay === "hide"}
                                 >
                                     Hide items
-                                </Button>
+                                </button>
                             </div>
                         </CardContent>
                     </Card>

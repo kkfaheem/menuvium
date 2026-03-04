@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 
 type Theme = "light" | "dark" | "system";
 const LEGACY_CMS_THEME_KEY = "menuvium_cms_theme";
+const VALID_THEMES: Theme[] = ["light", "dark", "system"];
 
 interface ThemeProviderContextProps {
     theme: Theme;
@@ -43,19 +44,28 @@ export default function ThemeProvider({
     const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
     const [mounted, setMounted] = useState(false);
 
+    const isValidTheme = (value: string | null): value is Theme => {
+        return Boolean(value && VALID_THEMES.includes(value as Theme));
+    };
+
     useEffect(() => {
         setMounted(true);
         try {
-            const storedTheme = localStorage.getItem(storageKey) as Theme | null;
-            if (storedTheme) {
+            const storedTheme = localStorage.getItem(storageKey);
+            if (isValidTheme(storedTheme)) {
                 setThemeState(storedTheme);
                 return;
             }
 
-            const legacyTheme = localStorage.getItem(LEGACY_CMS_THEME_KEY) as "light" | "dark" | null;
-            if (legacyTheme) {
+            const legacyTheme = localStorage.getItem(LEGACY_CMS_THEME_KEY);
+            if (legacyTheme === "light" || legacyTheme === "dark") {
                 setThemeState(legacyTheme);
                 localStorage.setItem(storageKey, legacyTheme);
+                return;
+            }
+
+            if (storedTheme && !isValidTheme(storedTheme)) {
+                localStorage.removeItem(storageKey);
             }
         } catch {
             // localStorage might not be available in some environments
