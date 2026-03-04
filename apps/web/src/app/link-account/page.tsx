@@ -13,7 +13,7 @@ import { getApiBase } from "@/lib/apiBase";
 
 export default function LinkAccountPage() {
     const router = useRouter();
-    const { user, authStatus } = useAuthenticator(context => [context.user, context.authStatus]);
+    const { user, authStatus, signOut } = useAuthenticator(context => [context.user, context.authStatus]);
     const apiBase = getApiBase();
 
     const [checking, setChecking] = useState(true);
@@ -67,6 +67,18 @@ export default function LinkAccountPage() {
         }
         router.push("/dashboard/mode");
     }, [router]);
+
+    const proceedAfterSuccessfulLink = useCallback(async () => {
+        try {
+            if (typeof window !== "undefined") {
+                window.localStorage.removeItem("menuvium_user_mode");
+            }
+            await signOut();
+        } catch {
+            // If sign-out fails, continue to login anyway.
+        }
+        router.replace("/login?linked=1");
+    }, [router, signOut]);
 
     useEffect(() => {
         if (authStatus !== "authenticated") {
@@ -124,7 +136,9 @@ export default function LinkAccountPage() {
         try {
             await callLinkApi<{ ok: boolean; detail: string }>("/auth/link-accounts", "POST", true);
             setSuccess(true);
-            setTimeout(() => proceedToDashboard(), 1500);
+            setTimeout(() => {
+                void proceedAfterSuccessfulLink();
+            }, 1200);
         } catch (err: any) {
             setError(err.detail || err.message || "Failed to link accounts");
         } finally {

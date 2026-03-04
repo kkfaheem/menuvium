@@ -3,6 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from dependencies import get_current_user
+from botocore.exceptions import ClientError
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -44,6 +45,39 @@ def parse_federated_username(username: str) -> tuple[str, str] | None:
 
 def is_federated_username(username: str) -> bool:
     return parse_federated_username(username) is not None
+
+
+def is_merge_not_supported_error(error: Exception) -> bool:
+    if isinstance(error, ClientError):
+        err = error.response.get("Error", {})
+        code = str(err.get("Code", ""))
+        message = str(err.get("Message", ""))
+        return (
+            code == "InvalidParameterException"
+            and "Merging is not currently supported" in message
+        )
+    return "Merging is not currently supported" in str(error)
+
+
+def admin_link_provider_for_user(
+    client,
+    user_pool_id: str,
+    destination_username: str,
+    provider_name: str,
+    provider_user_id: str,
+):
+    client.admin_link_provider_for_user(
+        UserPoolId=user_pool_id,
+        DestinationUser={
+            "ProviderName": "Cognito",
+            "ProviderAttributeValue": destination_username,
+        },
+        SourceUser={
+            "ProviderName": provider_name,
+            "ProviderAttributeName": "Cognito_Subject",
+            "ProviderAttributeValue": provider_user_id,
+        },
+    )
 
 
 def get_federated_provider_info(user: dict, cognito_username: str) -> tuple[str, str] | None:
@@ -214,22 +248,64 @@ def link_accounts(user: dict = Depends(get_current_user)):
     print(f"DEBUG: Linking {provider_name}:{provider_user_id} -> {existing['Username']}")
 
     try:
-        client.admin_link_provider_for_user(
-            UserPoolId=user_pool_id,
-            DestinationUser={
-                "ProviderName": "Cognito",
-                "ProviderAttributeValue": existing["Username"]
-            },
-            SourceUser={
-                "ProviderName": provider_name,
-                "ProviderAttributeName": "Cognito_Subject",
-                "ProviderAttributeValue": provider_user_id
-            }
+        admin_link_provider_for_user(
+            client=client,
+            user_pool_id=user_pool_id,
+            destination_username=existing["Username"],
+            provider_name=provider_name,
+            provider_user_id=provider_user_id,
         )
-
         print(f"DEBUG: Successfully linked {cognito_username} -> {existing['Username']} ({email})")
-        return LinkAccountsResponse(ok=True, detail=f"Accounts linked successfully for {email}")
-
+        return LinkAccountsResponse(
+            ok=True,
+            detail=f"Accounts linked successfully for {email}. Please sign in again."
+        )
     except Exception as e:
+        # Cognito limitation: if the social/federated shadow user already exists,
+        # link can fail with "Merging is not currently supported".
+        # In that case, delete the shadow user and retry link.
+        if is_merge_not_supported_error(e):
+            print(
+                "DEBUG: merge-not-supported, deleting federated shadow user "
+                f"{cognito_username} and retrying"
+            )
+            try:
+                client.admin_delete_user(
+                    UserPoolId=user_pool_id,
+                    Username=cognito_username,
+                )
+            except Exception as delete_error:
+                print(f"DEBUG: failed deleting federated shadow user: {delete_error}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "Failed to prepare account link. Ensure backend IAM has "
+                        "cognito-idp:AdminDeleteUser permission."
+                    ),
+                )
+
+            try:
+                admin_link_provider_for_user(
+                    client=client,
+                    user_pool_id=user_pool_id,
+                    destination_username=existing["Username"],
+                    provider_name=provider_name,
+                    provider_user_id=provider_user_id,
+                )
+                print(
+                    "DEBUG: Successfully linked after deleting shadow user "
+                    f"{cognito_username} -> {existing['Username']} ({email})"
+                )
+                return LinkAccountsResponse(
+                    ok=True,
+                    detail=f"Accounts linked successfully for {email}. Please sign in again.",
+                )
+            except Exception as retry_error:
+                print(f"DEBUG: link retry error: {retry_error}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to link accounts after cleanup: {retry_error}",
+                )
+
         print(f"DEBUG: link_accounts error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to link accounts: {e}")
