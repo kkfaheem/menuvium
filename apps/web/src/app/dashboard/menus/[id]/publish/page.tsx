@@ -210,7 +210,7 @@ export default function MenuPublishPage() {
             </header>
 
             <div className="grid gap-6 xl:grid-cols-[minmax(380px,0.95fr)_minmax(0,1.45fr)]">
-                <section className="rounded-3xl border border-border bg-panel p-5 sm:p-6">
+                <section className="rounded-2xl border border-border bg-panel p-5 sm:p-6">
                     <div className="space-y-5">
                         <div className="space-y-1">
                             <p className="text-xs font-semibold tracking-[0.28em] uppercase text-muted">QR Code</p>
@@ -265,7 +265,7 @@ export default function MenuPublishPage() {
                 </section>
 
                 <div className="space-y-6">
-                    <section className="rounded-3xl border border-border bg-panel p-5 sm:p-6">
+                    <section className="rounded-2xl border border-border bg-panel p-5 sm:p-6">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <p className="text-xs font-semibold tracking-[0.28em] uppercase text-muted">Guest Preview</p>
@@ -320,7 +320,7 @@ export default function MenuPublishPage() {
                         )}
                     </section>
 
-                    <section className="rounded-3xl border border-border bg-panel p-5 sm:p-6">
+                    <section className="rounded-2xl border border-border bg-panel p-5 sm:p-6">
                         <p className="text-xs font-semibold tracking-[0.28em] uppercase text-muted">Recent Updates</p>
                         <div className="mt-4 space-y-3">
                             {quickUpdates.map((update) => (

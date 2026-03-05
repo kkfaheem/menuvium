@@ -97,13 +97,13 @@ export default function ConfirmProvider({ children }: { children: React.ReactNod
                     }}
                 >
                     <div
-                        className="cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-md rounded-[28px] max-h-[90vh] flex flex-col backdrop-blur-xl animate-fade-in-scale"
+                        className="cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-md rounded-2xl max-h-[90vh] flex flex-col backdrop-blur-xl animate-fade-in-scale"
                         role="dialog"
                         aria-modal="true"
                         aria-label={options.title}
                         onMouseDown={(e) => e.stopPropagation()}
                     >
-                        <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex justify-between items-start border-b border-[var(--cms-border)] rounded-t-[28px]">
+                        <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex justify-between items-start border-b border-[var(--cms-border)] rounded-t-2xl">
                             <div className="flex items-start gap-3">
                                 <div
                                     className={`mt-0.5 h-10 w-10 rounded-2xl flex items-center justify-center ${isDestructive
@@ -154,7 +154,7 @@ export default function ConfirmProvider({ children }: { children: React.ReactNod
                             ) : null}
                         </div>
 
-                        <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex justify-end gap-3 flex-shrink-0 rounded-b-[28px]">
+                        <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex justify-end gap-3 flex-shrink-0 rounded-b-2xl">
                             <Button type="button" variant="secondary" size="lg" onClick={() => close(false)}>
                                 {cancelLabel}
                             </Button>

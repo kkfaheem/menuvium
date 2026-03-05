@@ -306,7 +306,7 @@ export default function AdminJobsPage() {
                     <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
-                        className="h-10 w-full sm:w-auto rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className="h-10 w-full sm:w-auto rounded-xl border border-border bg-panel px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                     >
                         <option value="ALL">All Statuses</option>
                         <option value="RUNNING">Running</option>
@@ -320,7 +320,7 @@ export default function AdminJobsPage() {
                     <select
                         value={arStatusFilter}
                         onChange={(e) => setArStatusFilter(e.target.value)}
-                        className="h-10 w-full sm:w-auto rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        className="h-10 w-full sm:w-auto rounded-xl border border-border bg-panel px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                     >
                         <option value="ALL">All Statuses</option>
                         <option value="READY">Ready</option>

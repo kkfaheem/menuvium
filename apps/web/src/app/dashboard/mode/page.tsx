@@ -99,7 +99,7 @@ export default function ModeSelectPage() {
             <div className="grid gap-5 md:grid-cols-2">
                 <button
                     onClick={() => chooseMode("admin")}
-                    className="text-left rounded-2xl border border-border bg-panel p-6 shadow-sm transition-colors hover:bg-panelStrong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/25"
+                    className="text-left rounded-2xl border border-border bg-panel p-6 shadow-sm transition-colors hover:bg-panelStrong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                 >
                     <div className="flex items-start justify-between gap-4">
                         <div className="w-12 h-12 rounded-2xl bg-pill flex items-center justify-center">
@@ -125,7 +125,7 @@ export default function ModeSelectPage() {
 
                 <button
                     onClick={() => chooseMode("manager")}
-                    className="text-left rounded-2xl border border-border bg-panel p-6 shadow-sm transition-colors hover:bg-panelStrong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/25"
+                    className="text-left rounded-2xl border border-border bg-panel p-6 shadow-sm transition-colors hover:bg-panelStrong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                 >
                     <div className="flex items-start justify-between gap-4">
                         <div className="w-12 h-12 rounded-2xl bg-pill flex items-center justify-center">

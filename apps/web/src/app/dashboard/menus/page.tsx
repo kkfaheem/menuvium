@@ -290,7 +290,7 @@ export default function MenusPage() {
                                 <select
                                     value={selectedOrg}
                                     onChange={(e) => setSelectedOrg(e.target.value)}
-                                    className="h-10 w-full appearance-none rounded-xl border border-border bg-panel pl-10 pr-10 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/25 focus:border-[var(--cms-accent)] sm:min-w-[240px]"
+                                    className="h-10 w-full appearance-none rounded-xl border border-border bg-panel pl-10 pr-10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/30 focus:border-[var(--cms-accent)] sm:min-w-[240px]"
                                 >
                                     {organizations.map(org => (
                                         <option key={org.id} value={org.id}>{org.name}</option>
@@ -363,7 +363,7 @@ export default function MenusPage() {
                             <Link
                                 key={menu.id}
                                 href={`/dashboard/menus/${menu.id}`}
-                                className="group flex flex-col h-full overflow-hidden rounded-2xl border border-border bg-panel shadow-sm transition-all hover:bg-panelStrong hover:shadow-md hover:border-[var(--cms-accent)]/30"
+                                className="group flex flex-col h-full overflow-hidden rounded-2xl border border-border bg-panel shadow-sm transition-all hover:bg-panelStrong hover:border-[var(--cms-accent)]/30"
                             >
                                 {/* Image Snapshot Header */}
                                 <div className="relative h-32 w-full shrink-0 overflow-hidden bg-black/10">

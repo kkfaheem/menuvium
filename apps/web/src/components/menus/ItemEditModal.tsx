@@ -107,7 +107,7 @@ export function ItemEditModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-lg rounded-3xl bg-[var(--cms-bg)] border border-[var(--cms-border)] shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="w-full max-w-lg rounded-2xl bg-[var(--cms-bg)] border border-[var(--cms-border)] shadow-2xl max-h-[90vh] overflow-y-auto">
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-[var(--cms-border)]">
                     <h2 className="text-xl font-bold">

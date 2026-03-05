@@ -36,13 +36,13 @@ export function Button({
                 size === "md" && "h-11 px-4 text-sm",
                 size === "lg" && "h-12 px-5 text-base",
                 variant === "primary" &&
-                "bg-[linear-gradient(180deg,var(--cms-accent),var(--cms-accent-strong))] text-white shadow-sm hover:shadow-md",
+                "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]",
                 variant === "secondary" &&
-                "border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-pill)] hover:shadow-md",
+                "border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-[var(--cms-text)] hover:bg-[var(--cms-pill)]",
                 variant === "outline" &&
                 "border-[var(--cms-border)] bg-transparent text-[var(--cms-text)] hover:bg-[var(--cms-pill)]",
                 variant === "ghost" && "bg-transparent text-[var(--cms-text)] hover:bg-[var(--cms-pill)]",
-                variant === "destructive" && "bg-red-600 text-white shadow-sm hover:bg-red-700 hover:shadow-md",
+                variant === "destructive" && "bg-red-600 text-white hover:bg-red-700",
                 className
             )}
             disabled={disabled || loading}

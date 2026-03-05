@@ -216,7 +216,7 @@ export default function DesignStudioPage() {
                                         setSelectedOrg(e.target.value);
                                         setSelectedMenu("");
                                     }}
-                                    className="h-11 w-full appearance-none rounded-xl border border-border bg-panel pl-10 pr-10 text-sm text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/25 focus:border-[var(--cms-accent)]"
+                                    className="h-11 w-full appearance-none rounded-xl border border-border bg-panel pl-10 pr-10 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/30 focus:border-[var(--cms-accent)]"
                                 >
                                     {organizations.map(org => (
                                         <option key={org.id} value={org.id}>{org.name}</option>
@@ -254,7 +254,7 @@ export default function DesignStudioPage() {
                                         <button
                                             key={menu.id}
                                             onClick={() => setSelectedMenu(menu.id)}
-                                            className="group flex w-full items-center gap-4 rounded-2xl border border-border bg-panelStrong p-4 text-left transition-colors hover:bg-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/25"
+                                            className="group flex w-full items-center gap-4 rounded-2xl border border-border bg-panelStrong p-4 text-left transition-colors hover:bg-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                                         >
                                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-pill text-base font-bold">
                                                 {menu.name[0]}

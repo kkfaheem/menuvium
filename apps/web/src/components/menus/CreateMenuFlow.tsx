@@ -557,9 +557,9 @@ export default function CreateMenuFlow({
             <div className={`
                 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300
                 ${isComplete
-                    ? "bg-emerald-600 text-white shadow-sm"
+                    ? "bg-emerald-600 text-white"
                     : isActive
-                        ? "bg-[var(--cms-accent)] text-white shadow-sm"
+                        ? "bg-[var(--cms-accent)] text-white"
                         : `border-2 ${palette.border} ${palette.muted}`
                 }
             `}>
@@ -601,13 +601,13 @@ export default function CreateMenuFlow({
                         className={`
                             group relative rounded-2xl p-5 text-left transition-all duration-300 overflow-hidden
                             ${mode === "import"
-                                ? "bg-[var(--cms-accent-subtle)] border-2 border-[var(--cms-accent)] shadow-sm"
+                                ? "bg-[var(--cms-accent-subtle)] border-2 border-[var(--cms-accent)]"
                                 : `border-2 ${palette.border} hover:border-[var(--cms-accent)] hover:bg-[var(--cms-pill)]`
                             }
                         `}
                     >
                         {mode === "import" && (
-                            <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-[var(--cms-accent)] flex items-center justify-center shadow-sm">
+                            <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-[var(--cms-accent)] flex items-center justify-center">
                                 <Check className="w-4 h-4 text-white" />
                             </div>
                         )}
@@ -634,13 +634,13 @@ export default function CreateMenuFlow({
                         className={`
                             group relative rounded-2xl p-5 text-left transition-all duration-300 overflow-hidden
                             ${mode === "manual"
-                                ? "bg-[var(--cms-accent-subtle)] border-2 border-[var(--cms-accent)] shadow-sm"
+                                ? "bg-[var(--cms-accent-subtle)] border-2 border-[var(--cms-accent)]"
                                 : `border-2 ${palette.border} hover:border-[var(--cms-accent)] hover:bg-[var(--cms-pill)]`
                             }
                         `}
                     >
                         {mode === "manual" && (
-                            <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-[var(--cms-accent)] flex items-center justify-center shadow-sm">
+                            <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-[var(--cms-accent)] flex items-center justify-center">
                                 <Check className="w-4 h-4 text-white" />
                             </div>
                         )}
@@ -677,19 +677,19 @@ export default function CreateMenuFlow({
                         <div className={`inline-flex rounded-full border ${palette.border} ${palette.panelMuted} p-1 flex-wrap gap-1`}>
                             <button
                                 onClick={() => { setImportTab("files"); setParsedMenu(null); setZipPreview(null); }}
-                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${importTab === "files" ? "bg-[var(--cms-accent)] text-white shadow-sm" : palette.muted + " hover:bg-[var(--cms-pill)]"}`}
+                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${importTab === "files" ? "bg-[var(--cms-accent)] text-white" : palette.muted + " hover:bg-[var(--cms-pill)]"}`}
                             >
                                 <Upload className="w-3 h-3" /> Files
                             </button>
                             <button
                                 onClick={() => { setImportTab("url"); setParsedMenu(null); setZipPreview(null); }}
-                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${importTab === "url" ? "bg-[var(--cms-accent)] text-white shadow-sm" : palette.muted + " hover:bg-[var(--cms-pill)]"}`}
+                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${importTab === "url" ? "bg-[var(--cms-accent)] text-white" : palette.muted + " hover:bg-[var(--cms-pill)]"}`}
                             >
                                 <Link className="w-3 h-3" /> URL
                             </button>
                             <button
                                 onClick={() => { setImportTab("menuvium"); setParsedMenu(null); setZipFile(null); setZipPreview(null); }}
-                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${importTab === "menuvium" ? "bg-[var(--cms-accent)] text-white shadow-sm" : palette.muted + " hover:bg-[var(--cms-pill)]"}`}
+                                className={`px-4 py-2 rounded-full text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${importTab === "menuvium" ? "bg-[var(--cms-accent)] text-white" : palette.muted + " hover:bg-[var(--cms-pill)]"}`}
                             >
                                 <Package className="w-3 h-3" /> Menuvium Export
                             </button>
@@ -778,7 +778,7 @@ export default function CreateMenuFlow({
                                         setImportUrl(e.target.value);
                                         setParsedMenu(null);
                                     }}
-                                    className={`w-full h-12 rounded-xl px-4 focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/25 focus:border-[var(--cms-accent)] border ${palette.input} transition-all`}
+                                    className={`w-full h-12 rounded-xl px-4 focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/30 focus:border-[var(--cms-accent)] border ${palette.input} transition-all`}
                                 />
                             </div>
                         )}
@@ -803,7 +803,7 @@ export default function CreateMenuFlow({
                                     <button
                                         type="button"
                                         onClick={() => importZipInputRef.current?.click()}
-                                        className="h-11 px-5 rounded-xl font-semibold text-sm inline-flex items-center gap-2 bg-[var(--cms-accent)] text-white shadow-sm hover:bg-[var(--cms-accent-strong)] transition-colors"
+                                        className="h-11 px-5 rounded-xl font-semibold text-sm inline-flex items-center gap-2 bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)] transition-colors"
                                     >
                                         <Package className="w-4 h-4" /> Choose export ZIP
                                     </button>
@@ -880,7 +880,7 @@ export default function CreateMenuFlow({
                                 onChange={(e) => setMenuName(e.target.value)}
                                 placeholder={mode === "import" ? "Auto-detected from import" : "e.g. Dinner Menu"}
                                 disabled={lockMenuName}
-                                className={`w-full h-12 rounded-xl px-4 focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/25 focus:border-[var(--cms-accent)] border ${palette.input} ${lockMenuName ? "opacity-70 cursor-not-allowed" : ""} transition-all`}
+                                className={`w-full h-12 rounded-xl px-4 focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/30 focus:border-[var(--cms-accent)] border ${palette.input} ${lockMenuName ? "opacity-70 cursor-not-allowed" : ""} transition-all`}
                             />
                         </div>
                         <div className="space-y-2">
@@ -889,7 +889,7 @@ export default function CreateMenuFlow({
                                 <select
                                     value={selectedOrg}
                                     onChange={(e) => setSelectedOrg(e.target.value)}
-                                    className={`w-full h-12 rounded-xl px-4 focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/25 focus:border-[var(--cms-accent)] border ${palette.input} transition-all`}
+                                    className={`w-full h-12 rounded-xl px-4 focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/30 focus:border-[var(--cms-accent)] border ${palette.input} transition-all`}
                                 >
                                     {organizations.map((org) => (
                                         <option key={org.id} value={org.id}>{org.name}</option>
@@ -919,7 +919,7 @@ export default function CreateMenuFlow({
                     <button
                         onClick={createManualMenu}
                         disabled={creating || !selectedOrg || permissionsLoading || !canManageMenus || (mode === "manual" && !menuName.trim())}
-                        className="h-14 px-8 rounded-2xl font-semibold text-base bg-[var(--cms-accent)] text-white shadow-sm hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                        className="h-14 px-8 rounded-2xl font-semibold text-base bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                     >
                         {creating && <Loader2 className="w-5 h-5 animate-spin" />}
                         Create Menu
@@ -929,7 +929,7 @@ export default function CreateMenuFlow({
                         <button
                             onClick={handleImportFromZip}
                             disabled={isImportingZip || permissionsLoading || !canManageMenus || !selectedOrg}
-                            className="h-14 px-8 rounded-2xl font-semibold text-base bg-[var(--cms-accent)] text-white shadow-sm hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                            className="h-14 px-8 rounded-2xl font-semibold text-base bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                         >
                             {isImportingZip && <Loader2 className="w-5 h-5 animate-spin" />}
                             Import & Create Menu
@@ -938,7 +938,7 @@ export default function CreateMenuFlow({
                         <button
                             onClick={handleApplyImport}
                             disabled={isImporting || permissionsLoading || !canManageMenus}
-                            className="h-14 px-8 rounded-2xl font-semibold text-base bg-[var(--cms-accent)] text-white shadow-sm hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                            className="h-14 px-8 rounded-2xl font-semibold text-base bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                         >
                             {isImporting && <Loader2 className="w-5 h-5 animate-spin" />}
                             Import & Create Menu
@@ -952,7 +952,7 @@ export default function CreateMenuFlow({
                                 (importTab === "menuvium") ||
                                 isParsing || !selectedOrg || permissionsLoading || !canManageMenus
                             }
-                            className="h-14 px-8 rounded-2xl font-semibold text-base bg-[var(--cms-accent)] text-white shadow-sm hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                            className="h-14 px-8 rounded-2xl font-semibold text-base bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                         >
                             {isParsing && <Loader2 className="w-5 h-5 animate-spin" />}
                             <Sparkles className="w-5 h-5" />

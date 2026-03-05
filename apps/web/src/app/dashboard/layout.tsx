@@ -264,7 +264,7 @@ export default function DashboardLayout({
                     <div className="flex items-center justify-between px-4 py-3">
                         <button
                             onClick={() => setNavOpen(true)}
-                            className="h-11 w-11 rounded-2xl border border-border bg-panelStrong flex items-center justify-center shadow-sm hover:bg-pill transition-colors"
+                            className="h-11 w-11 rounded-xl border border-border bg-panelStrong flex items-center justify-center hover:bg-pill transition-colors"
                             aria-label="Open navigation"
                         >
                             <Menu className="w-5 h-5" />
@@ -283,7 +283,7 @@ export default function DashboardLayout({
                 {/* Sidebar */}
                 <aside
                     className={cn(
-                        "fixed inset-y-0 left-0 z-50 w-72 rounded-r-[2rem] border-r border-border bg-panel p-5 shadow-[var(--cms-shadow-lg)] transition-transform duration-300 md:sticky md:top-6 md:z-10 md:h-[calc(100vh-3rem)] md:w-72 md:translate-x-0 md:rounded-[2rem] md:border md:border-border md:shadow-[var(--cms-shadow-md)]",
+                        "fixed inset-y-0 left-0 z-50 w-72 rounded-r-2xl border-r border-border bg-panel p-5 shadow-[var(--cms-shadow-lg)] transition-transform duration-300 md:sticky md:top-6 md:z-10 md:h-[calc(100vh-3rem)] md:w-72 md:translate-x-0 md:rounded-2xl md:border md:border-border md:shadow-[var(--cms-shadow-md)]",
                         navOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
                     )}
                 >
@@ -291,7 +291,7 @@ export default function DashboardLayout({
                         <Logo size="lg" />
                         <button
                             onClick={() => setNavOpen(false)}
-                            className="md:hidden h-10 w-10 rounded-2xl border border-border bg-panelStrong flex items-center justify-center shadow-sm hover:bg-pill transition-colors"
+                            className="md:hidden h-10 w-10 rounded-xl border border-border bg-panelStrong flex items-center justify-center hover:bg-pill transition-colors"
                             aria-label="Close navigation"
                         >
                             <X className="w-4 h-4" />
@@ -303,7 +303,7 @@ export default function DashboardLayout({
                                 href="/dashboard"
                                 onClick={() => setNavOpen(false)}
                                 className={cn(
-                                    "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                     pathname === "/dashboard"
                                         ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                         : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -317,7 +317,7 @@ export default function DashboardLayout({
                             href="/dashboard/menus"
                             onClick={() => setNavOpen(false)}
                             className={cn(
-                                "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                 pathname.startsWith("/dashboard/menus") &&
                                     !pathname.includes("/themes")
                                     ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
@@ -331,7 +331,7 @@ export default function DashboardLayout({
                             href="/dashboard/design-studio"
                             onClick={() => setNavOpen(false)}
                             className={cn(
-                                "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                 pathname.startsWith("/dashboard/design-studio") || pathname.includes("/themes")
                                     ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                     : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -345,7 +345,7 @@ export default function DashboardLayout({
                                 href="/dashboard/companies"
                                 onClick={() => setNavOpen(false)}
                                 className={cn(
-                                    "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                     pathname.startsWith("/dashboard/companies")
                                         ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                         : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -360,7 +360,7 @@ export default function DashboardLayout({
                                 href="/dashboard/settings"
                                 onClick={() => setNavOpen(false)}
                                 className={cn(
-                                    "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                     pathname === "/dashboard/settings"
                                         ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                         : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -374,7 +374,7 @@ export default function DashboardLayout({
                             href="/dashboard/mode"
                             onClick={() => setNavOpen(false)}
                             className={cn(
-                                "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                 pathname.startsWith("/dashboard/mode")
                                     ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                     : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -397,7 +397,7 @@ export default function DashboardLayout({
                                         href="/dashboard/admin/analytics"
                                         onClick={() => setNavOpen(false)}
                                         className={cn(
-                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                             pathname === "/dashboard/admin/analytics"
                                                 ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                                 : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -410,7 +410,7 @@ export default function DashboardLayout({
                                         href="/dashboard/admin/users"
                                         onClick={() => setNavOpen(false)}
                                         className={cn(
-                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                             pathname === "/dashboard/admin/users"
                                                 ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                                 : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -423,7 +423,7 @@ export default function DashboardLayout({
                                         href="/dashboard/admin/organizations"
                                         onClick={() => setNavOpen(false)}
                                         className={cn(
-                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                             pathname.startsWith("/dashboard/admin/organizations")
                                                 ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                                 : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -436,7 +436,7 @@ export default function DashboardLayout({
                                         href="/dashboard/admin/subscriptions"
                                         onClick={() => setNavOpen(false)}
                                         className={cn(
-                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                             pathname === "/dashboard/admin/subscriptions"
                                                 ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                                 : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -449,7 +449,7 @@ export default function DashboardLayout({
                                         href="/dashboard/admin/jobs"
                                         onClick={() => setNavOpen(false)}
                                         className={cn(
-                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                             pathname.startsWith("/dashboard/admin/jobs")
                                                 ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                                 : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -462,7 +462,7 @@ export default function DashboardLayout({
                                         href="/dashboard/admin/importer"
                                         onClick={() => setNavOpen(false)}
                                         className={cn(
-                                            "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
                                             pathname.startsWith("/dashboard/admin/importer")
                                                 ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
                                                 : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
@@ -484,7 +484,7 @@ export default function DashboardLayout({
                                 }
                                 signOut();
                             }}
-                            className="flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold text-muted hover:text-[var(--cms-text)] hover:bg-pill transition-colors"
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted hover:text-[var(--cms-text)] hover:bg-pill transition-colors"
                         >
                             <LogOut className="w-5 h-5" />
                             Sign Out

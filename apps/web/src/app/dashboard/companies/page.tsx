@@ -170,7 +170,7 @@ export default function CompaniesPage() {
                     <Link
                         key={company.id}
                         href={`/dashboard/companies/${company.id}`}
-                        className="group block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
+                        className="group block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30"
                     >
                         <Card className="transition-colors group-hover:bg-panelStrong">
                             <CardContent className="py-4">
@@ -227,9 +227,9 @@ export default function CompaniesPage() {
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="create-company-title"
-                        className="cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-md rounded-[28px] max-h-[90vh] flex flex-col backdrop-blur-xl"
+                        className="cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-md rounded-2xl max-h-[90vh] flex flex-col backdrop-blur-xl"
                     >
-                        <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex items-start justify-between border-b border-[var(--cms-border)] rounded-t-[28px]">
+                        <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex items-start justify-between border-b border-[var(--cms-border)] rounded-t-2xl">
                             <div className="space-y-1">
                                 <h2 id="create-company-title" className="text-xl font-bold tracking-tight">
                                     Create company
@@ -266,7 +266,7 @@ export default function CompaniesPage() {
                                 }}
                             />
                         </div>
-                        <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex justify-end gap-3 flex-shrink-0 rounded-b-[28px]">
+                        <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex justify-end gap-3 flex-shrink-0 rounded-b-2xl">
                             <Button
                                 type="button"
                                 variant="outline"

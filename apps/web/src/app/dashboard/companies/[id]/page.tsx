@@ -587,7 +587,7 @@ export default function CompanyDetailPage() {
                 >
                     <ArrowLeft className="w-4 h-4" /> Back to Companies
                 </Link>
-                <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl p-6">
+                <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
                     <div className="flex items-start gap-3">
                         <div className="w-10 h-10 rounded-2xl bg-[var(--cms-pill)] flex items-center justify-center">
                             <Shield className="w-5 h-5" />
@@ -645,7 +645,7 @@ export default function CompanyDetailPage() {
             </div>
 
             {activeTab === "details" && (
-                <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl p-6 space-y-5">
+                <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6 space-y-5">
                     <div className="space-y-2">
                         <label className="text-sm font-semibold">Company name</label>
                         <input
@@ -785,7 +785,7 @@ export default function CompanyDetailPage() {
             {activeTab === "team" && (
                 <>
                     {membersError ? (
-                        <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl p-6">
+                        <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
                             <div className="flex items-start gap-3">
                                 <div className="w-10 h-10 rounded-2xl bg-[var(--cms-pill)] flex items-center justify-center">
                                     <Shield className="w-5 h-5" />
@@ -798,7 +798,7 @@ export default function CompanyDetailPage() {
                         </section>
                     ) : (
                         <>
-                            <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl p-6 space-y-5">
+                            <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6 space-y-5">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <UserPlus className="w-5 h-5" />
@@ -868,7 +868,7 @@ export default function CompanyDetailPage() {
                                         {sortedMembers.map((member) => (
                                             <div
                                                 key={member.id}
-                                                className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-3xl p-5 space-y-4"
+                                                className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-5 space-y-4"
                                             >
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div>

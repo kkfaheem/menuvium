@@ -192,7 +192,7 @@ export function ImageCropperModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-3xl rounded-3xl bg-[var(--cms-bg)] border border-[var(--cms-border)] shadow-2xl overflow-hidden">
+            <div className="w-full max-w-3xl rounded-2xl bg-[var(--cms-bg)] border border-[var(--cms-border)] shadow-2xl overflow-hidden">
                 <div className="flex items-start justify-between gap-4 p-5 border-b border-[var(--cms-border)]">
                     <div className="min-w-0">
                         <h2 className="text-lg font-bold truncate">{title}</h2>

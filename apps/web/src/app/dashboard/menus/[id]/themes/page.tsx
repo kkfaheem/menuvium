@@ -642,7 +642,7 @@ export default function MenuThemesPage() {
 
   return (
     <div className="w-full max-w-[1400px] mr-auto space-y-6">
-      <header className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-5 py-5 sm:px-6 sm:py-6">
+      <header className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-5 py-5 sm:px-6 sm:py-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <Link
@@ -701,7 +701,7 @@ export default function MenuThemesPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.9fr)]">
         <div className="space-y-6">
-          <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-2">
+          <section className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-2">
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setActiveTab("theme")}
@@ -727,7 +727,7 @@ export default function MenuThemesPage() {
           </section>
 
           {activeTab === "theme" && (
-            <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 sm:p-6 space-y-5">
+            <section className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 sm:p-6 space-y-5">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--cms-muted)]">
@@ -857,7 +857,7 @@ export default function MenuThemesPage() {
           {activeTab === "branding" && (
             <>
               {/* ─── Branding & Title ─── */}
-              <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-5 space-y-4">
+              <section className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-5 space-y-4">
                 <div className="flex items-start justify-between">
                   <div>
                     <h2 className="font-heading text-xl font-bold tracking-tight">
@@ -1043,7 +1043,7 @@ export default function MenuThemesPage() {
               </section>
 
               {/* ─── Banner Section ─── */}
-              <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-5">
+              <section className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-2">
                     <div>
@@ -1163,7 +1163,7 @@ export default function MenuThemesPage() {
             </Link>
           </div>
 
-          <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-3 sm:p-4">
+          <section className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-3 sm:p-4">
             <div className="mx-auto w-full max-w-[392px] px-1">
               <div className="relative rounded-[2.8rem] bg-gradient-to-b from-zinc-200 via-zinc-300 to-zinc-400 p-[8px] shadow-[0_24px_48px_-30px_rgba(0,0,0,0.45)] dark:bg-gradient-to-b dark:from-white/40 dark:via-zinc-500/35 dark:to-zinc-900/80 dark:shadow-[0_30px_55px_-35px_rgba(0,0,0,0.9)]">
                 <div className="relative overflow-hidden rounded-[2.42rem] border border-zinc-400/80 bg-zinc-100 p-px dark:border-black/60 dark:bg-zinc-900">
@@ -1201,10 +1201,10 @@ export default function MenuThemesPage() {
             const activePdf = activeVariant === "logo" ? logoQrPdf! : standardQrPdf;
             const publicUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/r/${menu.id}`;
             const copyUrl = async () => {
-              try { await navigator.clipboard.writeText(publicUrl); setCopiedPublicUrl(true); setTimeout(() => setCopiedPublicUrl(false), 1800); } catch { }
+              try { await navigator.clipboard.writeText(publicUrl); setCopiedPublicUrl(true); setTimeout(() => setCopiedPublicUrl(false), 1800); } catch { /* no-op */ }
             };
             return (
-              <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-5 space-y-4">
+              <section className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-5 space-y-4">
                 <div>
                   <h2 className="font-heading text-xl font-bold tracking-tight">
                     Publish

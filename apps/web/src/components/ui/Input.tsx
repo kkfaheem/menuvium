@@ -10,9 +10,9 @@ export function Input({ className, type, ...props }: InputProps) {
         <input
             type={type}
             className={cn(
-                "w-full h-11 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 text-sm text-[var(--cms-text)] shadow-sm",
+                "w-full h-11 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 text-sm text-[var(--cms-text)]",
                 "placeholder:text-[var(--cms-muted-strong)]",
-                "focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/25 focus:border-[var(--cms-accent)] transition-[border-color,box-shadow]",
+                "focus:outline-none focus:ring-2 focus:ring-[var(--cms-accent)]/30 focus:border-[var(--cms-accent)] transition-[border-color,box-shadow]",
                 className
             )}
             {...props}

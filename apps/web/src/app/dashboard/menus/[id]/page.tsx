@@ -2005,7 +2005,7 @@ export default function MenuDetailPage() {
                     setIsAddingCategory(true);
                     setPageDirty(true);
                   }}
-                  className="w-full py-6 border-2 border-dashed border-[var(--cms-border)] rounded-3xl text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all font-bold text-lg flex items-center justify-center gap-3"
+                  className="w-full py-6 border-2 border-dashed border-[var(--cms-border)] rounded-2xl text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:border-[var(--cms-text)] transition-all font-bold text-lg flex items-center justify-center gap-3"
                 >
                   <Plus className="w-6 h-6" /> Add Category
                 </button>
@@ -2046,10 +2046,10 @@ export default function MenuDetailPage() {
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="menu-qr-modal-title"
-                  className="pointer-events-auto cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-xl rounded-[28px] max-h-[90vh] flex flex-col backdrop-blur-xl animate-fade-in-scale motion-reduce:animate-none"
+                  className="pointer-events-auto cms-modal-shell ring-1 ring-[var(--cms-border)] w-full max-w-xl rounded-2xl max-h-[90vh] flex flex-col backdrop-blur-xl animate-fade-in-scale motion-reduce:animate-none"
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex items-start justify-between border-b border-[var(--cms-border)] rounded-t-[28px]">
+                  <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex items-start justify-between border-b border-[var(--cms-border)] rounded-t-2xl">
                     <div>
                       <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[var(--cms-muted)]">
                         Publish
@@ -2132,7 +2132,7 @@ export default function MenuDetailPage() {
                     </div>
                   </div>
 
-                  <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex flex-col gap-3 sm:flex-row sm:justify-end flex-shrink-0 rounded-b-[28px]">
+                  <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex flex-col gap-3 sm:flex-row sm:justify-end flex-shrink-0 rounded-b-2xl">
                     <a
                       href={publicMenuUrl}
                       target="_blank"
@@ -2176,7 +2176,7 @@ export default function MenuDetailPage() {
                 style={modalContentAlignmentStyle}
               >
                 <div
-                  className="pointer-events-auto cms-modal-shell cms-surface-3 ring-1 ring-[var(--cms-border)] w-full max-w-2xl rounded-[28px] max-h-[min(92vh,880px)] flex flex-col animate-fade-in-scale motion-reduce:animate-none"
+                  className="pointer-events-auto cms-modal-shell cms-surface-3 ring-1 ring-[var(--cms-border)] w-full max-w-2xl rounded-2xl max-h-[min(92vh,880px)] flex flex-col animate-fade-in-scale motion-reduce:animate-none"
                   onKeyDown={(e) => {
                     const target = e.target as HTMLElement;
                     const isTextarea = target.tagName === "TEXTAREA";
@@ -2186,7 +2186,7 @@ export default function MenuDetailPage() {
                     }
                   }}
                 >
-                  <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex justify-between items-center border-b border-[var(--cms-border)] rounded-t-[28px]">
+                  <div className="cms-modal-header p-6 pb-4 flex-shrink-0 flex justify-between items-center border-b border-[var(--cms-border)] rounded-t-2xl">
                     <div>
                       <h2 className="font-heading text-xl font-bold tracking-tight">
                         {editingItem.id ? "Edit item" : "Add item"}
@@ -2621,7 +2621,7 @@ export default function MenuDetailPage() {
                             type="button"
                             onClick={() => arVideoInputRef.current?.click()}
                             disabled={!canEditItems}
-                            className="h-11 w-full rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] shadow-sm transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)] disabled:opacity-60"
+                            className="h-11 w-full rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)] disabled:opacity-60"
                           >
                             Choose video
                           </button>
@@ -2634,7 +2634,7 @@ export default function MenuDetailPage() {
                               !arVideoToUpload ||
                               isUploadingArVideo
                             }
-                            className="h-11 w-full rounded-2xl bg-[linear-gradient(180deg,var(--cms-accent),var(--cms-accent-strong))] px-4 text-sm font-semibold text-white shadow-sm transition-all duration-150 motion-reduce:transition-none hover:shadow-md disabled:opacity-60"
+                            className="h-11 w-full rounded-2xl bg-[var(--cms-accent)] hover:bg-[var(--cms-accent-strong)] px-4 text-sm font-semibold text-white transition-all duration-150 motion-reduce:transition-none disabled:opacity-60"
                           >
                             {isUploadingArVideo
                               ? "Uploading…"
@@ -2651,7 +2651,7 @@ export default function MenuDetailPage() {
                                   isRetryingArGeneration ||
                                   isUploadingArVideo
                                 }
-                                className="h-11 w-full sm:col-span-2 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] shadow-sm transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)] disabled:opacity-60"
+                                className="h-11 w-full sm:col-span-2 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)] disabled:opacity-60"
                               >
                                 {isRetryingArGeneration ? "Retrying…" : "Retry"}
                               </button>
@@ -2759,7 +2759,7 @@ export default function MenuDetailPage() {
                       </details>
                     )}
                   </div>
-                  <div className="cms-modal-footer sticky bottom-0 z-10 p-4 sm:p-5 border-t border-[var(--cms-border)] flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center flex-shrink-0 rounded-b-[28px] backdrop-blur-xl">
+                  <div className="cms-modal-footer sticky bottom-0 z-10 p-4 sm:p-5 border-t border-[var(--cms-border)] flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center flex-shrink-0 rounded-b-2xl backdrop-blur-xl">
                     <div>
                       {canEditItems && editingItem.id && (
                         <button
@@ -2815,7 +2815,7 @@ export default function MenuDetailPage() {
                           setEditingItem(null);
                           setFileToUpload(null);
                         }}
-                        className="h-11 px-5 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] font-semibold text-[var(--cms-text)] shadow-sm hover:bg-[var(--cms-pill)] transition-colors duration-150 motion-reduce:transition-none"
+                        className="h-11 px-5 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] font-semibold text-[var(--cms-text)] hover:bg-[var(--cms-pill)] transition-colors duration-150 motion-reduce:transition-none"
                       >
                         Cancel
                       </button>
@@ -2828,7 +2828,7 @@ export default function MenuDetailPage() {
                             (!editingItem.price && editingItem.price !== 0)
                             : !editingItem.id || !canManageAvailability)
                         }
-                        className="h-11 px-5 bg-[linear-gradient(180deg,var(--cms-accent),var(--cms-accent-strong))] text-white rounded-2xl font-semibold transition-all duration-150 motion-reduce:transition-none disabled:opacity-50 inline-flex items-center gap-2 shadow-sm hover:shadow-md"
+                        className="h-11 px-5 bg-[var(--cms-accent)] hover:bg-[var(--cms-accent-strong)] text-white rounded-2xl font-semibold transition-all duration-150 motion-reduce:transition-none disabled:opacity-50 inline-flex items-center gap-2"
                       >
                         {isSavingItem && (
                           <Loader2 className="w-4 h-4 animate-spin" />
