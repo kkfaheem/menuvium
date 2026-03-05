@@ -10,8 +10,7 @@ import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import { getCachedOrFetch, getCachedValue } from "@/lib/dashboardCache";
-import { MENU_THEMES } from "@/lib/menuThemes";
-import type { Menu, Organization, OrgPermissions } from "@/types";
+import type { Category, Menu, Organization, OrgPermissions } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
@@ -23,11 +22,7 @@ type OrgCachePayload = {
 const ORG_CACHE_TTL_MS = 45_000;
 const MENUS_CACHE_TTL_MS = 20_000;
 const ORG_PERMISSIONS_CACHE_TTL_MS = 20_000;
-
-const withAlpha = (hex: string, alphaHex: string) => {
-    if (/^#[0-9a-fA-F]{6}$/.test(hex)) return `${hex}${alphaHex}`;
-    return hex;
-};
+const MENU_CATEGORIES_CACHE_TTL_MS = 20_000;
 
 export default function MenusPage() {
     const router = useRouter();
@@ -178,18 +173,55 @@ export default function MenusPage() {
         if (!orgId) return;
 
         setMenusError(null);
-        const menusCacheKey = `dashboard:menus:${orgId}`;
-        const cachedMenus = getCachedValue<Menu[]>(menusCacheKey, MENUS_CACHE_TTL_MS);
-        if (cachedMenus) {
-            setMenus(cachedMenus);
-            setMenusLoadedOrgId(orgId);
-            return;
-        }
-
         setMenusLoadedOrgId(null);
         try {
             const token = await getAuthToken();
             const apiBase = getApiBase();
+
+            const hydrateMenusWithCategories = async (baseMenus: Menu[]) =>
+                Promise.all(
+                    baseMenus.map(async (menu) => {
+                        const hasLoadedItems = (menu.categories || []).some((category) => (category.items || []).length > 0);
+                        if (hasLoadedItems) return menu;
+
+                        const categoriesCacheKey = `dashboard:menu-categories:${menu.id}`;
+                        const cachedCategories = getCachedValue<Category[]>(
+                            categoriesCacheKey,
+                            MENU_CATEGORIES_CACHE_TTL_MS
+                        );
+                        if (cachedCategories) {
+                            return { ...menu, categories: cachedCategories };
+                        }
+
+                        try {
+                            const { value: categories } = await getCachedOrFetch<Category[]>(
+                                categoriesCacheKey,
+                                async () => {
+                                    const categoriesRes = await fetch(`${apiBase}/categories/${menu.id}`, {
+                                        headers: { Authorization: `Bearer ${token}` }
+                                    });
+                                    if (!categoriesRes.ok) {
+                                        return [];
+                                    }
+                                    return (await categoriesRes.json()) as Category[];
+                                },
+                                MENU_CATEGORIES_CACHE_TTL_MS
+                            );
+                            return { ...menu, categories };
+                        } catch {
+                            return menu;
+                        }
+                    })
+                );
+
+            const menusCacheKey = `dashboard:menus:${orgId}`;
+            const cachedMenus = getCachedValue<Menu[]>(menusCacheKey, MENUS_CACHE_TTL_MS);
+            if (cachedMenus) {
+                const hydratedCachedMenus = await hydrateMenusWithCategories(cachedMenus);
+                setMenus(hydratedCachedMenus);
+                return;
+            }
+
             const { value: data } = await getCachedOrFetch<Menu[]>(
                 menusCacheKey,
                 async () => {
@@ -203,7 +235,8 @@ export default function MenusPage() {
                 },
                 MENUS_CACHE_TTL_MS
             );
-            setMenus(data);
+            const hydratedMenus = await hydrateMenusWithCategories(data);
+            setMenus(hydratedMenus);
         } catch (e) {
             console.error(e);
             setMenus([]);
@@ -354,10 +387,9 @@ export default function MenusPage() {
                         const totalPhotos = items.filter(i => !!i.photo_url || (i.photos && i.photos.length > 0)).length;
                         const totalAR = items.filter(i => i.ar_status === "ready").length;
 
-                        const themeObj = MENU_THEMES.find(t => t.id === (menu.theme || "noir")) || MENU_THEMES[0];
-                        const hasBanner = !!menu.banner_url;
-                        const hasLogo = !!menu.logo_url;
-                        const headerBg = menu.banner_url || menu.logo_url;
+                        const firstItemWithPhoto = items.find((item) => Boolean(item.photo_url || item.photos?.length));
+                        const firstItemPhoto = firstItemWithPhoto?.photo_url || firstItemWithPhoto?.photos?.[0]?.url || null;
+                        const headerBg = firstItemPhoto || menu.banner_url || null;
 
                         return (
                             <Link
@@ -370,7 +402,7 @@ export default function MenusPage() {
                                     {headerBg ? (
                                         <img
                                             src={headerBg}
-                                            alt={`${menu.name} header`}
+                                            alt={`${menu.name} preview`}
                                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                                         />
                                     ) : (
@@ -386,12 +418,6 @@ export default function MenusPage() {
                                             {menu.is_active ? "Active" : "Inactive"}
                                         </Badge>
                                     </div>
-                                    {/* Optional Overlapping Logo (if banner is the main bg) */}
-                                    {hasBanner && hasLogo && (
-                                        <div className="absolute bottom-3 left-4 h-11 w-11 overflow-hidden rounded-full border-2 border-panel bg-white shadow-sm transition-transform duration-500 group-hover:scale-110">
-                                            <img src={menu.logo_url as string} alt="logo" className="h-full w-full object-cover" />
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Card Body */}
