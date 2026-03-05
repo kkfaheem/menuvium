@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { Building2, ChevronDown, ArrowRight } from "lucide-react";
+import { Building2, ChevronDown, ArrowRight, Layers, FileText, Image as ImageIcon, Box } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import { getCachedOrFetch, getCachedValue } from "@/lib/dashboardCache";
+import { MENU_THEMES } from "@/lib/menuThemes";
 import type { Menu, Organization, OrgPermissions } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -22,6 +23,11 @@ type OrgCachePayload = {
 const ORG_CACHE_TTL_MS = 45_000;
 const MENUS_CACHE_TTL_MS = 20_000;
 const ORG_PERMISSIONS_CACHE_TTL_MS = 20_000;
+
+const withAlpha = (hex: string, alphaHex: string) => {
+    if (/^#[0-9a-fA-F]{6}$/.test(hex)) return `${hex}${alphaHex}`;
+    return hex;
+};
 
 export default function MenusPage() {
     const router = useRouter();
@@ -341,26 +347,82 @@ export default function MenusPage() {
                             <div className="mt-2 h-4 w-20 rounded bg-pill animate-pulse" />
                         </div>
                     ))
-                    : menus.map(menu => (
-                        <Link
-                            key={menu.id}
-                            href={`/dashboard/menus/${menu.id}`}
-                            className="group block rounded-2xl border border-border bg-panel p-6 shadow-sm transition-colors hover:bg-panelStrong"
-                        >
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-pill text-lg font-bold text-foreground">
-                                    {menu.name[0]}
+                    : menus.map(menu => {
+                        const totalCategories = menu.categories?.length || 0;
+                        const items = menu.categories?.flatMap(c => c.items) || [];
+                        const totalItems = items.length;
+                        const totalPhotos = items.filter(i => !!i.photo_url || (i.photos && i.photos.length > 0)).length;
+                        const totalAR = items.filter(i => i.ar_status === "ready").length;
+
+                        const themeObj = MENU_THEMES.find(t => t.id === (menu.theme || "noir")) || MENU_THEMES[0];
+                        const hasBanner = !!menu.banner_url;
+                        const hasLogo = !!menu.logo_url;
+                        const headerBg = menu.banner_url || menu.logo_url;
+
+                        return (
+                            <Link
+                                key={menu.id}
+                                href={`/dashboard/menus/${menu.id}`}
+                                className="group flex flex-col h-full overflow-hidden rounded-2xl border border-border bg-panel shadow-sm transition-all hover:bg-panelStrong hover:shadow-md hover:border-[var(--cms-accent)]/30"
+                            >
+                                {/* Image Snapshot Header */}
+                                <div className="relative h-32 w-full shrink-0 overflow-hidden bg-black/10">
+                                    {headerBg ? (
+                                        <img
+                                            src={headerBg}
+                                            alt={`${menu.name} header`}
+                                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                        />
+                                    ) : (
+                                        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[var(--cms-accent)]/10 to-transparent">
+                                            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-pill/50 text-2xl font-bold text-foreground/50 shadow-sm backdrop-blur-sm">
+                                                {menu.name[0]}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {/* Top-Right Badges */}
+                                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                                        <Badge variant={menu.is_active ? "success" : "outline"} className="shadow-sm backdrop-blur-md bg-background/90">
+                                            {menu.is_active ? "Active" : "Inactive"}
+                                        </Badge>
+                                    </div>
+                                    {/* Optional Overlapping Logo (if banner is the main bg) */}
+                                    {hasBanner && hasLogo && (
+                                        <div className="absolute bottom-3 left-4 h-11 w-11 overflow-hidden rounded-full border-2 border-panel bg-white shadow-sm transition-transform duration-500 group-hover:scale-110">
+                                            <img src={menu.logo_url as string} alt="logo" className="h-full w-full object-cover" />
+                                        </div>
+                                    )}
                                 </div>
-                                <Badge variant={menu.is_active ? "success" : "outline"}>
-                                    {menu.is_active ? "Active" : "Inactive"}
-                                </Badge>
-                            </div>
-                            <h3 className="mt-4 text-lg font-semibold tracking-tight group-hover:text-foreground">
-                                {menu.name}
-                            </h3>
-                            <p className="mt-1 text-sm text-muted">Open editor</p>
-                        </Link>
-                    ))}
+
+                                {/* Card Body */}
+                                <div className="flex flex-1 flex-col p-5">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <h3 className="text-xl font-bold tracking-tight text-foreground line-clamp-1 group-hover:text-[var(--cms-accent)] transition-colors">
+                                            {menu.name}
+                                        </h3>
+                                    </div>
+                                    <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-medium text-muted">
+                                        <div className="flex items-center gap-1.5 rounded-lg bg-black/10 px-2.5 py-1.5 dark:bg-white/5">
+                                            <Layers className="w-3.5 h-3.5 opacity-70" />
+                                            <span>{totalCategories} Categories</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 rounded-lg bg-black/10 px-2.5 py-1.5 dark:bg-white/5">
+                                            <FileText className="w-3.5 h-3.5 opacity-70" />
+                                            <span>{totalItems} Items</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 rounded-lg bg-black/10 px-2.5 py-1.5 dark:bg-white/5">
+                                            <ImageIcon className="w-3.5 h-3.5 opacity-70" />
+                                            <span>{totalPhotos} Photos</span>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 rounded-lg bg-black/10 px-2.5 py-1.5 dark:bg-white/5">
+                                            <Box className="w-3.5 h-3.5 opacity-70" />
+                                            <span>{totalAR} AR Models</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </Link>
+                        );
+                    })}
             </div>
 
         </div>
