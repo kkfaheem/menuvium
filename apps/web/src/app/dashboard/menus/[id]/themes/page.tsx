@@ -919,15 +919,18 @@ export default function MenuThemesPage() {
           <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-3 sm:p-4">
             <div className="mx-auto w-full max-w-[392px] px-1">
               <div className="relative rounded-[2.8rem] bg-gradient-to-b from-zinc-200 via-zinc-300 to-zinc-400 p-[8px] shadow-[0_24px_48px_-30px_rgba(0,0,0,0.45)] dark:bg-gradient-to-b dark:from-white/40 dark:via-zinc-500/35 dark:to-zinc-900/80 dark:shadow-[0_30px_55px_-35px_rgba(0,0,0,0.9)]">
-                <div className="relative overflow-hidden rounded-[2.42rem] border border-zinc-400/80 bg-zinc-100 p-[3px] dark:border-black/60 dark:bg-black">
+                <div className="relative overflow-hidden rounded-[2.42rem] border border-zinc-400/80 bg-zinc-100 p-px dark:border-black/60 dark:bg-zinc-900">
                   <div className="pointer-events-none absolute left-1/2 top-[8px] z-20 h-[7px] w-[7px] -translate-x-1/2 rounded-full bg-zinc-500/80 ring-1 ring-white/50 dark:bg-zinc-500/85 dark:ring-white/20" />
-                  <div className="relative aspect-[9/19.5] w-full overflow-hidden rounded-[2.18rem] border border-zinc-300/70 bg-white dark:border-black/50">
+                  <div
+                    className="relative aspect-[9/19.5] w-full overflow-hidden rounded-[2.34rem] bg-white"
+                    style={{ clipPath: "inset(0 round 2.34rem)" }}
+                  >
                     <iframe
                       ref={previewIframeRef}
                       title={`${menu?.name || "Menu"} preview`}
                       src={previewHref}
                       onLoad={handlePreviewLoad}
-                      className="no-scrollbar h-full w-full border-0"
+                      className="no-scrollbar block h-full w-full border-0 bg-white"
                     />
                   </div>
                 </div>

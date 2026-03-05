@@ -10,25 +10,25 @@ html {
 :root {
   color-scheme: light;
   /* Light Theme – minimal, bright, modern */
-  --background: #fcfcfd;
+  --background: #fafbfe;
   --foreground: #0b1220;
 
-  --cms-bg: #fcfcfd;
+  --cms-bg: #fafbfe;
   --cms-panel-solid: #ffffff;
-  --cms-panel-strong-solid: #f6f7fb;
-  --cms-border-solid: rgba(17, 24, 39, 0.1);
+  --cms-panel-strong-solid: #f1f4fa;
+  --cms-border-solid: rgba(17, 24, 39, 0.16);
 
   --cms-panel: var(--cms-panel-solid);
   --cms-panel-strong: var(--cms-panel-strong-solid);
   --cms-border: var(--cms-border-solid);
   --cms-text: #0b1220;
-  --cms-muted: rgba(11, 18, 32, 0.68);
-  --cms-muted-strong: rgba(11, 18, 32, 0.46);
-  --cms-pill: rgba(11, 18, 32, 0.06);
+  --cms-muted: rgba(11, 18, 32, 0.78);
+  --cms-muted-strong: rgba(11, 18, 32, 0.58);
+  --cms-pill: rgba(11, 18, 32, 0.08);
 
-  --cms-shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.06);
-  --cms-shadow-md: 0 14px 36px rgba(17, 24, 39, 0.1);
-  --cms-shadow-lg: 0 28px 90px rgba(17, 24, 39, 0.14);
+  --cms-shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.08);
+  --cms-shadow-md: 0 16px 40px rgba(17, 24, 39, 0.13);
+  --cms-shadow-lg: 0 30px 96px rgba(17, 24, 39, 0.16);
 
   /* Subtle surface highlights */
   --cms-glass-highlight: rgba(255, 255, 255, 0.92);
@@ -76,13 +76,13 @@ html {
 }
 
 .landing-shell {
-  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 84%, transparent);
+  --cms-panel: color-mix(in srgb, var(--cms-panel-solid) 92%, transparent);
   --cms-panel-strong: color-mix(
     in srgb,
-    var(--cms-panel-strong-solid) 80%,
+    var(--cms-panel-strong-solid) 90%,
     transparent
   );
-  --cms-border: color-mix(in srgb, var(--cms-border-solid) 58%, transparent);
+  --cms-border: color-mix(in srgb, var(--cms-border-solid) 84%, transparent);
   --cms-glass-highlight: rgba(255, 255, 255, 0.84);
   --cms-glass-lowlight: rgba(15, 23, 42, 0.08);
   --cms-glass-sheen-a: rgba(255, 255, 255, 0.16);
@@ -100,11 +100,11 @@ html {
     var(--cms-accent-strong) 28%,
     transparent
   );
-  --landing-vignette-end: rgba(148, 163, 184, 0.22);
-  --landing-fade-top: rgba(255, 255, 255, 0.8);
-  --landing-fade-mid-top: rgba(255, 255, 255, 0.24);
+  --landing-vignette-end: rgba(148, 163, 184, 0.28);
+  --landing-fade-top: rgba(255, 255, 255, 0.72);
+  --landing-fade-mid-top: rgba(255, 255, 255, 0.14);
   --landing-fade-mid: rgba(248, 250, 252, 0.08);
-  --landing-fade-lower: rgba(15, 23, 42, 0.1);
+  --landing-fade-lower: rgba(15, 23, 42, 0.14);
   --landing-fade-bottom: rgba(15, 23, 42, 0.28);
   --landing-sheen-a: color-mix(
     in srgb,
@@ -417,21 +417,21 @@ html {
 
 .dashboard-bg .landing-bg-blob {
   filter: blur(78px) saturate(120%);
-  opacity: 0.64;
+  opacity: 0.5;
 }
 
 .dashboard-bg .landing-bg-sheen {
   filter: blur(112px) saturate(116%);
-  opacity: 0.58;
+  opacity: 0.36;
 }
 
 .dashboard-bg .landing-bg-prism {
   filter: blur(104px) saturate(112%);
-  opacity: 0.42;
+  opacity: 0.26;
 }
 
 .dashboard-bg .landing-bg-noise {
-  opacity: 0.02;
+  opacity: 0.014;
 }
 
 .dark .dashboard-bg .landing-bg-blob {

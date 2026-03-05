@@ -342,7 +342,6 @@ export default function PublicMenuPage() {
   const activeTheme = MENU_THEME_BY_ID[themeId];
   const palette = activeTheme.palette;
   const themeLayout = activeTheme.layout;
-  const embedTopInsetClass = isEmbeddedPreview ? "pt-3" : "";
   const showImages =
     previewShowImages === "1"
       ? true
@@ -774,7 +773,7 @@ export default function PublicMenuPage() {
 
   const renderNoir = () => (
     <div
-      className={`min-h-screen pb-20 selection:bg-orange-500/30 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)] ${embedTopInsetClass}`}
+      className="min-h-screen pb-20 selection:bg-orange-500/30 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)]"
       style={themeVars}
     >
       {/* Subtle ambient gradient */}
@@ -960,7 +959,7 @@ export default function PublicMenuPage() {
 
   const renderPaper = () => (
     <div
-      className={`min-h-screen pb-20 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)] ${embedTopInsetClass}`}
+      className="min-h-screen pb-20 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)]"
       style={themeVars}
     >
       <div
@@ -1100,7 +1099,7 @@ export default function PublicMenuPage() {
 
   const renderCitrus = () => (
     <div
-      className={`min-h-screen pb-20 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)] ${embedTopInsetClass}`}
+      className="min-h-screen pb-20 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)]"
       style={themeVars}
     >
       <div
@@ -1232,7 +1231,7 @@ export default function PublicMenuPage() {
 
   const renderHarbor = () => (
     <div
-      className={`min-h-screen pb-20 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)] ${embedTopInsetClass}`}
+      className="min-h-screen pb-20 theme-body bg-[var(--menu-bg)] text-[color:var(--menu-text)]"
       style={themeVars}
     >
       <div
