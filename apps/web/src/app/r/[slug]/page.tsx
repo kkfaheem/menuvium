@@ -493,10 +493,7 @@ export default function PublicMenuPage() {
     // If title design is enabled and we have a logo, render logo-based title
     if (config?.enabled && menu.logo_url) {
       return (
-        <div
-          className="flex items-center justify-center mb-2"
-          style={{ paddingTop: "4px", paddingBottom: "4px" }}
-        >
+        <div className="mb-3 flex items-center justify-center pt-2 pb-1">
           <img
             src={menu.logo_url}
             alt={menu.name}
@@ -513,8 +510,10 @@ export default function PublicMenuPage() {
 
     // Default to text-based title
     return (
-      <div className="flex items-center justify-between mb-3">
-        <h1 className={`${headingClass} truncate pr-4 theme-heading`}>
+      <div className="mb-3 px-2 pt-2 pb-1">
+        <h1
+          className={`${headingClass} theme-heading mx-auto max-w-full text-center leading-tight break-words`}
+        >
           {menu.name}
         </h1>
       </div>

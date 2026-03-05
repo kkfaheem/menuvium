@@ -159,13 +159,13 @@ export function ThemeLayout({
             >
                 <div className="max-w-md mx-auto p-4">
                     {/* Title Row */}
-                    <div className="flex items-center justify-between mb-4">
-                        <h1 className={`${titleSize} font-bold tracking-tight truncate pr-4 ${titleFontClass || ""}`}>
+                    <div className="relative mb-4 px-2 pt-2 pb-1">
+                        <h1 className={`${titleSize} font-bold tracking-tight text-center leading-tight break-words ${titleFontClass || ""}`}>
                             {menu.name}
                         </h1>
                         {showMenuBadge && (
                             <span
-                                className="text-[10px] uppercase tracking-[0.2em]"
+                                className="absolute right-0 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.2em]"
                                 style={{ color: palette.accent }}
                             >
                                 Menu
