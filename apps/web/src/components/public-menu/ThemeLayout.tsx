@@ -54,6 +54,8 @@ export interface ThemeLayoutProps {
     renderTagFiltersToggle: () => React.ReactNode;
     renderTagFiltersPanel: () => React.ReactNode;
     onItemClick?: (item: Item) => void;
+    /** Optional custom title area renderer (for logo placement) */
+    renderTitleArea?: () => React.ReactNode;
 }
 
 /**
@@ -70,7 +72,8 @@ export function ThemeLayout({
     renderBanner,
     renderTagFiltersToggle,
     renderTagFiltersPanel,
-    onItemClick
+    onItemClick,
+    renderTitleArea: customTitleArea
 }: ThemeLayoutProps) {
     const {
         fontClass,
@@ -159,19 +162,23 @@ export function ThemeLayout({
             >
                 <div className="max-w-md mx-auto p-4">
                     {/* Title Row */}
-                    <div className="relative mb-4 px-2 pt-2 pb-1">
-                        <h1 className={`${titleSize} font-bold tracking-tight text-center leading-tight break-words ${titleFontClass || ""}`}>
-                            {menu.name}
-                        </h1>
-                        {showMenuBadge && (
-                            <span
-                                className="absolute right-0 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.2em]"
-                                style={{ color: palette.accent }}
-                            >
-                                Menu
-                            </span>
-                        )}
-                    </div>
+                    {customTitleArea ? (
+                        customTitleArea()
+                    ) : (
+                        <div className="relative mb-4 px-2 pt-2 pb-1">
+                            <h1 className={`${titleSize} font-bold tracking-tight text-center leading-tight break-words ${titleFontClass || ""}`}>
+                                {menu.name}
+                            </h1>
+                            {showMenuBadge && (
+                                <span
+                                    className="absolute right-0 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.2em]"
+                                    style={{ color: palette.accent }}
+                                >
+                                    Menu
+                                </span>
+                            )}
+                        </div>
+                    )}
 
                     {/* Search Input */}
                     <div className="relative group">

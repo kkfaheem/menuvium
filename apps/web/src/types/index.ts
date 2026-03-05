@@ -67,6 +67,14 @@ export interface TitleDesignConfig {
   recommendation?: string;
   generatedAt?: string;
   logoUrl?: string;
+  /** Array of up to 3 uploaded logo URLs */
+  logos?: string[];
+  /** Index of the selected logo in the logos array, null/-1 = none */
+  selectedLogoIndex?: number | null;
+  /** How the logo appears in the header relative to menu name */
+  logoPlacement?: "replace" | "left" | "above";
+  /** Title font size in px (default ~20) */
+  titleFontSize?: number;
 }
 
 export interface Menu {

@@ -489,23 +489,68 @@ export default function PublicMenuPage() {
     headingClass: string = "text-xl font-bold tracking-tight",
   ) => {
     const config = menu.title_design_config;
+    const placement = config?.logoPlacement || "replace";
+    const customFontSize = config?.titleFontSize;
+    const scale = config?.logoScale || 1;
+    const titleStyle: React.CSSProperties = customFontSize
+      ? { fontSize: `${customFontSize}px` }
+      : {};
+
+    // Auto-spacing: larger elements need proportionally more gap
+    const fontSize = customFontSize || 20;
+    const verticalGap = Math.round(Math.max(4, Math.min(20, (scale * 6) + (fontSize * 0.15))));
+    const horizontalGap = Math.round(Math.max(6, Math.min(16, (scale * 5) + (fontSize * 0.12))));
 
     // If title design is enabled and we have a logo, render logo-based title
     if (config?.enabled && menu.logo_url) {
-      return (
-        <div className="mb-3 flex items-center justify-center pt-2 pb-1">
-          <img
-            src={menu.logo_url}
-            alt={menu.name}
-            className="object-contain"
-            style={{
-              transform: `scale(${config.logoScale || 1})`,
-              maxHeight: "48px",
-              transformOrigin: "center",
-            }}
-          />
-        </div>
+      // Use explicit height so the container grows to accommodate
+      const logoHeight = Math.round(48 * scale);
+      const logoImg = (
+        <img
+          src={menu.logo_url}
+          alt={menu.name}
+          className="object-contain"
+          style={{
+            height: `${logoHeight}px`,
+            maxWidth: "100%",
+          }}
+        />
       );
+
+      const textEl = (
+        <h1
+          className={`${headingClass} theme-heading max-w-full leading-tight break-words`}
+          style={titleStyle}
+        >
+          {menu.name}
+        </h1>
+      );
+
+      if (placement === "replace") {
+        return (
+          <div className="mb-3 flex items-center justify-center pt-2 pb-1">
+            {logoImg}
+          </div>
+        );
+      }
+
+      if (placement === "left") {
+        return (
+          <div className="mb-3 flex items-center justify-center pt-2 pb-1" style={{ gap: `${horizontalGap}px` }}>
+            {logoImg}
+            {textEl}
+          </div>
+        );
+      }
+
+      if (placement === "above") {
+        return (
+          <div className="mb-3 flex flex-col items-center pt-2 pb-1" style={{ gap: `${verticalGap}px` }}>
+            {logoImg}
+            {textEl}
+          </div>
+        );
+      }
     }
 
     // Default to text-based title
@@ -513,6 +558,7 @@ export default function PublicMenuPage() {
       <div className="mb-3 px-2 pt-2 pb-1">
         <h1
           className={`${headingClass} theme-heading mx-auto max-w-full text-center leading-tight break-words`}
+          style={titleStyle}
         >
           {menu.name}
         </h1>
@@ -674,7 +720,7 @@ export default function PublicMenuPage() {
               <div
                 className={
                   filterOptions.diet.length > 0 ||
-                  filterOptions.spice.length > 0
+                    filterOptions.spice.length > 0
                     ? "mt-4"
                     : ""
                 }
@@ -721,8 +767,8 @@ export default function PublicMenuPage() {
               <div
                 className={
                   filterOptions.diet.length > 0 ||
-                  filterOptions.spice.length > 0 ||
-                  filterOptions.highlights.length > 0
+                    filterOptions.spice.length > 0 ||
+                    filterOptions.highlights.length > 0
                     ? "mt-4"
                     : ""
                 }
@@ -1471,56 +1517,56 @@ export default function PublicMenuPage() {
                 {/* Metadata Grid */}
                 {((selectedItem.dietary_tags?.length ?? 0) > 0 ||
                   (selectedItem.allergens?.length ?? 0) > 0) && (
-                  <div
-                    className="grid grid-cols-2 gap-4 py-6 border-y"
-                    style={{ borderColor: palette.border }}
-                  >
-                    {(selectedItem.dietary_tags?.length ?? 0) > 0 && (
-                      <div>
-                        <h4
-                          className="text-xs font-bold uppercase tracking-widest mb-3"
-                          style={{ color: palette.muted }}
-                        >
-                          Dietary
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {(selectedItem.dietary_tags ?? []).map(
-                            (tag, index) => (
+                    <div
+                      className="grid grid-cols-2 gap-4 py-6 border-y"
+                      style={{ borderColor: palette.border }}
+                    >
+                      {(selectedItem.dietary_tags?.length ?? 0) > 0 && (
+                        <div>
+                          <h4
+                            className="text-xs font-bold uppercase tracking-widest mb-3"
+                            style={{ color: palette.muted }}
+                          >
+                            Dietary
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {(selectedItem.dietary_tags ?? []).map(
+                              (tag, index) => (
+                                <span
+                                  key={`${selectedItem.id}-diet-${tag.id ?? tag.name ?? index}`}
+                                  className="px-3 py-1 rounded-lg text-xs font-bold border"
+                                  style={modalTagStyle}
+                                >
+                                  {tag.name}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {(selectedItem.allergens?.length ?? 0) > 0 && (
+                        <div>
+                          <h4
+                            className="text-xs font-bold uppercase tracking-widest mb-3"
+                            style={{ color: palette.muted }}
+                          >
+                            Allergens
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {(selectedItem.allergens ?? []).map((tag, index) => (
                               <span
-                                key={`${selectedItem.id}-diet-${tag.id ?? tag.name ?? index}`}
+                                key={`${selectedItem.id}-allergen-${tag.id ?? tag.name ?? index}`}
                                 className="px-3 py-1 rounded-lg text-xs font-bold border"
-                                style={modalTagStyle}
+                                style={modalAllergenStyle}
                               >
                                 {tag.name}
                               </span>
-                            ),
-                          )}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    {(selectedItem.allergens?.length ?? 0) > 0 && (
-                      <div>
-                        <h4
-                          className="text-xs font-bold uppercase tracking-widest mb-3"
-                          style={{ color: palette.muted }}
-                        >
-                          Allergens
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {(selectedItem.allergens ?? []).map((tag, index) => (
-                            <span
-                              key={`${selectedItem.id}-allergen-${tag.id ?? tag.name ?? index}`}
-                              className="px-3 py-1 rounded-lg text-xs font-bold border"
-                              style={modalAllergenStyle}
-                            >
-                              {tag.name}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
               </div>
 
               <div className="mt-8 space-y-3">
@@ -1538,58 +1584,58 @@ export default function PublicMenuPage() {
 
                 {(selectedItem.ar_status === "pending" ||
                   selectedItem.ar_status === "processing") && (
-                  <div
-                    className="w-full py-3 px-4 rounded-2xl border text-sm font-semibold"
-                    style={{
-                      backgroundColor: palette.surfaceAlt,
-                      borderColor: palette.border,
-                      color: palette.muted,
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="min-w-0">AR model is processing</div>
-                      {typeof selectedItem.ar_progress === "number" && (
-                        <div className="shrink-0 tabular-nums">
-                          {Math.round(
-                            Math.max(0, Math.min(1, selectedItem.ar_progress)) *
+                    <div
+                      className="w-full py-3 px-4 rounded-2xl border text-sm font-semibold"
+                      style={{
+                        backgroundColor: palette.surfaceAlt,
+                        borderColor: palette.border,
+                        color: palette.muted,
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">AR model is processing</div>
+                        {typeof selectedItem.ar_progress === "number" && (
+                          <div className="shrink-0 tabular-nums">
+                            {Math.round(
+                              Math.max(0, Math.min(1, selectedItem.ar_progress)) *
                               100,
-                          )}
-                          %
+                            )}
+                            %
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        className="mt-2 text-xs font-semibold"
+                        style={{ color: palette.muted }}
+                      >
+                        {selectedItem.ar_stage
+                          ? `Stage: ${selectedItem.ar_stage}`
+                          : "Stage: processing"}
+                      </div>
+                      {selectedItem.ar_stage_detail && (
+                        <div
+                          className="mt-1 text-xs"
+                          style={{ color: palette.muted }}
+                        >
+                          {selectedItem.ar_stage_detail}
+                        </div>
+                      )}
+                      {typeof selectedItem.ar_progress === "number" && (
+                        <div
+                          className="mt-2 h-2 rounded-full overflow-hidden"
+                          style={{ backgroundColor: palette.border }}
+                        >
+                          <div
+                            className="h-full"
+                            style={{
+                              width: `${Math.round(Math.max(0, Math.min(1, selectedItem.ar_progress)) * 100)}%`,
+                              backgroundColor: palette.accent,
+                            }}
+                          />
                         </div>
                       )}
                     </div>
-                    <div
-                      className="mt-2 text-xs font-semibold"
-                      style={{ color: palette.muted }}
-                    >
-                      {selectedItem.ar_stage
-                        ? `Stage: ${selectedItem.ar_stage}`
-                        : "Stage: processing"}
-                    </div>
-                    {selectedItem.ar_stage_detail && (
-                      <div
-                        className="mt-1 text-xs"
-                        style={{ color: palette.muted }}
-                      >
-                        {selectedItem.ar_stage_detail}
-                      </div>
-                    )}
-                    {typeof selectedItem.ar_progress === "number" && (
-                      <div
-                        className="mt-2 h-2 rounded-full overflow-hidden"
-                        style={{ backgroundColor: palette.border }}
-                      >
-                        <div
-                          className="h-full"
-                          style={{
-                            width: `${Math.round(Math.max(0, Math.min(1, selectedItem.ar_progress)) * 100)}%`,
-                            backgroundColor: palette.accent,
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
 
                 {selectedItem.ar_status === "failed" &&
                   selectedItem.ar_error_message && (
@@ -1606,9 +1652,8 @@ export default function PublicMenuPage() {
                   )}
 
                 <button
-                  className={`w-full py-4 rounded-2xl font-black text-lg transition-colors active:scale-[0.98] ${
-                    selectedItem.ar_status === "ready" ? "border" : ""
-                  }`}
+                  className={`w-full py-4 rounded-2xl font-black text-lg transition-colors active:scale-[0.98] ${selectedItem.ar_status === "ready" ? "border" : ""
+                    }`}
                   style={
                     selectedItem.ar_status === "ready"
                       ? modalSecondaryButtonStyle

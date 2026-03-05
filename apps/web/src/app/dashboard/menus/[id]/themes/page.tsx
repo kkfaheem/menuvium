@@ -6,13 +6,23 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import {
   ArrowLeft,
+  Check,
+  Copy,
+  Info,
+  Download,
   ExternalLink,
   Image,
   Loader2,
+  Minus,
   Palette,
+  Pencil,
+  Plus,
+  QrCode,
   Search,
+  Trash2,
   X,
 } from "lucide-react";
+import type { TitleDesignConfig } from "@/types";
 import { MENU_THEME_BY_ID, MENU_THEMES, MenuThemeId } from "@/lib/menuThemes";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
@@ -29,8 +39,11 @@ interface Menu {
   banner_url?: string | null;
   logo_url?: string | null;
   logo_qr_url?: string | null;
+  title_design_config?: TitleDesignConfig | null;
   org_id: string;
 }
+
+type LogoPlacement = "replace" | "left" | "above";
 
 export default function MenuThemesPage() {
   const params = useParams();
@@ -46,8 +59,12 @@ export default function MenuThemesPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);
   const [bannerUploading, setBannerUploading] = useState(false);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [logoUploading, setLogoUploading] = useState(false);
+  const [logos, setLogos] = useState<(string | null)[]>([null, null, null]);
+  const [logoUploadingSlot, setLogoUploadingSlot] = useState<number | null>(null);
+  const [selectedLogoIndex, setSelectedLogoIndex] = useState<number | null>(null);
+  const [logoPlacement, setLogoPlacement] = useState<LogoPlacement>("replace");
+  const [logoScale, setLogoScale] = useState(1.0);
+  const [titleFontSize, setTitleFontSize] = useState(20);
   const [logoQrGenerating, setLogoQrGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<"theme" | "branding">("theme");
   const [bannerCropFile, setBannerCropFile] = useState<File | null>(null);
@@ -58,6 +75,9 @@ export default function MenuThemesPage() {
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewScrollTopRef = useRef(0);
   const previewSignatureRef = useRef<string | null>(null);
+  const [qrVariant, setQrVariant] = useState<"standard" | "logo">("standard");
+  const [copiedPublicUrl, setCopiedPublicUrl] = useState(false);
+  const [brandingDirty, setBrandingDirty] = useState(false);
 
   const menuId = params.id as string;
 
@@ -113,8 +133,26 @@ export default function MenuThemesPage() {
       bannerPreviewBlobUrlRef.current = null;
     }
     setBannerPreview(menu?.banner_url ?? null);
-    setLogoPreview(menu?.logo_url ?? null);
-  }, [menu?.banner_url, menu?.logo_url]);
+    // Initialize multi-logo state from title_design_config
+    const config = menu?.title_design_config;
+    if (config?.logos) {
+      const padded: (string | null)[] = [null, null, null];
+      config.logos.forEach((url, i) => { if (i < 3) padded[i] = url || null; });
+      setLogos(padded);
+    } else if (menu?.logo_url) {
+      setLogos([menu.logo_url, null, null]);
+    } else {
+      setLogos([null, null, null]);
+    }
+    setSelectedLogoIndex(
+      config?.selectedLogoIndex != null && config.selectedLogoIndex >= 0
+        ? config.selectedLogoIndex
+        : (menu?.logo_url ? 0 : null)
+    );
+    setLogoPlacement((config?.logoPlacement as LogoPlacement) || "replace");
+    setLogoScale(config?.logoScale ?? 1.0);
+    setTitleFontSize(config?.titleFontSize ?? 20);
+  }, [menu?.banner_url, menu?.logo_url, menu?.title_design_config]);
 
   const tagsList = useMemo(() => {
     const tags = new Set<string>();
@@ -163,8 +201,9 @@ export default function MenuThemesPage() {
         menu?.banner_url ?? "",
         menu?.logo_url ?? "",
         menu?.show_item_images === false ? "hide" : "show",
+        JSON.stringify(menu?.title_design_config ?? {}),
       ].join("|"),
-    [menu?.banner_url, menu?.logo_url, menu?.show_item_images],
+    [menu?.banner_url, menu?.logo_url, menu?.show_item_images, menu?.title_design_config],
   );
 
   const capturePreviewScrollPosition = () => {
@@ -306,9 +345,50 @@ export default function MenuThemesPage() {
     }
   };
 
-  const uploadLogo = async (file: File) => {
+  /** Persist the current logos array + selection + placement to the backend */
+  const persistLogoConfig = async (
+    newLogos: (string | null)[],
+    newSelectedIndex: number | null,
+    newPlacement: LogoPlacement,
+    overrideLogoScale?: number,
+    overrideTitleFontSize?: number,
+  ) => {
     if (!menu) return;
-    setLogoUploading(true);
+    const token = await getAuthToken();
+    const activeLogoUrl =
+      newSelectedIndex != null && newSelectedIndex >= 0
+        ? newLogos[newSelectedIndex] ?? null
+        : null;
+    const config: TitleDesignConfig = {
+      ...(menu.title_design_config || {}),
+      enabled: activeLogoUrl != null,
+      logos: newLogos.filter(Boolean) as string[],
+      selectedLogoIndex: newSelectedIndex,
+      logoPlacement: newPlacement,
+      logoScale: overrideLogoScale ?? logoScale,
+      titleFontSize: overrideTitleFontSize ?? titleFontSize,
+    };
+    const patchRes = await fetch(`${apiBase}/menus/${menu.id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        logo_url: activeLogoUrl,
+        title_design_config: config,
+      }),
+    });
+    if (!patchRes.ok) throw new Error("Failed to save logo config");
+    const updated = await patchRes.json();
+    setMenu(updated);
+    setPreviewRevision((r) => r + 1);
+    return updated;
+  };
+
+  const uploadLogoToSlot = async (file: File, slotIndex: number) => {
+    if (!menu) return;
+    setLogoUploadingSlot(slotIndex);
     try {
       const token = await getAuthToken();
       const uploadRes = await fetch(`${apiBase}/items/upload-url`, {
@@ -322,108 +402,144 @@ export default function MenuThemesPage() {
           content_type: file.type || "image/png",
         }),
       });
-      if (!uploadRes.ok) {
-        throw new Error("Failed to get upload url");
-      }
+      if (!uploadRes.ok) throw new Error("Failed to get upload url");
       const uploadData = await uploadRes.json();
       const putRes = await fetch(uploadData.upload_url, {
         method: "PUT",
         headers: { "Content-Type": file.type || "image/png" },
         body: file,
       });
-      if (!putRes.ok) {
-        throw new Error("Failed to upload logo");
-      }
-      const patchRes = await fetch(`${apiBase}/menus/${menu.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ logo_url: uploadData.public_url }),
-      });
-      if (!patchRes.ok) {
-        throw new Error("Failed to save logo");
-      }
-      const updated = await patchRes.json();
-      setMenu(updated);
-      setLogoQrGenerating(true);
-      try {
-        const qrRes = await fetch(
-          `${apiBase}/menus/${menu.id}/generate-logo-qr`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          },
-        );
-        if (!qrRes.ok) {
-          const err = await qrRes.json().catch(() => ({}));
-          const detail =
-            typeof err === "object" && err && "detail" in err
-              ? String((err as { detail?: unknown }).detail || "")
-              : "";
-          throw new Error(detail || "Branded QR generation failed");
+      if (!putRes.ok) throw new Error("Failed to upload logo");
+
+      const newLogos = [...logos];
+      newLogos[slotIndex] = uploadData.public_url;
+      setLogos(newLogos);
+
+      // Auto-select this logo if none is selected
+      const newIndex = selectedLogoIndex ?? slotIndex;
+      setSelectedLogoIndex(newIndex);
+
+      await persistLogoConfig(newLogos, newIndex, logoPlacement);
+
+      // Generate branded QR when a logo is selected
+      if (newIndex === slotIndex) {
+        setLogoQrGenerating(true);
+        try {
+          const qrRes = await fetch(
+            `${apiBase}/menus/${menu.id}/generate-logo-qr`,
+            { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+          );
+          if (qrRes.ok) {
+            const qrData = await qrRes.json();
+            setMenu((prev) =>
+              prev
+                ? {
+                  ...prev,
+                  logo_qr_url:
+                    typeof qrData.logo_qr_url === "string"
+                      ? qrData.logo_qr_url
+                      : prev.logo_qr_url,
+                }
+                : prev,
+            );
+          }
+        } catch (e) {
+          console.error(e);
+          toast({
+            variant: "warning",
+            title: "Logo uploaded",
+            description: "Could not generate branded QR right now.",
+          });
+        } finally {
+          setLogoQrGenerating(false);
         }
-        const qrData = await qrRes.json();
-        setMenu((prev) =>
-          prev
-            ? {
-                ...prev,
-                logo_qr_url:
-                  typeof qrData.logo_qr_url === "string"
-                    ? qrData.logo_qr_url
-                    : prev.logo_qr_url,
-              }
-            : prev,
-        );
-      } catch (e) {
-        console.error(e);
-        toast({
-          variant: "warning",
-          title: "Logo uploaded",
-          description:
-            e instanceof Error
-              ? `Could not generate branded QR: ${e.message}`
-              : "Could not generate branded QR right now.",
-        });
-      } finally {
-        setLogoQrGenerating(false);
       }
     } catch (e) {
       console.error(e);
       toast({ variant: "error", title: "Error uploading logo" });
     } finally {
-      setLogoUploading(false);
+      setLogoUploadingSlot(null);
     }
   };
 
-  const removeLogo = async () => {
+  const removeLogoFromSlot = async (slotIndex: number) => {
     if (!menu) return;
-    setLogoUploading(true);
+    setLogoUploadingSlot(slotIndex);
     try {
-      const token = await getAuthToken();
-      const patchRes = await fetch(`${apiBase}/menus/${menu.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ logo_url: null }),
-      });
-      if (!patchRes.ok) {
-        throw new Error("Failed to remove logo");
+      const newLogos = [...logos];
+      newLogos[slotIndex] = null;
+      setLogos(newLogos);
+
+      // If removing the selected logo, clear selection
+      let newIndex = selectedLogoIndex;
+      if (selectedLogoIndex === slotIndex) {
+        // Try to find another uploaded logo to select
+        const nextIndex = newLogos.findIndex((url) => url != null);
+        newIndex = nextIndex >= 0 ? nextIndex : null;
+        setSelectedLogoIndex(newIndex);
       }
-      const updated = await patchRes.json();
-      setMenu(updated);
-      setLogoQrGenerating(false);
+
+      await persistLogoConfig(newLogos, newIndex, logoPlacement);
     } catch (e) {
       console.error(e);
       toast({ variant: "error", title: "Error removing logo" });
     } finally {
-      setLogoUploading(false);
+      setLogoUploadingSlot(null);
     }
+  };
+
+  const handleLogoSelection = (index: number | null) => {
+    setSelectedLogoIndex(index);
+    setBrandingDirty(true);
+  };
+
+  const handleLogoPlacement = (placement: LogoPlacement) => {
+    setLogoPlacement(placement);
+    setBrandingDirty(true);
+  };
+
+  /** Unified handler for the 4 layout option buttons */
+  const handleLayoutOptionClick = async (placement: LogoPlacement | null) => {
+    // Default slider positions at 50% of range
+    const defaultLogoScale = 1.75;
+    const defaultTitleFontSize = 26;
+
+    let newIndex = selectedLogoIndex;
+    if (placement === null) {
+      newIndex = null;
+      setSelectedLogoIndex(null);
+      setTitleFontSize(defaultTitleFontSize);
+    } else {
+      if (selectedLogoIndex == null || selectedLogoIndex < 0) {
+        const firstLogo = logos.findIndex(Boolean);
+        if (firstLogo >= 0) { newIndex = firstLogo; setSelectedLogoIndex(firstLogo); }
+      }
+      setLogoPlacement(placement);
+      setLogoScale(defaultLogoScale);
+      setTitleFontSize(defaultTitleFontSize);
+    }
+    setBrandingDirty(true);
+    try {
+      await persistLogoConfig(logos, newIndex, placement ?? logoPlacement, defaultLogoScale, defaultTitleFontSize);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleLogoScaleChange = async (newScale: number) => {
+    const clamped = Math.round(Math.max(0.5, Math.min(3.0, newScale)) * 10) / 10;
+    setLogoScale(clamped);
+    setBrandingDirty(true);
+    try {
+      await persistLogoConfig(logos, selectedLogoIndex, logoPlacement, clamped, titleFontSize);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleTitleFontSizeChange = async (newSize: number) => {
+    const clamped = Math.max(12, Math.min(40, Math.round(newSize)));
+    setTitleFontSize(clamped);
+    setBrandingDirty(true);
+    try {
+      await persistLogoConfig(logos, selectedLogoIndex, logoPlacement, logoScale, clamped);
+    } catch (e) { console.error(e); }
   };
 
   const handleShowItemImagesSelection = (showImages: boolean) => {
@@ -435,6 +551,11 @@ export default function MenuThemesPage() {
     if (!menu) return;
     setSavingThemeId(themeId);
     try {
+      // Persist branding changes if dirty
+      if (brandingDirty) {
+        await persistLogoConfig(logos, selectedLogoIndex, logoPlacement, logoScale, titleFontSize);
+        setBrandingDirty(false);
+      }
       const token = await getAuthToken();
       const res = await fetch(`${apiBase}/menus/${menu.id}`, {
         method: "PATCH",
@@ -452,13 +573,13 @@ export default function MenuThemesPage() {
         setMenu((prev) =>
           prev
             ? {
-                ...prev,
-                theme: data.theme ?? themeId,
-                show_item_images:
-                  typeof data.show_item_images === "boolean"
-                    ? data.show_item_images
-                    : selectedShowItemImages,
-              }
+              ...prev,
+              theme: data.theme ?? themeId,
+              show_item_images:
+                typeof data.show_item_images === "boolean"
+                  ? data.show_item_images
+                  : selectedShowItemImages,
+            }
             : prev,
         );
         return;
@@ -512,7 +633,7 @@ export default function MenuThemesPage() {
     selectedShowItemImages !== activeShowItemImages;
   const isApplyingSelectedTheme = savingThemeId === selectedThemeId;
   const canApplySelectedTheme =
-    (hasThemeSelectionChange || hasItemImagesSelectionChange) && !savingThemeId;
+    (hasThemeSelectionChange || hasItemImagesSelectionChange || brandingDirty) && !savingThemeId;
 
   return (
     <div className="w-full max-w-[1400px] mr-auto space-y-6">
@@ -520,19 +641,16 @@ export default function MenuThemesPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-2">
             <Link
-              href={`/dashboard/menus/${menuId}`}
+              href="/dashboard/design-studio"
               className="inline-flex items-center gap-1 text-sm font-semibold text-muted transition-colors hover:text-foreground"
             >
-              <ArrowLeft className="w-4 h-4" /> Back to Menu
+              <ArrowLeft className="w-4 h-4" /> Back
             </Link>
-            <h1 className="font-heading text-4xl font-bold tracking-tight">
+            <h1 className="font-heading text-2xl font-bold tracking-tight">
               Design Studio
             </h1>
-            <p className="text-sm text-[var(--cms-muted)]">
-              Menu:{" "}
-              <span className="font-semibold text-[var(--cms-text)]">
-                {menu?.name || "Untitled Menu"}
-              </span>
+            <p className="text-sm font-semibold text-[var(--cms-text)]">
+              {menu?.name || "Untitled Menu"}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -551,15 +669,21 @@ export default function MenuThemesPage() {
                 <span className="pointer-events-none absolute left-[2px] h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-4" />
               </span>
             </label>
+            <Link
+              href={`/dashboard/menus/${menuId}`}
+              className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-xs font-semibold text-[var(--cms-muted)] transition-colors hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Menu Editor
+            </Link>
             <button
               type="button"
               onClick={() => applyTheme(selectedThemeId)}
               disabled={!canApplySelectedTheme}
-              className={`inline-flex h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${
-                canApplySelectedTheme
-                  ? "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"
-                  : "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]"
-              }`}
+              className={`inline-flex h-10 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${canApplySelectedTheme
+                ? "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"
+                : "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)]"
+                }`}
             >
               {isApplyingSelectedTheme ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -576,22 +700,20 @@ export default function MenuThemesPage() {
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setActiveTab("theme")}
-                className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${
-                  activeTab === "theme"
-                    ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
-                    : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
-                }`}
+                className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${activeTab === "theme"
+                  ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                  : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
+                  }`}
               >
                 <Palette className="w-4 h-4" />
                 Themes
               </button>
               <button
                 onClick={() => setActiveTab("branding")}
-                className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${
-                  activeTab === "branding"
-                    ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
-                    : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
-                }`}
+                className={`inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors ${activeTab === "branding"
+                  ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                  : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
+                  }`}
               >
                 <Image className="w-4 h-4" />
                 Branding
@@ -606,7 +728,7 @@ export default function MenuThemesPage() {
                   <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[var(--cms-muted)]">
                     Theme Library
                   </p>
-                  <h2 className="font-heading text-5xl max-[640px]:text-4xl font-bold tracking-tight mt-1">
+                  <h2 className="font-heading text-3xl max-[640px]:text-2xl font-bold tracking-tight mt-1">
                     Choose a look
                   </h2>
                 </div>
@@ -636,11 +758,10 @@ export default function MenuThemesPage() {
                   <button
                     key={tag}
                     onClick={() => toggleTag(tag)}
-                    className={`h-8 px-4 rounded-full text-xs font-semibold border whitespace-nowrap ${
-                      selectedTags.includes(tag)
-                        ? "bg-[var(--cms-accent)] text-white border-[var(--cms-accent)]"
-                        : "border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
-                    }`}
+                    className={`h-8 px-4 rounded-full text-xs font-semibold border whitespace-nowrap ${selectedTags.includes(tag)
+                      ? "bg-[var(--cms-accent)] text-white border-[var(--cms-accent)]"
+                      : "border-[var(--cms-border)] text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
+                      }`}
                   >
                     {tag}
                   </button>
@@ -689,13 +810,12 @@ export default function MenuThemesPage() {
                           type="button"
                           onClick={() => handleThemeSelection(theme.id)}
                           aria-pressed={isSelected}
-                          className={`w-full overflow-hidden rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30 ${
-                            isActive
-                              ? "border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
-                              : isSelected
-                                ? "border-[var(--cms-accent)]/40"
-                                : "border-[var(--cms-border)]"
-                          }`}
+                          className={`w-full overflow-hidden rounded-lg border text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--cms-accent)]/30 ${isActive
+                            ? "border-white/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+                            : isSelected
+                              ? "border-[var(--cms-accent)]/40"
+                              : "border-[var(--cms-border)]"
+                            }`}
                           style={cardBlendStyle}
                         >
                           <div className="px-2.5 py-2.5">
@@ -731,88 +851,210 @@ export default function MenuThemesPage() {
 
           {activeTab === "branding" && (
             <>
-              <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 sm:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {/* ─── Branding & Title ─── */}
+              <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-5 space-y-4">
+                <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">
-                      Branding
-                    </p>
-                    <h2 className="font-heading text-2xl font-bold tracking-tight mt-1">
-                      Restaurant logo
+                    <h2 className="font-heading text-xl font-bold tracking-tight">
+                      Branding & Title
                     </h2>
-                    <p className="text-sm text-[var(--cms-muted)] mt-1">
-                      Used in title areas and public menu headers.
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">
+                      Upload restaurant logo
                     </p>
                   </div>
-                  {logoPreview && (
-                    <button
-                      onClick={removeLogo}
-                      disabled={logoUploading}
-                      className="h-9 px-4 rounded-full border border-[var(--cms-border)] text-sm font-semibold text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-[var(--cms-pill)]"
-                    >
-                      Remove logo
-                    </button>
-                  )}
+                  <span className="relative group">
+                    <Info className="w-3.5 h-3.5 text-[var(--cms-muted)] cursor-help" />
+                    <span className="pointer-events-none absolute right-0 top-6 z-30 w-48 rounded-lg bg-[var(--cms-text)] px-3 py-2 text-[10px] leading-snug text-[var(--cms-bg)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                      Upload up to 3 logos. Select one to display in your menu.
+                    </span>
+                  </span>
                 </div>
-                <div className="mt-5 grid gap-4 lg:grid-cols-[0.8fr_1.2fr] items-center">
-                  <div className="rounded-2xl border border-dashed border-[var(--cms-border)] bg-[var(--cms-bg)] p-4 flex items-center justify-center min-h-[220px]">
-                    {logoPreview ? (
-                      <img
-                        src={logoPreview}
-                        alt="Restaurant logo"
-                        className="w-36 h-36 object-contain rounded-xl"
-                      />
-                    ) : (
-                      <div className="text-center text-sm text-[var(--cms-muted)]">
-                        No logo uploaded yet.
+
+                {/* Logo slots — compact */}
+                <div className="grid grid-cols-3 gap-2">
+                  {logos.map((logoUrl, i) => (
+                    <div key={i} className="relative group">
+                      {logoUrl ? (
+                        <div
+                          className={`relative rounded-xl border-2 overflow-hidden transition-all cursor-pointer ${selectedLogoIndex === i
+                            ? "border-[var(--cms-accent)] ring-1 ring-[var(--cms-accent)]/20"
+                            : "border-[var(--cms-border)] hover:border-[var(--cms-accent)]/40"
+                            }`}
+                          onClick={() => handleLogoSelection(selectedLogoIndex === i ? null : i)}
+                        >
+                          <div className="aspect-square bg-[var(--cms-bg)] p-2 flex items-center justify-center">
+                            <img src={logoUrl} alt={`Logo ${i + 1}`} className="w-full h-full object-contain" />
+                          </div>
+                          {selectedLogoIndex === i && (
+                            <div className="absolute top-1.5 left-1.5 w-4 h-4 rounded-full bg-[var(--cms-accent)] flex items-center justify-center">
+                              <Check className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); removeLogoFromSlot(i); }}
+                            disabled={logoUploadingSlot === i}
+                            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className={`flex flex-col items-center justify-center aspect-square rounded-xl border-2 border-dashed border-[var(--cms-border)] bg-[var(--cms-bg)] cursor-pointer transition-colors hover:border-[var(--cms-accent)]/40 ${logoUploadingSlot === i ? "opacity-60 pointer-events-none" : ""}`}>
+                          {logoUploadingSlot === i ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-[var(--cms-muted)]" />
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4 text-[var(--cms-muted)]" />
+                              <span className="text-[9px] font-semibold text-[var(--cms-muted)] mt-0.5">Logo {i + 1}</span>
+                            </>
+                          )}
+                          <input type="file" accept="image/*" className="sr-only" disabled={logoUploadingSlot != null}
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogoToSlot(f, i); e.currentTarget.value = ""; }} />
+                        </label>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[10px] text-[var(--cms-muted)] leading-tight">
+                  Square, 512×512+. PNG with transparency works best.
+                </p>
+
+                {/* ─── Layout — 1-row text buttons ─── */}
+                <div className="space-y-3 pt-3 border-t border-[var(--cms-border)]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">
+                    Layout
+                  </p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {([
+                      { value: "replace" as LogoPlacement, label: "Logo only" },
+                      { value: null, label: "Text only" },
+                      { value: "left" as LogoPlacement, label: "Side by side" },
+                      { value: "above" as LogoPlacement, label: "Stacked" },
+                    ] as const).map((opt) => {
+                      const isActive = opt.value === null
+                        ? (selectedLogoIndex == null || !logos.some(Boolean))
+                        : (selectedLogoIndex != null && selectedLogoIndex >= 0 && logoPlacement === opt.value);
+                      return (
+                        <button
+                          key={opt.label}
+                          type="button"
+                          onClick={() => handleLayoutOptionClick(opt.value)}
+                          disabled={opt.value !== null && !logos.some(Boolean)}
+                          className={`flex items-center justify-center p-2.5 rounded-xl border transition-all ${isActive
+                              ? "border-[var(--cms-accent)] bg-[var(--cms-accent)]/10 text-[var(--cms-accent)]"
+                              : "border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-[var(--cms-text)] hover:border-[var(--cms-accent)]/40"
+                            } disabled:opacity-30 disabled:cursor-not-allowed`}
+                        >
+                          <span className="text-[11px] font-semibold tracking-tight">{opt.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ─── Size controls — standard simple sliders ─── */}
+                {(selectedLogoIndex != null && selectedLogoIndex >= 0 && logos[selectedLogoIndex]) && (
+                  <div className="space-y-5 pt-4 border-t border-[var(--cms-border)]">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">
+                      Size
+                    </p>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-[var(--cms-text)]">Logo scale</span>
+                        <span className="text-sm font-bold text-[var(--cms-accent)]">{logoScale.toFixed(1)}×</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={() => handleLogoScaleChange(logoScale - 0.1)} disabled={logoScale <= 0.5}
+                          className="w-8 h-8 rounded-full border border-[var(--cms-border)] flex items-center justify-center text-[var(--cms-text)] hover:bg-[var(--cms-pill)] disabled:opacity-30">
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <input type="range" min="0.5" max="3.0" step="0.1" value={logoScale}
+                          onChange={(e) => handleLogoScaleChange(parseFloat(e.target.value))}
+                          className="flex-1 h-1.5 rounded-full appearance-none bg-[var(--cms-border)] accent-[var(--cms-accent)] cursor-pointer" />
+                        <button type="button" onClick={() => handleLogoScaleChange(logoScale + 0.1)} disabled={logoScale >= 3.0}
+                          className="w-8 h-8 rounded-full border border-[var(--cms-border)] flex items-center justify-center text-[var(--cms-text)] hover:bg-[var(--cms-pill)] disabled:opacity-30">
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {logoPlacement !== "replace" && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-semibold text-[var(--cms-text)]">Title size</span>
+                          <span className="text-sm font-bold text-[var(--cms-accent)]">{titleFontSize}px</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button type="button" onClick={() => handleTitleFontSizeChange(titleFontSize - 1)} disabled={titleFontSize <= 12}
+                            className="w-8 h-8 rounded-full border border-[var(--cms-border)] flex items-center justify-center text-[var(--cms-text)] hover:bg-[var(--cms-pill)] disabled:opacity-30">
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <input type="range" min="12" max="40" step="1" value={titleFontSize}
+                            onChange={(e) => handleTitleFontSizeChange(parseInt(e.target.value))}
+                            className="flex-1 h-1.5 rounded-full appearance-none bg-[var(--cms-border)] accent-[var(--cms-accent)] cursor-pointer" />
+                          <button type="button" onClick={() => handleTitleFontSizeChange(titleFontSize + 1)} disabled={titleFontSize >= 40}
+                            className="w-8 h-8 rounded-full border border-[var(--cms-border)] flex items-center justify-center text-[var(--cms-text)] hover:bg-[var(--cms-pill)] disabled:opacity-30">
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
-                  <div className="space-y-3">
-                    <label className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--cms-text)]">
-                      Upload your logo
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      disabled={logoUploading}
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (e) =>
-                            setLogoPreview(e.target?.result as string);
-                          reader.readAsDataURL(file);
-                          uploadLogo(file);
-                        }
-                        event.currentTarget.value = "";
-                      }}
-                      className="block w-full text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--cms-text)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[var(--cms-bg)] hover:file:opacity-90"
-                    />
-                    <p className="text-xs text-[var(--cms-muted)]">
-                      Recommended: square image, 512x512 or larger.
+                )}
+
+                {(selectedLogoIndex == null || selectedLogoIndex < 0) && (
+                  <div className="space-y-5 pt-4 border-t border-[var(--cms-border)]">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">
+                      Size
                     </p>
-                    {logoQrGenerating ? (
-                      <p className="text-xs text-[var(--cms-muted)]">
-                        Generating branded QR code...
-                      </p>
-                    ) : null}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-[var(--cms-text)]">Title size</span>
+                        <span className="text-sm font-bold text-[var(--cms-accent)]">{titleFontSize}px</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={() => handleTitleFontSizeChange(titleFontSize - 1)} disabled={titleFontSize <= 12}
+                          className="w-8 h-8 rounded-full border border-[var(--cms-border)] flex items-center justify-center text-[var(--cms-text)] hover:bg-[var(--cms-pill)] disabled:opacity-30">
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <input type="range" min="12" max="40" step="1" value={titleFontSize}
+                          onChange={(e) => handleTitleFontSizeChange(parseInt(e.target.value))}
+                          className="flex-1 h-1.5 rounded-full appearance-none bg-[var(--cms-border)] accent-[var(--cms-accent)] cursor-pointer" />
+                        <button type="button" onClick={() => handleTitleFontSizeChange(titleFontSize + 1)} disabled={titleFontSize >= 40}
+                          className="w-8 h-8 rounded-full border border-[var(--cms-border)] flex items-center justify-center text-[var(--cms-text)] hover:bg-[var(--cms-pill)] disabled:opacity-30">
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {logoQrGenerating && (
+                  <p className="text-[10px] text-[var(--cms-muted)]">Generating branded QR…</p>
+                )}
               </section>
 
-              <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-5 sm:p-6">
+              {/* ─── Banner Section ─── */}
+              <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">
-                      Cover
-                    </p>
-                    <h2 className="font-heading text-2xl font-bold tracking-tight mt-1">
-                      Menu banner
-                    </h2>
-                    <p className="text-sm text-[var(--cms-muted)] mt-1">
-                      Shown at the top of your guest menu.
-                    </p>
+                  <div className="flex items-start gap-2">
+                    <div>
+                      <h2 className="font-heading text-xl font-bold tracking-tight">
+                        Cover
+                      </h2>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">
+                        Menu banner
+                      </p>
+                    </div>
+                    <span className="relative group mt-1">
+                      <Info className="w-3.5 h-3.5 text-[var(--cms-muted)] cursor-help" />
+                      <span className="pointer-events-none absolute left-0 top-6 z-30 w-44 rounded-lg bg-[var(--cms-text)] px-3 py-2 text-[10px] leading-snug text-[var(--cms-bg)] opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+                        Shown at the top of your guest menu.
+                      </span>
+                    </span>
                   </div>
                   {bannerPreview && (
                     <button
@@ -854,7 +1096,7 @@ export default function MenuThemesPage() {
                       className="block w-full text-sm file:mr-4 file:rounded-full file:border-0 file:bg-[var(--cms-text)] file:px-4 file:py-2 file:text-sm file:font-semibold file:text-[var(--cms-bg)] hover:file:opacity-90"
                     />
                     <p className="text-xs text-[var(--cms-muted)]">
-                      Recommended: 1600x900 or larger (16:9).
+                      Recommended: 1600×900 or larger (16:9).
                     </p>
                   </div>
                 </div>
@@ -937,6 +1179,82 @@ export default function MenuThemesPage() {
               </div>
             </div>
           </section>
+
+          {/* ─── QR Code Section ─── */}
+          {menu && (() => {
+            const qrBaseUrl = `${apiBase}/menus/${menu.id}/qr`;
+            const standardQrPreview = `${qrBaseUrl}?variant=standard&format=png&size=640`;
+            const standardQrOpen = `${qrBaseUrl}?variant=standard&format=png&size=1000`;
+            const standardQrPdf = `${qrBaseUrl}?variant=standard&format=pdf&size=1000`;
+            const hasLogoQr = Boolean(menu.logo_url);
+            const logoQrPreview = hasLogoQr ? `${qrBaseUrl}?variant=logo&format=png&size=640` : null;
+            const logoQrOpen = hasLogoQr ? `${qrBaseUrl}?variant=logo&format=png&size=1000` : null;
+            const logoQrPdf = hasLogoQr ? `${qrBaseUrl}?variant=logo&format=pdf&size=1000` : null;
+            const activeVariant = qrVariant === "logo" && hasLogoQr ? "logo" : "standard";
+            const activePreview = activeVariant === "logo" ? logoQrPreview! : standardQrPreview;
+            const activeOpen = activeVariant === "logo" ? logoQrOpen! : standardQrOpen;
+            const activePdf = activeVariant === "logo" ? logoQrPdf! : standardQrPdf;
+            const publicUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/r/${menu.id}`;
+            const copyUrl = async () => {
+              try { await navigator.clipboard.writeText(publicUrl); setCopiedPublicUrl(true); setTimeout(() => setCopiedPublicUrl(false), 1800); } catch { }
+            };
+            return (
+              <section className="rounded-3xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-4 sm:p-5 space-y-4">
+                <div>
+                  <h2 className="font-heading text-xl font-bold tracking-tight">
+                    Publish
+                  </h2>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">
+                    Menu QR Code
+                  </p>
+                </div>
+
+                {/* Variant toggle */}
+                <div className="inline-flex w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-1">
+                  <button type="button" onClick={() => setQrVariant("standard")}
+                    className={`h-8 flex-1 rounded-lg text-[10px] font-semibold transition-colors ${activeVariant === "standard" ? "bg-[var(--cms-accent)] text-white" : "text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}>
+                    Standard
+                  </button>
+                  <button type="button" onClick={() => setQrVariant("logo")} disabled={!hasLogoQr}
+                    className={`h-8 flex-1 rounded-lg text-[10px] font-semibold transition-colors ${activeVariant === "logo" ? "bg-[var(--cms-accent)] text-white" : "text-[var(--cms-muted)] hover:text-[var(--cms-text)]"} ${!hasLogoQr ? "opacity-40 cursor-not-allowed" : ""}`}>
+                    Logo QR
+                  </button>
+                </div>
+
+                {/* QR preview */}
+                <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-4 flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={activePreview} alt={`${activeVariant === "logo" ? "Branded" : "Standard"} QR code`}
+                    className="h-44 w-44 max-w-full rounded-xl bg-white p-2" />
+                </div>
+
+                {/* Public URL */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold text-[var(--cms-muted)]">Public URL</label>
+                  <div className="flex items-center gap-1.5 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-2.5 py-2">
+                    <span className="truncate text-xs text-[var(--cms-text)]">{publicUrl}</span>
+                    <button type="button" onClick={copyUrl}
+                      className="ml-auto inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[10px] font-semibold text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)] transition-colors">
+                      <Copy className="h-3 w-3" />
+                      {copiedPublicUrl ? "Copied" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-wrap gap-2">
+                  <a href={activeOpen} target="_blank" rel="noreferrer"
+                    className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--cms-accent)] px-3 text-[10px] font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]">
+                    <QrCode className="h-3 w-3" /> Open QR
+                  </a>
+                  <a href={activePdf} rel="noreferrer"
+                    className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 text-[10px] font-semibold text-[var(--cms-text)] transition-colors hover:bg-[var(--cms-pill)]">
+                    <Download className="h-3 w-3" /> PDF
+                  </a>
+                </div>
+              </section>
+            );
+          })()}
         </aside>
       </div>
     </div>
