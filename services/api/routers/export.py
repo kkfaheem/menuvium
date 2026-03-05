@@ -77,6 +77,8 @@ class MenuExportManifest(BaseModel):
     menu_banner_filename: Optional[str] = None  # Path in ZIP for banner image
     menu_logo_url: Optional[str] = None
     menu_logo_filename: Optional[str] = None  # Path in ZIP for logo image
+    menu_title_design_config: Optional[dict] = None
+    menu_logos_filenames: Optional[List[Optional[str]]] = None
     categories: List[CategoryExport]
 
 
@@ -226,8 +228,28 @@ def export_menu(
             ext_part = menu.logo_url.split("/")[-1].split(".")[-1].split("?")[0]
             if ext_part.lower() in ["jpg", "jpeg", "png", "gif", "webp"]:
                 ext = f".{ext_part.lower()}"
-        logo_filename = f"images/logo{ext}"
+        logo_filename = f"logos/logo{ext}"
         images_to_download.append((menu.logo_url, logo_filename, "logo"))
+    
+    menu_title_design_config = None
+    menu_logos_filenames = []
+    
+    if menu.title_design_config:
+        menu_title_design_config = menu.title_design_config.copy() if isinstance(menu.title_design_config, dict) else menu.title_design_config
+        if isinstance(menu_title_design_config, dict):
+            logos = menu_title_design_config.get("logos", [])
+            for idx, url in enumerate(logos):
+                if not url:
+                    menu_logos_filenames.append(None)
+                    continue
+                ext = ".jpg"
+                if "." in url.split("/")[-1]:
+                    ext_part = url.split("/")[-1].split(".")[-1].split("?")[0]
+                    if ext_part.lower() in ["jpg", "jpeg", "png", "gif", "webp"]:
+                        ext = f".{ext_part.lower()}"
+                logo_fn = f"logos/config_logo_{idx}{ext}"
+                menu_logos_filenames.append(logo_fn)
+                images_to_download.append((url, logo_fn, f"config_logo_{idx}"))
     
     # Create manifest
     manifest = MenuExportManifest(
@@ -241,6 +263,8 @@ def export_menu(
         menu_banner_filename=banner_filename,
         menu_logo_url=menu.logo_url,
         menu_logo_filename=logo_filename,
+        menu_title_design_config=menu_title_design_config,
+        menu_logos_filenames=menu_logos_filenames,
         categories=categories_export
     )
     

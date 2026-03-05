@@ -68,7 +68,7 @@ export interface TitleDesignConfig {
   generatedAt?: string;
   logoUrl?: string;
   /** Array of up to 3 uploaded logo URLs */
-  logos?: string[];
+  logos?: (string | null)[];
   /** Index of the selected logo in the logos array, null/-1 = none */
   selectedLogoIndex?: number | null;
   /** How the logo appears in the header relative to menu name */

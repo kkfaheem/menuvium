@@ -362,7 +362,7 @@ export default function MenuThemesPage() {
     const config: TitleDesignConfig = {
       ...(menu.title_design_config || {}),
       enabled: activeLogoUrl != null,
-      logos: newLogos.filter(Boolean) as string[],
+      logos: newLogos,
       selectedLogoIndex: newSelectedIndex,
       logoPlacement: newPlacement,
       logoScale: overrideLogoScale ?? logoScale,
@@ -488,9 +488,14 @@ export default function MenuThemesPage() {
     }
   };
 
-  const handleLogoSelection = (index: number | null) => {
+  const handleLogoSelection = async (index: number | null) => {
     setSelectedLogoIndex(index);
     setBrandingDirty(true);
+    try {
+      await persistLogoConfig(logos, index, logoPlacement);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleLogoPlacement = (placement: LogoPlacement) => {
@@ -943,8 +948,8 @@ export default function MenuThemesPage() {
                           onClick={() => handleLayoutOptionClick(opt.value)}
                           disabled={opt.value !== null && !logos.some(Boolean)}
                           className={`flex items-center justify-center p-2.5 rounded-xl border transition-all ${isActive
-                              ? "border-[var(--cms-accent)] bg-[var(--cms-accent)]/10 text-[var(--cms-accent)]"
-                              : "border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-[var(--cms-text)] hover:border-[var(--cms-accent)]/40"
+                            ? "border-[var(--cms-accent)] bg-[var(--cms-accent)]/10 text-[var(--cms-accent)]"
+                            : "border-[var(--cms-border)] bg-[var(--cms-panel-strong)] text-[var(--cms-text)] hover:border-[var(--cms-accent)]/40"
                             } disabled:opacity-30 disabled:cursor-not-allowed`}
                         >
                           <span className="text-[11px] font-semibold tracking-tight">{opt.label}</span>

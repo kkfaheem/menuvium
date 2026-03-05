@@ -493,6 +493,9 @@ def import_menu_from_zip(
     menu_theme = manifest.get("menu_theme")
     if menu_theme:
         menu.theme = menu_theme
+        
+    menu_title_design_config = manifest.get("menu_title_design_config")
+    menu_logos_filenames = manifest.get("menu_logos_filenames", [])
     
     # Get list of files in ZIP for image lookup (needed for banner/logo import)
     zip_files = set(zf.namelist())
@@ -534,6 +537,36 @@ def import_menu_from_zip(
             menu.logo_url = public_url
         except Exception as e:
             print(f"Warning: Failed to import logo: {e}")
+            
+    if menu_title_design_config and isinstance(menu_title_design_config, dict):
+        new_logos_urls = []
+        for logo_fn in menu_logos_filenames:
+            if not logo_fn:
+                new_logos_urls.append("")
+                continue
+            
+            resolved_logo = _resolve_zip_member(zip_files, base_prefix, logo_fn)
+            if resolved_logo:
+                try:
+                    image_data = zf.read(resolved_logo)
+                    ext = resolved_logo.split(".")[-1].lower() if "." in resolved_logo else "jpg"
+                    content_type_map = {
+                        "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                        "gif": "image/gif", "webp": "image/webp"
+                    }
+                    content_type = content_type_map.get(ext, "image/jpeg")
+                    s3_key, public_url = _upload_image_to_storage(
+                        image_data, f"config_logo_{uuid.uuid4()}.{ext}", content_type, public_prefix
+                    )
+                    new_logos_urls.append(public_url)
+                except Exception as e:
+                    print(f"Warning: Failed to import config logo: {e}")
+                    new_logos_urls.append("")
+            else:
+                new_logos_urls.append("")
+                
+        menu_title_design_config["logos"] = new_logos_urls
+        menu.title_design_config = menu_title_design_config
     
     session.add(menu)
     session.flush()

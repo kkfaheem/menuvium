@@ -1,4 +1,4 @@
-import { fetchUserAttributes } from "aws-amplify/auth";
+import { fetchUserAttributes, fetchAuthSession } from "aws-amplify/auth";
 import { getAuthToken } from "@/lib/authToken";
 import { decodeJwtPayload } from "@/lib/jwt";
 
@@ -10,6 +10,8 @@ type AuthLikeUser = {
 };
 
 const OPAQUE_USERNAME_PREFIX = /^(google|facebook|loginwithamazon|signinwithapple|oidc|saml)_/i;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SIMPLE_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const asCleanString = (value: unknown): string | null => {
     if (typeof value !== "string") return null;
@@ -17,7 +19,8 @@ const asCleanString = (value: unknown): string | null => {
     return trimmed.length > 0 ? trimmed : null;
 };
 
-const isOpaqueUsername = (value: string): boolean => OPAQUE_USERNAME_PREFIX.test(value);
+const isOpaqueUsername = (value: string): boolean =>
+    OPAQUE_USERNAME_PREFIX.test(value) || SIMPLE_UUID_REGEX.test(value) || UUID_REGEX.test(value);
 
 const formatEmailLocalPart = (email: string): string => {
     const local = email.split("@")[0]?.split("+")[0]?.trim() || "";
@@ -75,9 +78,12 @@ export const fetchDisplayName = async (user: AuthLikeUser | undefined, fallback:
     let claimsDisplayName: string | null = null;
 
     try {
-        const token = await getAuthToken();
-        const claims = decodeJwtPayload<Record<string, unknown>>(token) || {};
-        claimsDisplayName = deriveDisplayName(claims, user);
+        const session = await fetchAuthSession();
+        const idToken = session.tokens?.idToken?.toString();
+        if (idToken) {
+            const claims = decodeJwtPayload<Record<string, unknown>>(idToken) || {};
+            claimsDisplayName = deriveDisplayName(claims, user);
+        }
     } catch {
         claimsDisplayName = null;
     }
