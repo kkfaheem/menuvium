@@ -71,7 +71,7 @@ export default function OwnershipTransferPage() {
 
                 {!token ? (
                     <div className="rounded-xl border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-200">
-                        Missing verification token. Open this page from the ownership transfer email link.
+                        Missing verification token. Open this page from a valid ownership transfer link.
                     </div>
                 ) : result ? (
                     <div className="space-y-3">

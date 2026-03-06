@@ -1,15 +1,12 @@
 from datetime import datetime, timedelta
 import hashlib
-import os
 import secrets
-from urllib.parse import urlparse
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select, delete
 from typing import List, Annotated, Optional
 import uuid
 
 from database import get_session
-from email_utils import EmailConfigError, send_email
 from models import (
     Organization,
     OrganizationUpdate,
@@ -49,98 +46,6 @@ def _normalize_email(email: Optional[object]) -> Optional[str]:
 
 def _hash_transfer_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
-
-
-def _normalize_origin(origin_like: Optional[str]) -> Optional[str]:
-    if not origin_like:
-        return None
-
-    candidate = origin_like.strip()
-    if not candidate:
-        return None
-
-    if "://" not in candidate:
-        candidate = f"https://{candidate}"
-
-    parsed = urlparse(candidate)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return None
-    return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
-
-
-def _resolve_public_web_origin(request: Request) -> str:
-    for env_key in (
-        "PUBLIC_WEB_BASE_URL",
-        "WEB_APP_BASE_URL",
-        "APP_BASE_URL",
-        "NEXT_PUBLIC_APP_URL",
-        "NEXT_PUBLIC_SITE_URL",
-        "NEXT_PUBLIC_AUTH_REDIRECT_SIGNIN",
-    ):
-        explicit = _normalize_origin(os.getenv(env_key))
-        if explicit:
-            return explicit
-
-    cors_origins = os.getenv("CORS_ORIGINS", "")
-    local_fallback: Optional[str] = None
-    for entry in cors_origins.split(","):
-        normalized = _normalize_origin(entry)
-        if not normalized:
-            continue
-        host = (urlparse(normalized).hostname or "").lower()
-        if host in {"localhost", "127.0.0.1"}:
-            if not local_fallback:
-                local_fallback = normalized
-            continue
-        return normalized
-
-    if local_fallback:
-        return local_fallback
-
-    request_origin = _normalize_origin(request.headers.get("origin"))
-    if request_origin:
-        return request_origin
-
-    request_referer = _normalize_origin(request.headers.get("referer"))
-    if request_referer:
-        return request_referer
-
-    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
-    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
-    fallback = _normalize_origin(f"{proto}://{host}")
-    if fallback:
-        return fallback
-
-    raise HTTPException(status_code=500, detail="Unable to resolve web application URL")
-
-
-def _send_ownership_transfer_email(
-    *,
-    to_email: str,
-    company_name: str,
-    verify_url: str,
-    expires_at: datetime,
-) -> None:
-    expires_label = expires_at.strftime("%Y-%m-%d %H:%M UTC")
-    subject = f"Confirm ownership transfer for {company_name}"
-    text_body = (
-        f"You were selected as the new owner for {company_name} in Menuvium.\n\n"
-        f"To accept ownership, open this link:\n{verify_url}\n\n"
-        f"This link expires on {expires_label}.\n"
-        "If you were not expecting this, you can ignore this email."
-    )
-    html_body = (
-        f"<p>You were selected as the new owner for <strong>{company_name}</strong> in Menuvium.</p>"
-        f"<p><a href=\"{verify_url}\">Confirm ownership transfer</a></p>"
-        f"<p>This link expires on <strong>{expires_label}</strong>.</p>"
-        "<p>If you were not expecting this, you can ignore this email.</p>"
-    )
-    send_email(
-        to_email=to_email,
-        subject=subject,
-        text_body=text_body,
-        html_body=html_body,
-    )
 
 
 def _target_match_expression(user_sub: Optional[str], user_email: Optional[str]):
@@ -335,7 +240,6 @@ def list_my_organizations(session: SessionDep, user: UserDep):
 def request_ownership_transfer(
     org_id: uuid.UUID,
     payload: OwnershipTransferRequestCreate,
-    request: Request,
     session: SessionDep,
     user: UserDep,
 ):
@@ -385,31 +289,6 @@ def request_ownership_transfer(
         expires_at=expires_at,
     )
     session.add(transfer)
-    session.flush()
-
-    web_origin = _resolve_public_web_origin(request)
-    verify_url = f"{web_origin}/dashboard/ownership-transfer?token={raw_token}"
-
-    try:
-        _send_ownership_transfer_email(
-            to_email=target_email,
-            company_name=org.name,
-            verify_url=verify_url,
-            expires_at=expires_at,
-        )
-    except EmailConfigError:
-        session.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="Ownership transfer email is not configured on the server",
-        )
-    except Exception:
-        session.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to send ownership transfer verification email",
-        )
-
     session.commit()
     session.refresh(transfer)
 

@@ -593,9 +593,9 @@ export default function CompanyDetailPage() {
         }
 
         const ok = await confirm({
-            title: "Transfer ownership?",
-            description: `A verification email will be sent to ${targetMember.email}. Ownership changes only after they confirm.`,
-            confirmLabel: "Send verification",
+            title: "Send ownership transfer request?",
+            description: `This sends a transfer request to ${targetMember.email}. Once accepted, ownership moves to that account and you become a menu manager.`,
+            confirmLabel: "Send request",
             variant: "default",
         });
         if (!ok) return;
@@ -629,8 +629,8 @@ export default function CompanyDetailPage() {
             setOwnershipTransferInfo(data);
             toast({
                 variant: "success",
-                title: "Verification email sent",
-                description: `Waiting for ${data.target_email} to confirm ownership transfer.`,
+                title: "Transfer request sent",
+                description: `Transfer request sent to ${data.target_email}. Once they accept, this company ownership will be transferred to that account and you will be moved as a menu manager.`,
             });
         } catch (e) {
             console.error(e);
@@ -950,7 +950,7 @@ export default function CompanyDetailPage() {
                                     <h2 className="text-lg font-bold">Transfer ownership</h2>
                                 </div>
                                 <p className="text-sm text-[var(--cms-muted)]">
-                                    Choose an existing team member. They must confirm through the email link before ownership changes.
+                                    Choose an existing team member. They will get an in-app notification to accept ownership.
                                 </p>
 
                                 {!transferCandidates.length ? (
@@ -976,15 +976,15 @@ export default function CompanyDetailPage() {
                                             disabled={ownershipTransferSending}
                                             className="h-10 rounded-xl px-4 text-sm font-semibold bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
                                         >
-                                            {ownershipTransferSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                                            Send verification email
+                                            {ownershipTransferSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+                                            Send request
                                         </button>
                                     </div>
                                 )}
 
                                 {ownershipTransferInfo && (
                                     <p className="text-xs text-[var(--cms-muted)]">
-                                        Pending verification for {ownershipTransferInfo.target_email}. Expires{" "}
+                                        Transfer request sent to {ownershipTransferInfo.target_email}. Pending acceptance. Expires{" "}
                                         {new Date(ownershipTransferInfo.expires_at).toLocaleString()}.
                                     </p>
                                 )}
