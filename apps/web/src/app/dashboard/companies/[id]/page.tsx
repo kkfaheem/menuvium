@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Check, Loader2, Mail, MapPin, Shield, Trash2, UserPlus } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, Check, Loader2, Mail, MapPin, Shield, Trash2, UserPlus } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
@@ -28,10 +28,21 @@ type Company = {
 type Member = {
     id: string;
     email: string;
+    user_id?: string | null;
+    role?: string | null;
     can_manage_availability: boolean;
     can_edit_items: boolean;
     can_manage_menus: boolean;
     created_at: string;
+};
+
+type OwnershipTransferRequestResult = {
+    id: string;
+    target_member_id: string;
+    target_email: string;
+    status: string;
+    created_at: string;
+    expires_at: string;
 };
 
 type MemberPatch = Partial<
@@ -156,6 +167,9 @@ export default function CompanyDetailPage() {
         can_edit_items: true,
         can_manage_menus: false
     });
+    const [ownershipTargetMemberId, setOwnershipTargetMemberId] = useState("");
+    const [ownershipTransferSending, setOwnershipTransferSending] = useState(false);
+    const [ownershipTransferInfo, setOwnershipTransferInfo] = useState<OwnershipTransferRequestResult | null>(null);
 
     const load = async () => {
         if (!user || !orgId) return;
@@ -566,9 +580,84 @@ export default function CompanyDetailPage() {
         }
     };
 
+    const requestOwnershipTransfer = async () => {
+        if (!canManageUsers) return;
+        const targetMember = members.find((member) => member.id === ownershipTargetMemberId);
+        if (!targetMember) {
+            toast({
+                variant: "warning",
+                title: "Select a member first",
+                description: "Pick an existing team member to transfer ownership to.",
+            });
+            return;
+        }
+
+        const ok = await confirm({
+            title: "Transfer ownership?",
+            description: `A verification email will be sent to ${targetMember.email}. Ownership changes only after they confirm.`,
+            confirmLabel: "Send verification",
+            variant: "default",
+        });
+        if (!ok) return;
+
+        setOwnershipTransferSending(true);
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${apiBase}/organizations/${orgId}/ownership-transfer`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ member_id: targetMember.id }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                const detail =
+                    typeof err === "object" && err && "detail" in err
+                        ? (err as { detail?: unknown }).detail
+                        : undefined;
+                toast({
+                    variant: "error",
+                    title: "Could not start transfer",
+                    description: typeof detail === "string" ? detail : "Please try again.",
+                });
+                return;
+            }
+
+            const data = (await res.json()) as OwnershipTransferRequestResult;
+            setOwnershipTransferInfo(data);
+            toast({
+                variant: "success",
+                title: "Verification email sent",
+                description: `Waiting for ${data.target_email} to confirm ownership transfer.`,
+            });
+        } catch (e) {
+            console.error(e);
+            toast({
+                variant: "error",
+                title: "Could not start transfer",
+                description: "Please try again in a moment.",
+            });
+        } finally {
+            setOwnershipTransferSending(false);
+        }
+    };
+
     const sortedMembers = useMemo(() => {
         return members.slice().sort((a, b) => a.email.localeCompare(b.email));
     }, [members]);
+    const transferCandidates = useMemo(() => sortedMembers, [sortedMembers]);
+
+    useEffect(() => {
+        if (!transferCandidates.length) {
+            setOwnershipTargetMemberId("");
+            return;
+        }
+        if (!transferCandidates.some((member) => member.id === ownershipTargetMemberId)) {
+            setOwnershipTargetMemberId(transferCandidates[0].id);
+        }
+    }, [ownershipTargetMemberId, transferCandidates]);
 
     if (loading) {
         return (
@@ -853,6 +942,52 @@ export default function CompanyDetailPage() {
                                         </button>
                                     ))}
                                 </div>
+                            </section>
+
+                            <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6 space-y-4">
+                                <div className="flex items-center gap-2">
+                                    <ArrowRightLeft className="w-5 h-5" />
+                                    <h2 className="text-lg font-bold">Transfer ownership</h2>
+                                </div>
+                                <p className="text-sm text-[var(--cms-muted)]">
+                                    Choose an existing team member. They must confirm through the email link before ownership changes.
+                                </p>
+
+                                {!transferCandidates.length ? (
+                                    <div className="text-sm text-[var(--cms-muted)]">
+                                        Add at least one team member before transferring ownership.
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                        <select
+                                            value={ownershipTargetMemberId}
+                                            onChange={(e) => setOwnershipTargetMemberId(e.target.value)}
+                                            className="flex-1 bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[var(--cms-text)]"
+                                        >
+                                            {transferCandidates.map((member) => (
+                                                <option key={member.id} value={member.id}>
+                                                    {member.email}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={() => void requestOwnershipTransfer()}
+                                            disabled={ownershipTransferSending}
+                                            className="h-10 rounded-xl px-4 text-sm font-semibold bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
+                                        >
+                                            {ownershipTransferSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+                                            Send verification email
+                                        </button>
+                                    </div>
+                                )}
+
+                                {ownershipTransferInfo && (
+                                    <p className="text-xs text-[var(--cms-muted)]">
+                                        Pending verification for {ownershipTransferInfo.target_email}. Expires{" "}
+                                        {new Date(ownershipTransferInfo.expires_at).toLocaleString()}.
+                                    </p>
+                                )}
                             </section>
 
                             <section className="space-y-4">

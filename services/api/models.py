@@ -43,6 +43,22 @@ class OrganizationMember(OrganizationMemberBase, table=True):
     organization: Optional["Organization"] = Relationship(back_populates="members")
 
 
+class OrganizationOwnershipTransfer(SQLModel, table=True):
+    org_id: uuid.UUID = Field(foreign_key="organization.id", index=True)
+    requested_by_user_id: str = Field(index=True)
+    requested_by_email: Optional[str] = Field(default=None, index=True)
+    target_member_id: uuid.UUID = Field(foreign_key="organizationmember.id", index=True)
+    target_user_id: Optional[str] = Field(default=None, index=True)
+    target_email: str = Field(index=True)
+    token_hash: str = Field(unique=True)
+    status: str = Field(default="pending", index=True)  # pending, completed, cancelled, expired
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    expires_at: datetime
+    verified_at: Optional[datetime] = None
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+
+
 # Base Models
 class MenuBase(SQLModel):
     name: str
@@ -234,6 +250,31 @@ class OrganizationMemberUpdate(SQLModel):
 class OrganizationMemberRead(OrganizationMemberBase):
     id: uuid.UUID
     created_at: datetime
+
+
+class OwnershipTransferRequestCreate(SQLModel):
+    member_id: uuid.UUID
+
+
+class OwnershipTransferRequestRead(SQLModel):
+    id: uuid.UUID
+    target_member_id: uuid.UUID
+    target_email: str
+    status: str
+    created_at: datetime
+    expires_at: datetime
+
+
+class OwnershipTransferVerifyRequest(SQLModel):
+    token: str
+
+
+class OwnershipTransferVerifyRead(SQLModel):
+    ok: bool
+    detail: str
+    org_id: uuid.UUID
+    org_name: str
+    new_owner_email: str
 
 
 class OrgPermissionsRead(SQLModel):
