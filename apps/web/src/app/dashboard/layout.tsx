@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, Zap, Activity, BarChart3, Shield, UserCircle, CreditCard, Bell, Check } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/cn";
@@ -48,6 +48,7 @@ export default function DashboardLayout({
     const [notificationsOpen, setNotificationsOpen] = useState(false);
     const [notificationError, setNotificationError] = useState<string | null>(null);
     const [notificationActionId, setNotificationActionId] = useState<string | null>(null);
+    const notificationsRequestInFlightRef = useRef<Promise<void> | null>(null);
     const isModePage = pathname.startsWith("/dashboard/mode");
 
     useEffect(() => {
@@ -219,34 +220,42 @@ export default function DashboardLayout({
 
     const loadNotifications = useCallback(
         async (options?: { showLoader?: boolean }) => {
-            if (authStatus !== "authenticated" || !user || isModePage) return;
-            const showLoader = options?.showLoader ?? false;
-            try {
-                if (showLoader) setNotificationsLoading(true);
-                setNotificationError(null);
-                const token = await getAuthToken();
-                const res = await fetch(`${getApiBase()}/organizations/ownership-transfer/notifications`, {
-                    headers: { Authorization: `Bearer ${token}` },
-                });
-                if (!res.ok) {
-                    throw new Error("Failed to load notifications");
-                }
-                const data = (await res.json()) as OwnershipTransferNotification[];
-                setOwnershipNotifications(Array.isArray(data) ? data : []);
-            } catch (error) {
-                setNotificationError("Could not load notifications");
-                console.error("Failed to load ownership transfer notifications", error);
-            } finally {
-                if (showLoader) setNotificationsLoading(false);
+            if (authStatus !== "authenticated" || isModePage) return;
+            if (notificationsRequestInFlightRef.current) {
+                return notificationsRequestInFlightRef.current;
             }
+            const showLoader = options?.showLoader ?? false;
+            const requestPromise = (async () => {
+                try {
+                    if (showLoader) setNotificationsLoading(true);
+                    setNotificationError(null);
+                    const token = await getAuthToken();
+                    const res = await fetch(`${getApiBase()}/organizations/ownership-transfer/notifications`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (!res.ok) {
+                        throw new Error("Failed to load notifications");
+                    }
+                    const data = (await res.json()) as OwnershipTransferNotification[];
+                    setOwnershipNotifications(Array.isArray(data) ? data : []);
+                } catch (error) {
+                    setNotificationError("Could not load notifications");
+                    console.error("Failed to load ownership transfer notifications", error);
+                } finally {
+                    if (showLoader) setNotificationsLoading(false);
+                    notificationsRequestInFlightRef.current = null;
+                }
+            })();
+            notificationsRequestInFlightRef.current = requestPromise;
+            return requestPromise;
         },
-        [authStatus, user, isModePage]
+        [authStatus, isModePage]
     );
 
     useEffect(() => {
-        if (!mounted || authStatus !== "authenticated" || !user || isModePage) return;
+        if (!mounted || authStatus !== "authenticated" || isModePage) return;
         void loadNotifications();
-    }, [mounted, authStatus, user, isModePage, loadNotifications]);
+    }, [mounted, authStatus, isModePage, loadNotifications]);
 
     const markNotificationsRead = async () => {
         const unread = ownershipNotifications.some((notification) => !notification.is_read);
