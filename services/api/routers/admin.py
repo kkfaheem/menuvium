@@ -62,6 +62,29 @@ class AdminOrganizationsResponse(BaseModel):
     size: int
 
 
+class AdminMenuRead(BaseModel):
+    id: uuid.UUID
+    name: str
+    slug: Optional[str]
+    is_active: bool
+    theme: str
+    created_at: datetime
+    org_id: uuid.UUID
+    org_name: str
+    org_slug: str
+    created_by_user_id: str
+    created_by_email: Optional[str] = None
+    category_count: int
+    item_count: int
+
+
+class AdminMenusResponse(BaseModel):
+    items: List[AdminMenuRead]
+    total: int
+    page: int
+    size: int
+
+
 class AdminJobsResponse(BaseModel):
     items: List[ImportJob]
     total: int
@@ -200,6 +223,115 @@ def list_organizations(
         total=total,
         page=page,
         size=size
+    )
+
+
+@router.get("/menus", response_model=AdminMenusResponse)
+def list_admin_menus(
+    q: Optional[str] = Query(None),
+    org_id: Optional[uuid.UUID] = Query(None),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    session: Session = Depends(get_session),
+):
+    """List all menus across organizations for super-admin review."""
+    offset = (page - 1) * size
+
+    query = select(Menu, Organization.name, Organization.slug, Organization.owner_id).join(
+        Organization, Menu.org_id == Organization.id
+    )
+    total_query = select(func.count(Menu.id)).join(Organization, Menu.org_id == Organization.id)
+
+    if org_id:
+        query = query.where(Menu.org_id == org_id)
+        total_query = total_query.where(Menu.org_id == org_id)
+
+    if q:
+        search_filter = (
+            Menu.name.ilike(f"%{q}%")
+            | Menu.slug.ilike(f"%{q}%")
+            | Organization.name.ilike(f"%{q}%")
+            | Organization.slug.ilike(f"%{q}%")
+            | Organization.owner_id.ilike(f"%{q}%")
+        )
+        query = query.where(search_filter)
+        total_query = total_query.where(search_filter)
+
+    total = session.exec(total_query).one()
+    rows = session.exec(
+        query.order_by(Menu.created_at.desc()).offset(offset).limit(size)
+    ).all()
+
+    menu_ids = [menu.id for menu, _, _, _ in rows]
+    org_ids = [menu.org_id for menu, _, _, _ in rows]
+
+    category_count_map: dict[uuid.UUID, int] = {}
+    item_count_map: dict[uuid.UUID, int] = {}
+    owner_email_map: dict[uuid.UUID, Optional[str]] = {}
+
+    if menu_ids:
+        category_count_rows = session.exec(
+            select(Category.menu_id, func.count(Category.id))
+            .where(Category.menu_id.in_(menu_ids))
+            .group_by(Category.menu_id)
+        ).all()
+        category_count_map = {
+            menu_id: count
+            for menu_id, count in category_count_rows
+        }
+
+        item_count_rows = session.exec(
+            select(Category.menu_id, func.count(Item.id))
+            .join(Item, Item.category_id == Category.id)
+            .where(Category.menu_id.in_(menu_ids))
+            .group_by(Category.menu_id)
+        ).all()
+        item_count_map = {
+            menu_id: count
+            for menu_id, count in item_count_rows
+        }
+
+    if org_ids:
+        memberships = session.exec(
+            select(OrganizationMember).where(OrganizationMember.org_id.in_(org_ids))
+        ).all()
+        members_by_org: dict[uuid.UUID, list[OrganizationMember]] = {}
+        for member in memberships:
+            members_by_org.setdefault(member.org_id, []).append(member)
+
+        # pick owner email by matching owner user_id first, fallback to role=owner.
+        for menu, _, _, owner_id in rows:
+            org_members = members_by_org.get(menu.org_id, [])
+            owner_email = next((m.email for m in org_members if m.user_id == owner_id), None)
+            if not owner_email:
+                owner_email = next((m.email for m in org_members if m.role == "owner"), None)
+            owner_email_map[menu.org_id] = owner_email
+
+    items: List[AdminMenuRead] = []
+    for menu, org_name, org_slug, owner_id in rows:
+        items.append(
+            AdminMenuRead(
+                id=menu.id,
+                name=menu.name,
+                slug=menu.slug,
+                is_active=menu.is_active,
+                theme=menu.theme,
+                created_at=menu.created_at,
+                org_id=menu.org_id,
+                org_name=org_name,
+                org_slug=org_slug,
+                created_by_user_id=owner_id,
+                created_by_email=owner_email_map.get(menu.org_id),
+                category_count=category_count_map.get(menu.id, 0),
+                item_count=item_count_map.get(menu.id, 0),
+            )
+        )
+
+    return AdminMenusResponse(
+        items=items,
+        total=total,
+        page=page,
+        size=size,
     )
 
 class AdminOrganizationCreate(BaseModel):

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { Building2, Search, Trash2, Edit, ChevronLeft, ChevronRight } from "lucide-react";
 import { adminApi, AdminOrganization } from "@/lib/api";
@@ -216,8 +217,21 @@ export default function AdminOrganizationsPage() {
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex flex-col max-w-[200px]">
-                                                    <span className="text-foreground truncate" title={org.owner_email || ""}>{org.owner_email || "N/A"}</span>
-                                                    <span className="text-[10px] text-muted font-mono truncate">{org.owner_id}</span>
+                                                    <Link
+                                                        href={`/dashboard/admin/users/${encodeURIComponent(org.owner_id)}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="text-foreground truncate hover:text-[var(--cms-accent)] transition-colors"
+                                                        title={org.owner_email || ""}
+                                                    >
+                                                        {org.owner_email || "N/A"}
+                                                    </Link>
+                                                    <Link
+                                                        href={`/dashboard/admin/users/${encodeURIComponent(org.owner_id)}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="text-[10px] text-muted font-mono truncate hover:text-[var(--cms-text)] transition-colors"
+                                                    >
+                                                        {org.owner_id}
+                                                    </Link>
                                                 </div>
                                             </td>
                                             <td className="p-4">

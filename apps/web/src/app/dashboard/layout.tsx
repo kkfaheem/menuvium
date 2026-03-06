@@ -420,6 +420,19 @@ export default function DashboardLayout({
                                         Users
                                     </Link>
                                     <Link
+                                        href="/dashboard/admin/menus"
+                                        onClick={() => setNavOpen(false)}
+                                        className={cn(
+                                            "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                            pathname.startsWith("/dashboard/admin/menus")
+                                                ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                                : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                        )}
+                                    >
+                                        <UtensilsCrossed className="w-5 h-5" />
+                                        Menus
+                                    </Link>
+                                    <Link
                                         href="/dashboard/admin/organizations"
                                         onClick={() => setNavOpen(false)}
                                         className={cn(

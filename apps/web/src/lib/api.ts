@@ -368,6 +368,22 @@ export interface AdminCompanyDetail extends AdminOrganization {
     recent_jobs: AdminJob[];
 }
 
+export interface AdminMenu {
+    id: string;
+    name: string;
+    slug: string | null;
+    is_active: boolean;
+    theme: string;
+    created_at: string;
+    org_id: string;
+    org_name: string;
+    org_slug: string;
+    created_by_user_id: string;
+    created_by_email: string | null;
+    category_count: number;
+    item_count: number;
+}
+
 export interface UserCompanyAffiliation {
     org_id: string;
     org_name: string;
@@ -399,6 +415,12 @@ export const adminApi = {
         let url = `/admin/organizations?page=${page}&size=${size}`;
         if (q) url += `&q=${encodeURIComponent(q)}`;
         return api.get<{ items: AdminOrganization[], total: number, page: number, size: number }>(url);
+    },
+    getMenus: (page = 1, size = 20, q?: string, orgId?: string) => {
+        let url = `/admin/menus?page=${page}&size=${size}`;
+        if (q) url += `&q=${encodeURIComponent(q)}`;
+        if (orgId) url += `&org_id=${encodeURIComponent(orgId)}`;
+        return api.get<{ items: AdminMenu[], total: number, page: number, size: number }>(url);
     },
     deleteOrganization: (id: string) => api.delete<void>(`/admin/organizations/${id}`),
     getJobs: (page = 1, size = 20, status?: string) => {
