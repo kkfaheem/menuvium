@@ -874,7 +874,7 @@ export default function CompanyDetailPage() {
             {activeTab === "team" && (
                 <>
                     {membersError ? (
-                        <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6">
+                        <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-5">
                             <div className="flex items-start gap-3">
                                 <div className="w-10 h-10 rounded-2xl bg-[var(--cms-pill)] flex items-center justify-center">
                                     <Shield className="w-5 h-5" />
@@ -886,141 +886,152 @@ export default function CompanyDetailPage() {
                             </div>
                         </section>
                     ) : (
-                        <>
-                            <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6 space-y-5">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <UserPlus className="w-5 h-5" />
-                                        <h2 className="text-lg font-bold">Invite user</h2>
-                                    </div>
-                                    <span className="text-xs text-[var(--cms-muted)]">Email must match their login email.</span>
-                                </div>
-
-                                <div className="flex flex-col sm:flex-row gap-3">
-                                    <div className="relative flex-1">
-                                        <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--cms-muted)]">
-                                            <Mail className="w-4 h-4" />
+                        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+                            <div className="space-y-5">
+                                <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-5 space-y-4">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-2">
+                                            <UserPlus className="w-4 h-4" />
+                                            <h2 className="text-base font-bold">Invite user</h2>
                                         </div>
-                                        <input
-                                            value={inviteEmail}
-                                            onChange={(e) => setInviteEmail(e.target.value)}
-                                            placeholder="teammate@restaurant.com"
-                                            className="w-full bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-2xl pl-10 pr-4 py-3 focus:outline-none focus:border-[var(--cms-text)]"
-                                        />
+                                        <span className="text-[11px] text-[var(--cms-muted)]">Login email must match</span>
                                     </div>
-                                    <button
-                                        onClick={() => void createInvite()}
-                                        disabled={saving || !inviteEmail.trim()}
-                                        className="px-5 py-3 rounded-2xl font-semibold bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2 w-full sm:w-auto"
-                                    >
-                                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                                        Invite
-                                    </button>
-                                </div>
 
-                                <div className="grid gap-3 md:grid-cols-2">
-                                    {permissionRows.map((row) => (
-                                        <button
-                                            key={row.key}
-                                            type="button"
-                                            onClick={() => toggleInvitePermission(row.key)}
-                                            className="text-left rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 py-3 hover:bg-[var(--cms-pill)] transition-colors"
-                                        >
-                                            <div className="flex items-center justify-between gap-3">
-                                                <div>
-                                                    <div className="font-semibold">{row.title}</div>
-                                                    <div className="text-xs text-[var(--cms-muted)]">{row.description}</div>
-                                                </div>
-                                                <span
-                                                    className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${invitePermissions[row.key] ? "bg-[var(--cms-accent)]" : "bg-[var(--cms-border)]"}`}
-                                                >
-                                                    <span
-                                                        className={`inline-block h-4 w-4 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${invitePermissions[row.key] ? "translate-x-5" : "translate-x-1"}`}
-                                                    />
-                                                </span>
+                                    <div className="flex flex-col gap-3 sm:flex-row">
+                                        <div className="relative flex-1">
+                                            <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--cms-muted)]">
+                                                <Mail className="w-4 h-4" />
                                             </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </section>
-
-                            <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-6 space-y-4">
-                                <div className="flex items-center gap-2">
-                                    <ArrowRightLeft className="w-5 h-5" />
-                                    <h2 className="text-lg font-bold">Transfer ownership</h2>
-                                </div>
-                                <p className="text-sm text-[var(--cms-muted)]">
-                                    Choose an existing team member. They will get an in-app notification to accept ownership.
-                                </p>
-
-                                {!transferCandidates.length ? (
-                                    <div className="text-sm text-[var(--cms-muted)]">
-                                        Add at least one team member before transferring ownership.
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                                        <select
-                                            value={ownershipTargetMemberId}
-                                            onChange={(e) => setOwnershipTargetMemberId(e.target.value)}
-                                            className="flex-1 bg-[var(--cms-panel-strong)] border border-[var(--cms-border)] rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                                        >
-                                            {transferCandidates.map((member) => (
-                                                <option key={member.id} value={member.id}>
-                                                    {member.email}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            <input
+                                                value={inviteEmail}
+                                                onChange={(e) => setInviteEmail(e.target.value)}
+                                                placeholder="teammate@restaurant.com"
+                                                className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] pl-10 pr-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
+                                            />
+                                        </div>
                                         <button
-                                            type="button"
-                                            onClick={() => void requestOwnershipTransfer()}
-                                            disabled={ownershipTransferSending}
-                                            className="h-10 rounded-xl px-4 text-sm font-semibold bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)] transition-colors disabled:opacity-60 inline-flex items-center justify-center gap-2"
+                                            onClick={() => void createInvite()}
+                                            disabled={saving || !inviteEmail.trim()}
+                                            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)] disabled:opacity-50 sm:w-auto"
                                         >
-                                            {ownershipTransferSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
-                                            Send request
+                                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                            Invite
                                         </button>
                                     </div>
-                                )}
 
-                                {ownershipTransferInfo && (
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                        {permissionRows.map((row) => (
+                                            <button
+                                                key={row.key}
+                                                type="button"
+                                                onClick={() => toggleInvitePermission(row.key)}
+                                                className="rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--cms-pill)]"
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div>
+                                                        <div className="text-sm font-semibold">{row.title}</div>
+                                                        <div className="text-[11px] text-[var(--cms-muted)]">{row.description}</div>
+                                                    </div>
+                                                    <span
+                                                        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${invitePermissions[row.key] ? "bg-[var(--cms-accent)]" : "bg-[var(--cms-border)]"}`}
+                                                    >
+                                                        <span
+                                                            className={`inline-block h-4 w-4 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${invitePermissions[row.key] ? "translate-x-5" : "translate-x-1"}`}
+                                                        />
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-5 space-y-3.5">
+                                    <div className="flex items-center gap-2">
+                                        <ArrowRightLeft className="w-4 h-4" />
+                                        <h2 className="text-base font-bold">Transfer ownership</h2>
+                                    </div>
                                     <p className="text-xs text-[var(--cms-muted)]">
-                                        Transfer request sent to {ownershipTransferInfo.target_email}. Pending acceptance. Expires{" "}
-                                        {new Date(ownershipTransferInfo.expires_at).toLocaleString()}.
+                                        Send a transfer request to an existing member. Once accepted, they become owner and you move to menu manager.
                                     </p>
-                                )}
-                            </section>
 
-                            <section className="space-y-4">
-                                <div className="flex items-center gap-2">
-                                    <Shield className="w-5 h-5" />
-                                    <h2 className="text-lg font-bold">Team members</h2>
+                                    {!transferCandidates.length ? (
+                                        <div className="text-sm text-[var(--cms-muted)]">
+                                            Add at least one team member before transferring ownership.
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                            <select
+                                                value={ownershipTargetMemberId}
+                                                onChange={(e) => setOwnershipTargetMemberId(e.target.value)}
+                                                className="h-10 flex-1 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
+                                            >
+                                                {transferCandidates.map((member) => (
+                                                    <option key={member.id} value={member.id}>
+                                                        {member.email}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                type="button"
+                                                onClick={() => void requestOwnershipTransfer()}
+                                                disabled={ownershipTransferSending}
+                                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)] disabled:opacity-60"
+                                            >
+                                                {ownershipTransferSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRightLeft className="h-4 w-4" />}
+                                                Send request
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {ownershipTransferInfo && (
+                                        <p className="rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 py-2 text-xs text-[var(--cms-muted)]">
+                                            Transfer request sent to {ownershipTransferInfo.target_email}. Pending acceptance. Expires{" "}
+                                            {new Date(ownershipTransferInfo.expires_at).toLocaleString()}.
+                                        </p>
+                                    )}
+                                </section>
+                            </div>
+
+                            <section className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-4 space-y-3 xl:sticky xl:top-24">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <Shield className="w-4 h-4" />
+                                        <h2 className="text-xs font-bold uppercase tracking-wide">Team members</h2>
+                                    </div>
+                                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-[var(--cms-panel-strong)] px-2 py-1 text-[11px] font-semibold text-[var(--cms-muted)]">
+                                        {sortedMembers.length}
+                                    </span>
                                 </div>
 
                                 {!sortedMembers.length ? (
-                                    <div className="text-sm text-[var(--cms-muted)]">No invited users yet.</div>
+                                    <div className="rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 py-2 text-sm text-[var(--cms-muted)]">
+                                        No invited users yet.
+                                    </div>
                                 ) : (
-                                    <div className="space-y-3">
+                                    <div className="max-h-[65vh] space-y-2.5 overflow-y-auto pr-1">
                                         {sortedMembers.map((member) => (
                                             <div
                                                 key={member.id}
-                                                className="bg-[var(--cms-panel)] border border-[var(--cms-border)] rounded-2xl p-5 space-y-4"
+                                                className="rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-3 space-y-2.5"
                                             >
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div>
-                                                        <div className="font-semibold">{member.email}</div>
-                                                        <div className="text-xs text-[var(--cms-muted)]">Permissions</div>
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-sm font-semibold">{member.email}</p>
+                                                        <p className="text-[11px] uppercase tracking-wide text-[var(--cms-muted)]">
+                                                            {member.role || "member"}
+                                                        </p>
                                                     </div>
                                                     <button
                                                         onClick={() => void removeMember(member)}
                                                         disabled={saving}
-                                                        className="h-10 w-10 rounded-full border border-[var(--cms-border)] text-red-400 hover:text-red-300 hover:bg-red-500/10 inline-flex items-center justify-center disabled:opacity-50"
+                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--cms-border)] text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
                                                         title="Remove"
                                                     >
-                                                        <Trash2 className="w-4 h-4" />
+                                                        <Trash2 className="w-3.5 h-3.5" />
                                                     </button>
                                                 </div>
 
-                                                <div className="grid gap-3 md:grid-cols-2">
+                                                <div className="space-y-1.5">
                                                     {permissionRows.map((row) => {
                                                         const enabled = member[row.key];
                                                         return (
@@ -1029,21 +1040,17 @@ export default function CompanyDetailPage() {
                                                                 type="button"
                                                                 onClick={() => void updateMember(member, { [row.key]: !enabled })}
                                                                 disabled={saving}
-                                                                className="text-left rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 py-3 hover:bg-[var(--cms-pill)] transition-colors disabled:opacity-60"
+                                                                className="flex w-full items-center justify-between rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2.5 py-2 text-left transition-colors hover:bg-[var(--cms-pill)] disabled:opacity-60"
                                                             >
-                                                                <div className="flex items-center justify-between gap-3">
-                                                                    <div>
-                                                                        <div className="font-semibold">{row.title}</div>
-                                                                        <div className="text-xs text-[var(--cms-muted)]">{row.description}</div>
-                                                                    </div>
-                                                                    <span
-                                                                        className={`relative inline-flex h-5 w-10 items-center rounded-full transition-colors ${enabled ? "bg-[var(--cms-accent)]" : "bg-[var(--cms-border)]"}`}
-                                                                    >
-                                                                        <span
-                                                                            className={`inline-block h-4 w-4 rounded-full bg-[var(--cms-bg)] shadow transition-transform ${enabled ? "translate-x-5" : "translate-x-1"}`}
-                                                                        />
-                                                                    </span>
-                                                                </div>
+                                                                <span className="text-xs font-semibold">{row.title}</span>
+                                                                <span
+                                                                    className={cn(
+                                                                        "text-[11px] font-semibold",
+                                                                        enabled ? "text-[var(--cms-accent)]" : "text-[var(--cms-muted)]"
+                                                                    )}
+                                                                >
+                                                                    {enabled ? "On" : "Off"}
+                                                                </span>
                                                             </button>
                                                         );
                                                     })}
@@ -1053,7 +1060,7 @@ export default function CompanyDetailPage() {
                                     </div>
                                 )}
                             </section>
-                        </>
+                        </div>
                     )}
                 </>
             )}
