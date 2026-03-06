@@ -181,14 +181,34 @@ export default function CompanyProfilePage() {
                                     <tbody>
                                         {company.members.map((member) => (
                                             <tr key={member.id} className="border-b border-border last:border-0 hover:bg-panelStrong/20 transition-colors">
-                                                <td className="px-6 py-4 font-medium">{member.email}</td>
+                                                <td className="px-6 py-4 font-medium">
+                                                    {member.user_id ? (
+                                                        <Link
+                                                            href={`/dashboard/admin/users/${encodeURIComponent(member.user_id)}`}
+                                                            className="hover:text-[var(--cms-accent)] transition-colors"
+                                                        >
+                                                            {member.email}
+                                                        </Link>
+                                                    ) : (
+                                                        member.email
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-4">
                                                     <Badge variant={member.role === 'owner' ? 'accent' : 'outline'} className="capitalize">
                                                         {member.role || 'member'}
                                                     </Badge>
                                                 </td>
                                                 <td className="px-6 py-4 text-xs font-mono text-muted truncate max-w-[150px]" title={member.user_id || ""}>
-                                                    {member.user_id || "Not Linked"}
+                                                    {member.user_id ? (
+                                                        <Link
+                                                            href={`/dashboard/admin/users/${encodeURIComponent(member.user_id)}`}
+                                                            className="hover:text-[var(--cms-text)] transition-colors"
+                                                        >
+                                                            {member.user_id}
+                                                        </Link>
+                                                    ) : (
+                                                        "Not Linked"
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}

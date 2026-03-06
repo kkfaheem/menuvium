@@ -440,10 +440,22 @@ def get_company_detail(org_id: uuid.UUID, session: Session = Depends(get_session
             id=m.id,
             email=m.email,
             role=m.role,
-            user_id=m.user_id
+            user_id=org.owner_id if (m.role == "owner" and not m.user_id) else m.user_id
         ) for m in all_members
     ]
-    owner_email = next((m.email for m in all_members if m.user_id == org.owner_id or m.role == "owner"), None)
+    owner_email = next((m.email for m in all_members if m.user_id == org.owner_id), None)
+    if not owner_email:
+        owner_email = next((m.email for m in all_members if m.role == "owner"), None)
+
+    # Ensure owner is always represented in team members, even without a membership row.
+    owner_in_members = any(m.user_id == org.owner_id or m.role == "owner" for m in all_members)
+    if not owner_in_members and org.owner_id:
+        member_reads.insert(0, AdminMemberRead(
+            id=uuid.UUID(int=0),
+            email=owner_email or org.owner_id,
+            role="owner",
+            user_id=org.owner_id,
+        ))
 
     # AR Stats
     ar_ready = session.exec(
@@ -501,7 +513,7 @@ def get_company_detail(org_id: uuid.UUID, session: Session = Depends(get_session
         owner_email=owner_email,
         created_at=org.created_at,
         menu_count=menu_count,
-        member_count=len(all_members),
+        member_count=len(member_reads),
         members=member_reads,
         item_count=item_count,
         total_ai_tokens=total_ai_tokens,
