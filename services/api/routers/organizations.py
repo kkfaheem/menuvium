@@ -22,6 +22,7 @@ from models import (
     OwnershipTransferRequestRead,
     OwnershipTransferVerifyRequest,
     OwnershipTransferVerifyRead,
+    OwnershipTransferNotificationRead,
     OrgPermissionsRead,
     Menu,
     Category,
@@ -139,6 +140,156 @@ def _send_ownership_transfer_email(
         subject=subject,
         text_body=text_body,
         html_body=html_body,
+    )
+
+
+def _target_match_expression(user_sub: Optional[str], user_email: Optional[str]):
+    if user_sub and user_email:
+        return (
+            (OrganizationOwnershipTransfer.target_user_id == user_sub)
+            | (OrganizationOwnershipTransfer.target_email == user_email)
+        )
+    if user_sub:
+        return OrganizationOwnershipTransfer.target_user_id == user_sub
+    if user_email:
+        return OrganizationOwnershipTransfer.target_email == user_email
+    return None
+
+
+def _assert_transfer_target_user(
+    transfer: OrganizationOwnershipTransfer,
+    user: dict,
+) -> tuple[str, Optional[str], Optional[str]]:
+    user_sub = user.get("sub")
+    user_email = _normalize_email(user.get("email"))
+    target_email = _normalize_email(transfer.target_email)
+    if not user_sub:
+        raise HTTPException(status_code=401, detail="Authenticated user ID is required")
+
+    is_target_user = bool(transfer.target_user_id and transfer.target_user_id == user_sub)
+    is_target_email = bool(user_email and target_email and user_email == target_email)
+    if not (is_target_user or is_target_email):
+        raise HTTPException(
+            status_code=403,
+            detail="This ownership transfer is not for your account",
+        )
+    return user_sub, user_email, target_email
+
+
+def _complete_ownership_transfer(
+    *,
+    transfer: OrganizationOwnershipTransfer,
+    session: Session,
+    user_sub: str,
+    target_email: Optional[str],
+) -> OwnershipTransferVerifyRead:
+    now = datetime.utcnow()
+    if transfer.expires_at < now:
+        transfer.status = "expired"
+        session.add(transfer)
+        session.commit()
+        raise HTTPException(status_code=400, detail="Ownership transfer request has expired")
+
+    org = session.get(Organization, transfer.org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Organization not found")
+    if org.owner_id != transfer.requested_by_user_id:
+        transfer.status = "cancelled"
+        session.add(transfer)
+        session.commit()
+        raise HTTPException(status_code=400, detail="Ownership changed before this transfer was verified")
+
+    target_member = session.get(OrganizationMember, transfer.target_member_id)
+    if not target_member or target_member.org_id != org.id:
+        raise HTTPException(status_code=400, detail="Target member no longer exists in this organization")
+
+    previous_owner_id = org.owner_id
+    previous_owner_email = _normalize_email(transfer.requested_by_email)
+
+    org.owner_id = user_sub
+    target_member.user_id = user_sub
+    if target_email:
+        target_member.email = target_email
+    target_member.role = "owner"
+    target_member.can_manage_availability = True
+    target_member.can_edit_items = True
+    target_member.can_manage_menus = True
+    target_member.can_manage_users = True
+
+    previous_owner_member = session.exec(
+        select(OrganizationMember).where(
+            OrganizationMember.org_id == org.id,
+            OrganizationMember.user_id == previous_owner_id,
+            OrganizationMember.id != target_member.id,
+        )
+    ).first()
+    if not previous_owner_member and previous_owner_email:
+        previous_owner_member = session.exec(
+            select(OrganizationMember).where(
+                OrganizationMember.org_id == org.id,
+                OrganizationMember.email == previous_owner_email,
+                OrganizationMember.id != target_member.id,
+            )
+        ).first()
+
+    if previous_owner_member:
+        previous_owner_member.role = "member"
+        previous_owner_member.can_manage_users = False
+        previous_owner_member.user_id = previous_owner_id
+        session.add(previous_owner_member)
+    elif previous_owner_email:
+        session.add(
+            OrganizationMember(
+                org_id=org.id,
+                user_id=previous_owner_id,
+                email=previous_owner_email,
+                role="member",
+                can_manage_availability=True,
+                can_edit_items=True,
+                can_manage_menus=True,
+                can_manage_users=False,
+            )
+        )
+
+    legacy_owner_members = session.exec(
+        select(OrganizationMember).where(
+            OrganizationMember.org_id == org.id,
+            OrganizationMember.role == "owner",
+            OrganizationMember.id != target_member.id,
+        )
+    ).all()
+    for member in legacy_owner_members:
+        member.role = "member"
+        member.can_manage_users = False
+        session.add(member)
+
+    transfer.status = "completed"
+    transfer.target_user_id = user_sub
+    transfer.target_read_at = now
+    transfer.verified_at = now
+    session.add(transfer)
+    session.add(org)
+    session.add(target_member)
+
+    other_pending = session.exec(
+        select(OrganizationOwnershipTransfer).where(
+            OrganizationOwnershipTransfer.org_id == org.id,
+            OrganizationOwnershipTransfer.status == "pending",
+            OrganizationOwnershipTransfer.id != transfer.id,
+        )
+    ).all()
+    for pending in other_pending:
+        pending.status = "cancelled"
+        session.add(pending)
+
+    session.commit()
+
+    return OwnershipTransferVerifyRead(
+        ok=True,
+        detail=f"Ownership transferred to {target_member.email}",
+        org_id=org.id,
+        org_name=org.name,
+        new_owner_email=target_member.email,
     )
 
 
@@ -272,6 +423,124 @@ def request_ownership_transfer(
     )
 
 
+@router.get("/ownership-transfer/notifications", response_model=List[OwnershipTransferNotificationRead])
+def list_ownership_transfer_notifications(
+    session: SessionDep,
+    user: UserDep,
+):
+    user_sub = user.get("sub")
+    user_email = _normalize_email(user.get("email"))
+    target_match = _target_match_expression(user_sub, user_email)
+    if target_match is None:
+        return []
+
+    now = datetime.utcnow()
+    stale = session.exec(
+        select(OrganizationOwnershipTransfer).where(
+            OrganizationOwnershipTransfer.status == "pending",
+            OrganizationOwnershipTransfer.expires_at < now,
+            target_match,
+        )
+    ).all()
+    for transfer in stale:
+        transfer.status = "expired"
+        session.add(transfer)
+    if stale:
+        session.commit()
+
+    rows = session.exec(
+        select(OrganizationOwnershipTransfer, Organization)
+        .join(Organization, OrganizationOwnershipTransfer.org_id == Organization.id)
+        .where(
+            OrganizationOwnershipTransfer.status == "pending",
+            OrganizationOwnershipTransfer.expires_at >= now,
+            target_match,
+        )
+        .order_by(OrganizationOwnershipTransfer.created_at.desc())
+    ).all()
+
+    return [
+        OwnershipTransferNotificationRead(
+            id=transfer.id,
+            org_id=org.id,
+            org_name=org.name,
+            requested_by_email=transfer.requested_by_email,
+            target_email=transfer.target_email,
+            created_at=transfer.created_at,
+            expires_at=transfer.expires_at,
+            is_read=transfer.target_read_at is not None,
+        )
+        for transfer, org in rows
+    ]
+
+
+@router.post("/ownership-transfer/notifications/mark-read")
+def mark_ownership_transfer_notifications_read(
+    session: SessionDep,
+    user: UserDep,
+):
+    user_sub = user.get("sub")
+    user_email = _normalize_email(user.get("email"))
+    target_match = _target_match_expression(user_sub, user_email)
+    if target_match is None:
+        return {"ok": True, "marked": 0}
+
+    now = datetime.utcnow()
+    pending = session.exec(
+        select(OrganizationOwnershipTransfer).where(
+            OrganizationOwnershipTransfer.status == "pending",
+            OrganizationOwnershipTransfer.expires_at >= now,
+            OrganizationOwnershipTransfer.target_read_at.is_(None),
+            target_match,
+        )
+    ).all()
+    for transfer in pending:
+        transfer.target_read_at = now
+        session.add(transfer)
+    if pending:
+        session.commit()
+
+    return {"ok": True, "marked": len(pending)}
+
+
+@router.post("/ownership-transfer/{transfer_id}/accept", response_model=OwnershipTransferVerifyRead)
+def accept_ownership_transfer(
+    transfer_id: uuid.UUID,
+    session: SessionDep,
+    user: UserDep,
+):
+    transfer = session.get(OrganizationOwnershipTransfer, transfer_id)
+    if not transfer or transfer.status != "pending":
+        raise HTTPException(status_code=404, detail="Ownership transfer not found")
+
+    user_sub, _user_email, target_email = _assert_transfer_target_user(transfer, user)
+    return _complete_ownership_transfer(
+        transfer=transfer,
+        session=session,
+        user_sub=user_sub,
+        target_email=target_email,
+    )
+
+
+@router.post("/ownership-transfer/{transfer_id}/decline")
+def decline_ownership_transfer(
+    transfer_id: uuid.UUID,
+    session: SessionDep,
+    user: UserDep,
+):
+    transfer = session.get(OrganizationOwnershipTransfer, transfer_id)
+    if not transfer or transfer.status != "pending":
+        raise HTTPException(status_code=404, detail="Ownership transfer not found")
+
+    _assert_transfer_target_user(transfer, user)
+    now = datetime.utcnow()
+    transfer.status = "cancelled"
+    transfer.target_read_at = now
+    session.add(transfer)
+    session.commit()
+    return {"ok": True, "detail": "Ownership transfer declined", "transfer_id": transfer.id}
+
+
 @router.post("/ownership-transfer/verify", response_model=OwnershipTransferVerifyRead)
 def verify_ownership_transfer(
     payload: OwnershipTransferVerifyRequest,
@@ -290,126 +559,12 @@ def verify_ownership_transfer(
     if not transfer or transfer.status != "pending":
         raise HTTPException(status_code=400, detail="Invalid or already-used ownership transfer token")
 
-    now = datetime.utcnow()
-    if transfer.expires_at < now:
-        transfer.status = "expired"
-        session.add(transfer)
-        session.commit()
-        raise HTTPException(status_code=400, detail="Ownership transfer token has expired")
-
-    org = session.get(Organization, transfer.org_id)
-    if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
-    if org.owner_id != transfer.requested_by_user_id:
-        transfer.status = "cancelled"
-        session.add(transfer)
-        session.commit()
-        raise HTTPException(status_code=400, detail="Ownership changed before this transfer was verified")
-
-    user_sub = user.get("sub")
-    user_email = _normalize_email(user.get("email"))
-    target_email = _normalize_email(transfer.target_email)
-    if not user_sub:
-        raise HTTPException(status_code=401, detail="Authenticated user ID is required")
-
-    is_target_user = bool(transfer.target_user_id and transfer.target_user_id == user_sub)
-    is_target_email = bool(user_email and target_email and user_email == target_email)
-    if not (is_target_user or is_target_email):
-        raise HTTPException(
-            status_code=403,
-            detail="This ownership transfer link is not for your account",
-        )
-
-    target_member = session.get(OrganizationMember, transfer.target_member_id)
-    if not target_member or target_member.org_id != org.id:
-        raise HTTPException(status_code=400, detail="Target member no longer exists in this organization")
-
-    previous_owner_id = org.owner_id
-    previous_owner_email = _normalize_email(transfer.requested_by_email)
-
-    org.owner_id = user_sub
-    target_member.user_id = user_sub
-    if target_email:
-        target_member.email = target_email
-    target_member.role = "owner"
-    target_member.can_manage_availability = True
-    target_member.can_edit_items = True
-    target_member.can_manage_menus = True
-    target_member.can_manage_users = True
-
-    previous_owner_member = session.exec(
-        select(OrganizationMember).where(
-            OrganizationMember.org_id == org.id,
-            OrganizationMember.user_id == previous_owner_id,
-            OrganizationMember.id != target_member.id,
-        )
-    ).first()
-    if not previous_owner_member and previous_owner_email:
-        previous_owner_member = session.exec(
-            select(OrganizationMember).where(
-                OrganizationMember.org_id == org.id,
-                OrganizationMember.email == previous_owner_email,
-                OrganizationMember.id != target_member.id,
-            )
-        ).first()
-
-    if previous_owner_member:
-        previous_owner_member.role = "member"
-        previous_owner_member.can_manage_users = False
-        previous_owner_member.user_id = previous_owner_id
-        session.add(previous_owner_member)
-    elif previous_owner_email:
-        session.add(
-            OrganizationMember(
-                org_id=org.id,
-                user_id=previous_owner_id,
-                email=previous_owner_email,
-                role="member",
-                can_manage_availability=True,
-                can_edit_items=True,
-                can_manage_menus=True,
-                can_manage_users=False,
-            )
-        )
-
-    legacy_owner_members = session.exec(
-        select(OrganizationMember).where(
-            OrganizationMember.org_id == org.id,
-            OrganizationMember.role == "owner",
-            OrganizationMember.id != target_member.id,
-        )
-    ).all()
-    for member in legacy_owner_members:
-        member.role = "member"
-        member.can_manage_users = False
-        session.add(member)
-
-    transfer.status = "completed"
-    transfer.target_user_id = user_sub
-    transfer.verified_at = now
-    session.add(transfer)
-    session.add(org)
-    session.add(target_member)
-
-    other_pending = session.exec(
-        select(OrganizationOwnershipTransfer).where(
-            OrganizationOwnershipTransfer.org_id == org.id,
-            OrganizationOwnershipTransfer.status == "pending",
-            OrganizationOwnershipTransfer.id != transfer.id,
-        )
-    ).all()
-    for pending in other_pending:
-        pending.status = "cancelled"
-        session.add(pending)
-
-    session.commit()
-
-    return OwnershipTransferVerifyRead(
-        ok=True,
-        detail=f"Ownership transferred to {target_member.email}",
-        org_id=org.id,
-        org_name=org.name,
-        new_owner_email=target_member.email,
+    user_sub, _user_email, target_email = _assert_transfer_target_user(transfer, user)
+    return _complete_ownership_transfer(
+        transfer=transfer,
+        session=session,
+        user_sub=user_sub,
+        target_email=target_email,
     )
 
 

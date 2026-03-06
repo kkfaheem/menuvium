@@ -8,6 +8,7 @@ import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import { getCachedOrFetch, getCachedValue } from "@/lib/dashboardCache";
+import { getStoredUserMode } from "@/lib/userMode";
 import type { Menu, Organization } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
@@ -32,7 +33,7 @@ export default function DesignStudioPage() {
 
     useEffect(() => {
         if (typeof window === "undefined") return;
-        setMode((localStorage.getItem("menuvium_user_mode") as "admin" | "manager" | null) || null);
+        setMode(getStoredUserMode());
         setModeReady(true);
     }, []);
 

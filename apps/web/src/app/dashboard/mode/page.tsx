@@ -9,6 +9,7 @@ import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import { fetchDisplayName } from "@/lib/userProfile";
+import { setStoredUserMode } from "@/lib/userMode";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
@@ -60,9 +61,7 @@ export default function ModeSelectPage() {
     }, [user, apiBase]);
 
     const chooseMode = (mode: Mode) => {
-        if (typeof window !== "undefined") {
-            localStorage.setItem("menuvium_user_mode", mode);
-        }
+        setStoredUserMode(mode);
         if (mode === "manager") {
             router.push("/dashboard/menus");
             return;

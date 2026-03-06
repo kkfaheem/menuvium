@@ -54,6 +54,7 @@ class OrganizationOwnershipTransfer(SQLModel, table=True):
     status: str = Field(default="pending", index=True)  # pending, completed, cancelled, expired
     created_at: datetime = Field(default_factory=datetime.utcnow)
     expires_at: datetime
+    target_read_at: Optional[datetime] = None
     verified_at: Optional[datetime] = None
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -275,6 +276,17 @@ class OwnershipTransferVerifyRead(SQLModel):
     org_id: uuid.UUID
     org_name: str
     new_owner_email: str
+
+
+class OwnershipTransferNotificationRead(SQLModel):
+    id: uuid.UUID
+    org_id: uuid.UUID
+    org_name: str
+    requested_by_email: Optional[str] = None
+    target_email: str
+    created_at: datetime
+    expires_at: datetime
+    is_read: bool
 
 
 class OrgPermissionsRead(SQLModel):

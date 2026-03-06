@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, Zap, Activity, BarChart3, Shield, UserCircle, CreditCard } from "lucide-react";
+import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, Zap, Activity, BarChart3, Shield, UserCircle, CreditCard, Bell, Check } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import { useEffect, useState } from "react";
@@ -10,10 +10,23 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/cn";
 import { getApiBase } from "@/lib/apiBase";
+import { getAuthToken } from "@/lib/authToken";
 import { decodeJwtPayload } from "@/lib/jwt";
+import { getStoredUserMode } from "@/lib/userMode";
 
 const LINK_PROMPT_SKIP_KEY = "menuvium_skip_link_prompt";
 const OPAQUE_USERNAME_PREFIX = /^(google|facebook|loginwithamazon|signinwithapple|oidc|saml)_/i;
+
+type OwnershipTransferNotification = {
+    id: string;
+    org_id: string;
+    org_name: string;
+    requested_by_email?: string | null;
+    target_email: string;
+    created_at: string;
+    expires_at: string;
+    is_read: boolean;
+};
 
 export default function DashboardLayout({
     children,
@@ -30,6 +43,11 @@ export default function DashboardLayout({
     const [linkCheckReady, setLinkCheckReady] = useState(false);
     const [userEmail, setUserEmail] = useState<string>("");
     const [isSuperAdminFromApi, setIsSuperAdminFromApi] = useState<boolean | null>(null);
+    const [ownershipNotifications, setOwnershipNotifications] = useState<OwnershipTransferNotification[]>([]);
+    const [notificationsLoading, setNotificationsLoading] = useState(false);
+    const [notificationsOpen, setNotificationsOpen] = useState(false);
+    const [notificationError, setNotificationError] = useState<string | null>(null);
+    const [notificationActionId, setNotificationActionId] = useState<string | null>(null);
     const isModePage = pathname.startsWith("/dashboard/mode");
 
     useEffect(() => {
@@ -50,9 +68,7 @@ export default function DashboardLayout({
 
     useEffect(() => {
         if (typeof window === "undefined") return;
-        const stored = localStorage.getItem("menuvium_user_mode");
-        const resolvedMode = stored === "admin" || stored === "manager" ? stored : null;
-        setMode(resolvedMode);
+        setMode(getStoredUserMode());
         setModeReady(true);
     }, [pathname]);
 
@@ -202,6 +218,106 @@ export default function DashboardLayout({
         }
     }, [mounted, user, mode, pathname, router, isModePage, modeReady, linkCheckReady]);
 
+    useEffect(() => {
+        if (!mounted || authStatus !== "authenticated" || !user || isModePage) return;
+        let cancelled = false;
+
+        const loadNotifications = async () => {
+            try {
+                setNotificationsLoading(true);
+                setNotificationError(null);
+                const token = await getAuthToken();
+                const res = await fetch(`${getApiBase()}/organizations/ownership-transfer/notifications`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (!res.ok) {
+                    throw new Error("Failed to load notifications");
+                }
+                const data = (await res.json()) as OwnershipTransferNotification[];
+                if (!cancelled) {
+                    setOwnershipNotifications(Array.isArray(data) ? data : []);
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setNotificationError("Could not load notifications");
+                }
+                console.error("Failed to load ownership transfer notifications", error);
+            } finally {
+                if (!cancelled) {
+                    setNotificationsLoading(false);
+                }
+            }
+        };
+
+        void loadNotifications();
+        const intervalId = window.setInterval(() => {
+            void loadNotifications();
+        }, 30000);
+
+        return () => {
+            cancelled = true;
+            window.clearInterval(intervalId);
+        };
+    }, [mounted, authStatus, user, isModePage]);
+
+    const markNotificationsRead = async () => {
+        const unread = ownershipNotifications.some((notification) => !notification.is_read);
+        if (!unread) return;
+        try {
+            const token = await getAuthToken();
+            const res = await fetch(`${getApiBase()}/organizations/ownership-transfer/notifications/mark-read`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) return;
+            setOwnershipNotifications((prev) => prev.map((notification) => ({ ...notification, is_read: true })));
+        } catch (error) {
+            console.error("Failed to mark ownership notifications read", error);
+        }
+    };
+
+    const openNotifications = async () => {
+        const next = !notificationsOpen;
+        setNotificationsOpen(next);
+        if (next) {
+            await markNotificationsRead();
+        }
+    };
+
+    const actOnNotification = async (notificationId: string, action: "accept" | "decline") => {
+        try {
+            setNotificationActionId(notificationId);
+            setNotificationError(null);
+            const token = await getAuthToken();
+            const res = await fetch(
+                `${getApiBase()}/organizations/ownership-transfer/${notificationId}/${action}`,
+                {
+                    method: "POST",
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+            if (!res.ok) {
+                const errorBody = await res.json().catch(() => ({}));
+                const detail =
+                    typeof errorBody === "object" && errorBody && "detail" in errorBody
+                        ? (errorBody as { detail?: unknown }).detail
+                        : undefined;
+                throw new Error(typeof detail === "string" ? detail : "Failed to update transfer");
+            }
+
+            if (action === "accept") {
+                await res.json().catch(() => ({}));
+                setOwnershipNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
+            } else {
+                setOwnershipNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
+            }
+        } catch (error) {
+            setNotificationError(error instanceof Error ? error.message : "Failed to update transfer");
+        } finally {
+            setNotificationActionId(null);
+        }
+    };
+
     if (!mounted) return <div className="min-h-screen bg-background" suppressHydrationWarning />;
     if (!user) return null;
     if (!linkCheckReady) return <div className="min-h-screen bg-background" suppressHydrationWarning />;
@@ -210,6 +326,7 @@ export default function DashboardLayout({
     const adminEmails = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").toLowerCase().split(",").map(e => e.trim());
     const isSuperAdminByEmail = userEmail ? adminEmails.includes(userEmail) : false;
     const isSuperAdmin = isSuperAdminFromApi ?? isSuperAdminByEmail;
+    const unreadNotificationCount = ownershipNotifications.filter((notification) => !notification.is_read).length;
 
     if (isModePage) {
         return (
@@ -270,9 +387,7 @@ export default function DashboardLayout({
                             <Menu className="w-5 h-5" />
                         </button>
                         <Logo size="md" />
-                        <div className="flex items-center gap-2">
-                            <ThemeToggle />
-                        </div>
+                        <div className="w-11" />
                     </div>
                 </div>
 
@@ -487,8 +602,75 @@ export default function DashboardLayout({
                                 </div>
                             </div>
                         )}
-                        <div className="flex items-center gap-3 px-1 py-2 border-t border-border mt-2">
-                            <ThemeToggle />
+                        <div className="mt-2 border-t border-border px-1 pt-3 space-y-2">
+                            <button
+                                onClick={() => void openNotifications()}
+                                className={cn(
+                                    "relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                    unreadNotificationCount > 0
+                                        ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-accent-strong)] ring-1 ring-[color-mix(in_oklab,var(--cms-accent)_40%,transparent)]"
+                                        : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                )}
+                            >
+                                <Bell className="w-5 h-5" />
+                                Notifications
+                                {unreadNotificationCount > 0 ? (
+                                    <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--cms-accent)] px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                        {unreadNotificationCount}
+                                    </span>
+                                ) : null}
+                            </button>
+
+                            {notificationsOpen ? (
+                                <div className="rounded-xl border border-border bg-panelStrong p-2 space-y-2">
+                                    {notificationsLoading ? (
+                                        <div className="px-2 py-2 text-xs text-[var(--cms-muted)]">Loading notifications...</div>
+                                    ) : ownershipNotifications.length === 0 ? (
+                                        <div className="px-2 py-2 text-xs text-[var(--cms-muted)]">No pending notifications.</div>
+                                    ) : (
+                                        ownershipNotifications.map((notification) => (
+                                            <div
+                                                key={notification.id}
+                                                className="rounded-lg border border-border bg-panel px-2 py-2 space-y-2"
+                                            >
+                                                <p className="text-xs font-semibold leading-relaxed">
+                                                    Ownership transfer for {notification.org_name}
+                                                </p>
+                                                {notification.requested_by_email ? (
+                                                    <p className="text-[11px] text-[var(--cms-muted)]">
+                                                        Requested by {notification.requested_by_email}
+                                                    </p>
+                                                ) : null}
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => void actOnNotification(notification.id, "accept")}
+                                                        disabled={notificationActionId === notification.id}
+                                                        className="inline-flex h-7 items-center gap-1 rounded-md bg-[var(--cms-accent)] px-2 text-[11px] font-semibold text-white hover:bg-[var(--cms-accent-strong)] disabled:opacity-60"
+                                                    >
+                                                        <Check className="w-3 h-3" />
+                                                        Accept
+                                                    </button>
+                                                    <button
+                                                        onClick={() => void actOnNotification(notification.id, "decline")}
+                                                        disabled={notificationActionId === notification.id}
+                                                        className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[11px] font-semibold text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill disabled:opacity-60"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                        Decline
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                    {notificationError ? (
+                                        <p className="px-2 py-1 text-[11px] text-red-400">{notificationError}</p>
+                                    ) : null}
+                                </div>
+                            ) : null}
+
+                            <div className="flex items-center gap-3 px-2 py-1">
+                                <ThemeToggle />
+                            </div>
                         </div>
                         <button
                             onClick={() => {

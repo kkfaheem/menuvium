@@ -54,6 +54,7 @@ import {
 import { getApiBase } from "@/lib/apiBase";
 import { getAuthToken } from "@/lib/authToken";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
+import { getStoredUserMode } from "@/lib/userMode";
 import type {
   Menu,
   Category,
@@ -389,12 +390,7 @@ export default function MenuDetailPage() {
         setTagGroups({});
       }
     }
-    setMode(
-      (localStorage.getItem("menuvium_user_mode") as
-        | "admin"
-        | "manager"
-        | null) || null,
-    );
+    setMode(getStoredUserMode());
   }, []);
 
   const fetchMetadata = async () => {

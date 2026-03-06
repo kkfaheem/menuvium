@@ -8,6 +8,7 @@ import { getApiBase } from "@/lib/apiBase";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import { fetchDisplayName } from "@/lib/userProfile";
+import { getStoredUserMode } from "@/lib/userMode";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Button } from "@/components/ui/Button";
@@ -42,7 +43,7 @@ export default function OnboardingPage() {
 
     useEffect(() => {
         if (typeof window === "undefined") return;
-        const mode = localStorage.getItem("menuvium_user_mode");
+        const mode = getStoredUserMode();
         if (mode === "manager") {
             router.push("/dashboard/menus");
         }

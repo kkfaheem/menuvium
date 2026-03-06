@@ -10,6 +10,7 @@ import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import { getCachedOrFetch, getCachedValue } from "@/lib/dashboardCache";
+import { getStoredUserMode } from "@/lib/userMode";
 import type { Category, Menu, Organization, OrgPermissions } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
@@ -41,7 +42,7 @@ export default function MenusPage() {
 
     useEffect(() => {
         if (typeof window === "undefined") return;
-        setMode((localStorage.getItem("menuvium_user_mode") as "admin" | "manager" | null) || null);
+        setMode(getStoredUserMode());
         setModeReady(true);
     }, []);
 

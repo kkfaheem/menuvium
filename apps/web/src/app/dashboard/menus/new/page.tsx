@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import CreateMenuFlow from "@/components/menus/CreateMenuFlow";
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { getStoredUserMode } from "@/lib/userMode";
 
 export default function NewMenuPage() {
     const router = useRouter();
@@ -12,7 +13,7 @@ export default function NewMenuPage() {
     const orgIdFromQuery = searchParams.get("org_id") || "";
 
     useEffect(() => {
-        const mode = typeof window !== "undefined" ? localStorage.getItem("menuvium_user_mode") : null;
+        const mode = getStoredUserMode();
         if (mode === "manager") {
             router.replace("/dashboard/menus");
         }

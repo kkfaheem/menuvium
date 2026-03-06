@@ -10,6 +10,7 @@ import { Logo } from "@/components/Logo";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { getApiBase } from "@/lib/apiBase";
+import { clearStoredUserMode, getStoredUserMode } from "@/lib/userMode";
 
 const LINK_PROMPT_SKIP_KEY = "menuvium_skip_link_prompt";
 
@@ -60,21 +61,16 @@ export default function LinkAccountPage() {
     }, [apiBase]);
 
     const proceedToDashboard = useCallback(() => {
-        if (typeof window !== "undefined") {
-            const stored = localStorage.getItem("menuvium_user_mode");
-            if (stored === "admin" || stored === "manager") {
-                router.push("/dashboard/menus");
-                return;
-            }
+        if (getStoredUserMode()) {
+            router.push("/dashboard/menus");
+            return;
         }
         router.push("/dashboard/mode");
     }, [router]);
 
     const proceedAfterSuccessfulLink = useCallback(async () => {
         try {
-            if (typeof window !== "undefined") {
-                window.localStorage.removeItem("menuvium_user_mode");
-            }
+            clearStoredUserMode();
             await signOut();
         } catch {
             // If sign-out fails, continue to login anyway.
