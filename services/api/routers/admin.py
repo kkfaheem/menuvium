@@ -113,6 +113,32 @@ class AdminARJobsResponse(BaseModel):
     size: int
 
 
+def _resolve_cognito_user_email(username: Optional[str]) -> Optional[str]:
+    """Best-effort Cognito email lookup by username/sub."""
+    if not username:
+        return None
+
+    user_pool_id = os.getenv("COGNITO_USER_POOL_ID")
+    if not user_pool_id:
+        return None
+
+    try:
+        client = get_cognito_client()
+        response = client.admin_get_user(UserPoolId=user_pool_id, Username=username)
+        attrs = response.get("UserAttributes", [])
+        email = next(
+            (
+                attr.get("Value")
+                for attr in attrs
+                if attr.get("Name") == "email" and isinstance(attr.get("Value"), str)
+            ),
+            None,
+        )
+        return email.strip() if isinstance(email, str) and email.strip() else None
+    except Exception:
+        return None
+
+
 # ---- Endpoints ----
 
 @router.get("/analytics", response_model=AdminAnalyticsResponse)
@@ -305,6 +331,8 @@ def list_admin_menus(
             owner_email = next((m.email for m in org_members if m.user_id == owner_id), None)
             if not owner_email:
                 owner_email = next((m.email for m in org_members if m.role == "owner"), None)
+            if not owner_email:
+                owner_email = _resolve_cognito_user_email(owner_id)
             owner_email_map[menu.org_id] = owner_email
 
     items: List[AdminMenuRead] = []
@@ -446,6 +474,8 @@ def get_company_detail(org_id: uuid.UUID, session: Session = Depends(get_session
     owner_email = next((m.email for m in all_members if m.user_id == org.owner_id), None)
     if not owner_email:
         owner_email = next((m.email for m in all_members if m.role == "owner"), None)
+    if not owner_email:
+        owner_email = _resolve_cognito_user_email(org.owner_id)
 
     # Ensure owner is always represented in team members, even without a membership row.
     owner_in_members = any(m.user_id == org.owner_id or m.role == "owner" for m in all_members)
