@@ -83,6 +83,44 @@ const WEEKDAY_OPTIONS: Array<{ label: string; value: number }> = [
   { label: "Sun", value: 6 },
 ];
 
+const TIMEZONE_ABBREVIATION_OPTIONS = [
+  { label: "EST", value: "America/New_York" },
+  { label: "CST", value: "America/Chicago" },
+  { label: "MST", value: "America/Denver" },
+  { label: "PST", value: "America/Los_Angeles" },
+  { label: "UTC", value: "UTC" },
+] as const;
+
+const TIMEZONE_VALUE_SET = new Set<string>(
+  TIMEZONE_ABBREVIATION_OPTIONS.map((option) => option.value),
+);
+
+const canonicalizeMenuTimezone = (value: unknown): string => {
+  const raw = typeof value === "string" ? value.trim() : "";
+  const normalized = raw.toLowerCase();
+  const aliases: Record<string, string> = {
+    "america/new_york": "America/New_York",
+    "america/toronto": "America/New_York",
+    "us/eastern": "America/New_York",
+    est: "America/New_York",
+    "america/chicago": "America/Chicago",
+    "us/central": "America/Chicago",
+    cst: "America/Chicago",
+    "america/denver": "America/Denver",
+    "us/mountain": "America/Denver",
+    mst: "America/Denver",
+    "america/los_angeles": "America/Los_Angeles",
+    "us/pacific": "America/Los_Angeles",
+    pst: "America/Los_Angeles",
+    utc: "UTC",
+    "etc/utc": "UTC",
+    gmt: "UTC",
+  };
+  const mapped = aliases[normalized] || raw;
+  if (TIMEZONE_VALUE_SET.has(mapped)) return mapped;
+  return "America/New_York";
+};
+
 const normalizeTimeInput = (value: unknown, fallback: string): string => {
   if (typeof value !== "string") return fallback;
   const trimmed = value.trim();
@@ -112,9 +150,6 @@ const normalizeVisibilityRule = (
       ? rule.end_date
       : null,
   is_active: rule?.is_active !== false,
-  priority: Number.isFinite(Number(rule?.priority))
-    ? Number(rule?.priority)
-    : 0,
 });
 
 const createDefaultVisibilityRule = (): VisibilityRule =>
@@ -178,21 +213,6 @@ const normalizeItemOptionGroup = (
     : [],
 });
 
-const createDefaultItemOptionGroup = (position: number): ItemOptionGroup =>
-  normalizeItemOptionGroup(
-    {
-      name: "",
-      selection_mode: "single",
-      min_select: 0,
-      max_select: 1,
-      display_style: "chips",
-      position,
-      is_active: true,
-      options: [createDefaultItemOption(0)],
-    },
-    position,
-  );
-
 export default function MenuDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -203,7 +223,7 @@ export default function MenuDetailPage() {
   const [menu, setMenu] = useState<Menu | null>(null);
   const [menuName, setMenuName] = useState("");
   const [menuActive, setMenuActive] = useState(true);
-  const [menuTimezone, setMenuTimezone] = useState("UTC");
+  const [menuTimezone, setMenuTimezone] = useState("America/New_York");
   const [isSavingMenu, setIsSavingMenu] = useState(false);
   const [isDeletingMenu, setIsDeletingMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -578,10 +598,7 @@ export default function MenuDetailPage() {
       );
 
       setMenu({ ...menuData, categories: categoriesWithItems });
-      const resolvedTimezone =
-        typeof menuData.timezone === "string" && menuData.timezone.trim()
-          ? menuData.timezone.trim()
-          : "UTC";
+      const resolvedTimezone = canonicalizeMenuTimezone(menuData.timezone);
       const baseline = {
         name: menuData.name || "",
         is_active: Boolean(menuData.is_active),
@@ -591,7 +608,7 @@ export default function MenuDetailPage() {
         !menuBaseline ||
         (menuName.trim() === menuBaseline.name &&
           menuActive === menuBaseline.is_active &&
-          menuTimezone.trim() === menuBaseline.timezone);
+          menuTimezone === menuBaseline.timezone);
       setMenuBaseline(baseline);
       if (shouldSyncMenuFields) {
         setMenuName(baseline.name);
@@ -1205,58 +1222,16 @@ export default function MenuDetailPage() {
     if (!editingItem.name) return;
     if (editingItem.price === undefined || editingItem.price === null) return;
 
-    const optionGroupsDraft = getEditingOptionGroups();
-    for (let gIdx = 0; gIdx < optionGroupsDraft.length; gIdx += 1) {
-      const group = optionGroupsDraft[gIdx];
-      if (!group.name.trim()) {
+    const displayOptionsDraft = getEditingDisplayOptions();
+    for (let oIdx = 0; oIdx < displayOptionsDraft.length; oIdx += 1) {
+      const option = displayOptionsDraft[oIdx];
+      if (!option.name.trim()) {
         toast({
           variant: "warning",
-          title: "Option group name required",
-          description: `Give a name to option group ${gIdx + 1}.`,
+          title: "Option name required",
+          description: `Give a name to option ${oIdx + 1}.`,
         });
         return;
-      }
-      if ((group.options || []).length === 0) {
-        toast({
-          variant: "warning",
-          title: "Option required",
-          description: `Add at least one option to "${group.name}".`,
-        });
-        return;
-      }
-      const normalizedMinSelect = Math.max(0, Number(group.min_select) || 0);
-      const normalizedMaxSelect =
-        group.max_select === null || group.max_select === undefined
-          ? null
-          : Math.max(0, Number(group.max_select) || 0);
-      if (normalizedMaxSelect !== null && normalizedMaxSelect < normalizedMinSelect) {
-        toast({
-          variant: "warning",
-          title: "Invalid selection limits",
-          description: `"${group.name}" has max selections lower than minimum.`,
-        });
-        return;
-      }
-      if (group.selection_mode === "single") {
-        if (normalizedMinSelect > 1 || (normalizedMaxSelect !== null && normalizedMaxSelect !== 1)) {
-          toast({
-            variant: "warning",
-            title: "Single-select group is invalid",
-            description: `"${group.name}" should use min 0/1 and max 1.`,
-          });
-          return;
-        }
-      }
-      for (let oIdx = 0; oIdx < (group.options || []).length; oIdx += 1) {
-        const option = group.options[oIdx];
-        if (!option.name.trim()) {
-          toast({
-            variant: "warning",
-            title: "Option name required",
-            description: `Give a name to option ${oIdx + 1} in "${group.name}".`,
-          });
-          return;
-        }
       }
     }
 
@@ -1293,49 +1268,42 @@ export default function MenuDetailPage() {
           start_date: rule.start_date || null,
           end_date: rule.end_date || null,
           is_active: rule.is_active !== false,
-          priority: Number.isFinite(Number(rule.priority))
-            ? Number(rule.priority)
-            : 0,
         })),
-        option_groups: optionGroupsDraft.map((group, groupIndex) => ({
-          name: group.name.trim(),
-          description: group.description || null,
-          selection_mode: group.selection_mode === "multiple" ? "multiple" : "single",
-          min_select: Math.max(0, Number(group.min_select) || 0),
-          max_select:
-            group.max_select === null || group.max_select === undefined
-              ? null
-              : Math.max(0, Number(group.max_select)),
-          display_style:
-            group.display_style === "list" || group.display_style === "cards"
-              ? group.display_style
-              : "chips",
-          position: groupIndex,
-          is_active: group.is_active !== false,
-          options: (group.options || []).map((option, optionIndex) => ({
-            name: option.name.trim(),
-            description: option.description || null,
-            image_url: option.image_url || null,
-            badge: option.badge || null,
-            position: optionIndex,
-            is_default: option.is_default === true,
-            is_active: option.is_active !== false,
-            visibility_rules: (option.visibility_rules || []).map((rule) => ({
-              kind: rule.kind === "exclude" ? "exclude" : "include",
-              days_of_week: (rule.days_of_week || [])
-                .map((day) => Number(day))
-                .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6),
-              start_time_local: normalizeTimeInput(rule.start_time_local, "00:00"),
-              end_time_local: normalizeTimeInput(rule.end_time_local, "23:59"),
-              start_date: rule.start_date || null,
-              end_date: rule.end_date || null,
-              is_active: rule.is_active !== false,
-              priority: Number.isFinite(Number(rule.priority))
-                ? Number(rule.priority)
-                : 0,
-            })),
-          })),
-        })),
+        option_groups:
+          displayOptionsDraft.length > 0
+            ? [
+              {
+                name: "Options",
+                description: null,
+                selection_mode: "multiple",
+                min_select: 0,
+                max_select: null,
+                display_style: "list",
+                position: 0,
+                is_active: true,
+                options: displayOptionsDraft.map((option, optionIndex) => ({
+                  name: option.name.trim(),
+                  description: option.description || null,
+                  image_url: option.image_url || null,
+                  badge: option.badge || null,
+                  position: optionIndex,
+                  is_default: false,
+                  is_active: option.is_active !== false,
+                  visibility_rules: (option.visibility_rules || []).map((rule) => ({
+                    kind: rule.kind === "exclude" ? "exclude" : "include",
+                    days_of_week: (rule.days_of_week || [])
+                      .map((day) => Number(day))
+                      .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6),
+                    start_time_local: normalizeTimeInput(rule.start_time_local, "00:00"),
+                    end_time_local: normalizeTimeInput(rule.end_time_local, "23:59"),
+                    start_date: rule.start_date || null,
+                    end_date: rule.end_date || null,
+                    is_active: rule.is_active !== false,
+                  })),
+                })),
+              },
+            ]
+            : [],
       };
 
       let res;
@@ -1520,6 +1488,65 @@ export default function MenuDetailPage() {
     setPageDirty(true);
   };
 
+  const getEditingDisplayOptions = (): ItemOption[] => {
+    const groups = getEditingOptionGroups();
+    const flattened = groups.flatMap((group) => group.options || []);
+    return flattened.map((option, index) =>
+      normalizeItemOption({ ...option, position: index, is_default: false }, index),
+    );
+  };
+
+  const setEditingDisplayOptions = (options: ItemOption[]) => {
+    const normalized = options.map((option, index) =>
+      normalizeItemOption({ ...option, position: index, is_default: false }, index),
+    );
+    if (normalized.length === 0) {
+      setEditingOptionGroups([]);
+      return;
+    }
+    setEditingOptionGroups([
+      normalizeItemOptionGroup(
+        {
+          name: "Options",
+          description: null,
+          selection_mode: "multiple",
+          min_select: 0,
+          max_select: null,
+          display_style: "list",
+          position: 0,
+          is_active: true,
+          options: normalized,
+        },
+        0,
+      ),
+    ]);
+  };
+
+  const addDisplayOption = () => {
+    const options = getEditingDisplayOptions();
+    setEditingDisplayOptions([
+      ...options,
+      createDefaultItemOption(options.length),
+    ]);
+  };
+
+  const updateDisplayOptionField = (
+    optionIndex: number,
+    field: keyof ItemOption,
+    value: unknown,
+  ) => {
+    const options = getEditingDisplayOptions();
+    const next = options.map((option, idx) =>
+      idx === optionIndex ? ({ ...option, [field]: value } as ItemOption) : option,
+    );
+    setEditingDisplayOptions(next);
+  };
+
+  const removeDisplayOption = (optionIndex: number) => {
+    const options = getEditingDisplayOptions();
+    setEditingDisplayOptions(options.filter((_, idx) => idx !== optionIndex));
+  };
+
   const getEditingItemVisibilityRules = (): VisibilityRule[] => {
     if (!editingItem) return [];
     const rules = (editingItem as any).visibility_rules;
@@ -1532,122 +1559,6 @@ export default function MenuDetailPage() {
     const normalized = rules.map((rule) => normalizeVisibilityRule(rule));
     setEditingItem({ ...editingItem, visibility_rules: normalized });
     setPageDirty(true);
-  };
-
-  const addOptionGroup = () => {
-    const groups = getEditingOptionGroups();
-    setEditingOptionGroups([
-      ...groups,
-      createDefaultItemOptionGroup(groups.length),
-    ]);
-  };
-
-  const updateOptionGroupField = (
-    groupIndex: number,
-    field: keyof ItemOptionGroup,
-    value: unknown,
-  ) => {
-    const groups = getEditingOptionGroups();
-    const target = groups[groupIndex];
-    if (!target) return;
-    const next = groups.map((group, idx) =>
-      idx === groupIndex ? ({ ...group, [field]: value } as ItemOptionGroup) : group,
-    );
-    setEditingOptionGroups(next);
-  };
-
-  const updateOptionGroupSelectionMode = (
-    groupIndex: number,
-    mode: "single" | "multiple",
-  ) => {
-    const groups = getEditingOptionGroups();
-    const target = groups[groupIndex];
-    if (!target) return;
-    const next = groups.map((group, idx) => {
-      if (idx !== groupIndex) return group;
-      let options = [...(group.options || [])];
-      if (mode === "single") {
-        let firstDefaultSeen = false;
-        options = options.map((option) => {
-          if (!option.is_default) return option;
-          if (!firstDefaultSeen) {
-            firstDefaultSeen = true;
-            return option;
-          }
-          return { ...option, is_default: false };
-        });
-      }
-      return {
-        ...group,
-        selection_mode: mode,
-        min_select: mode === "single" ? Math.min(1, group.min_select) : group.min_select,
-        max_select:
-          mode === "single"
-            ? 1
-            : group.max_select === undefined
-              ? null
-              : group.max_select,
-        options,
-      };
-    });
-    setEditingOptionGroups(next);
-  };
-
-  const removeOptionGroup = (groupIndex: number) => {
-    const groups = getEditingOptionGroups();
-    setEditingOptionGroups(groups.filter((_, idx) => idx !== groupIndex));
-  };
-
-  const addOptionToGroup = (groupIndex: number) => {
-    const groups = getEditingOptionGroups();
-    const group = groups[groupIndex];
-    if (!group) return;
-    const next = groups.map((g, idx) => {
-      if (idx !== groupIndex) return g;
-      const nextOptions = [
-        ...(g.options || []),
-        createDefaultItemOption((g.options || []).length),
-      ];
-      return { ...g, options: nextOptions };
-    });
-    setEditingOptionGroups(next);
-  };
-
-  const updateOptionField = (
-    groupIndex: number,
-    optionIndex: number,
-    field: keyof ItemOption,
-    value: unknown,
-  ) => {
-    const groups = getEditingOptionGroups();
-    const next = groups.map((group, gIdx) => {
-      if (gIdx !== groupIndex) return group;
-      const nextOptions = (group.options || []).map((option, oIdx) => {
-        if (oIdx !== optionIndex) return option;
-        return { ...option, [field]: value } as ItemOption;
-      });
-      if (field === "is_default" && value === true && group.selection_mode === "single") {
-        for (let idx = 0; idx < nextOptions.length; idx += 1) {
-          if (idx !== optionIndex) {
-            nextOptions[idx] = { ...nextOptions[idx], is_default: false };
-          }
-        }
-      }
-      return { ...group, options: nextOptions };
-    });
-    setEditingOptionGroups(next);
-  };
-
-  const removeOptionFromGroup = (groupIndex: number, optionIndex: number) => {
-    const groups = getEditingOptionGroups();
-    const next = groups.map((group, gIdx) => {
-      if (gIdx !== groupIndex) return group;
-      return {
-        ...group,
-        options: (group.options || []).filter((_, idx) => idx !== optionIndex),
-      };
-    });
-    setEditingOptionGroups(next);
   };
 
   const toggleRuleDay = (rule: VisibilityRule, day: number): VisibilityRule => {
@@ -1690,97 +1601,74 @@ export default function MenuDetailPage() {
     );
   };
 
-  const addOptionVisibilityRule = (groupIndex: number, optionIndex: number) => {
-    const groups = getEditingOptionGroups();
-    const next = groups.map((group, gIdx) => {
-      if (gIdx !== groupIndex) return group;
-      return {
-        ...group,
-        options: (group.options || []).map((option, oIdx) =>
-          oIdx === optionIndex
-            ? {
-              ...option,
-              visibility_rules: [
-                ...(option.visibility_rules || []),
-                createDefaultVisibilityRule(),
-              ],
-            }
-            : option,
-        ),
-      };
-    });
-    setEditingOptionGroups(next);
+  const addDisplayOptionVisibilityRule = (optionIndex: number) => {
+    const options = getEditingDisplayOptions();
+    const next = options.map((option, idx) =>
+      idx === optionIndex
+        ? {
+          ...option,
+          visibility_rules: [
+            ...(option.visibility_rules || []),
+            createDefaultVisibilityRule(),
+          ],
+        }
+        : option,
+    );
+    setEditingDisplayOptions(next);
   };
 
-  const updateOptionVisibilityRuleField = (
-    groupIndex: number,
+  const updateDisplayOptionVisibilityRuleField = (
     optionIndex: number,
     ruleIndex: number,
     field: keyof VisibilityRule,
     value: unknown,
   ) => {
-    const groups = getEditingOptionGroups();
-    const next = groups.map((group, gIdx) => {
-      if (gIdx !== groupIndex) return group;
+    const options = getEditingDisplayOptions();
+    const next = options.map((option, idx) => {
+      if (idx !== optionIndex) return option;
       return {
-        ...group,
-        options: (group.options || []).map((option, oIdx) => {
-          if (oIdx !== optionIndex) return option;
-          const rules = (option.visibility_rules || []).map((rule, rIdx) =>
-            rIdx === ruleIndex ? ({ ...rule, [field]: value } as VisibilityRule) : rule,
-          );
-          return { ...option, visibility_rules: rules };
-        }),
+        ...option,
+        visibility_rules: (option.visibility_rules || []).map((rule, rIdx) =>
+          rIdx === ruleIndex ? ({ ...rule, [field]: value } as VisibilityRule) : rule,
+        ),
       };
     });
-    setEditingOptionGroups(next);
+    setEditingDisplayOptions(next);
   };
 
-  const toggleOptionVisibilityRuleDay = (
-    groupIndex: number,
+  const toggleDisplayOptionVisibilityRuleDay = (
     optionIndex: number,
     ruleIndex: number,
     day: number,
   ) => {
-    const groups = getEditingOptionGroups();
-    const next = groups.map((group, gIdx) => {
-      if (gIdx !== groupIndex) return group;
+    const options = getEditingDisplayOptions();
+    const next = options.map((option, idx) => {
+      if (idx !== optionIndex) return option;
       return {
-        ...group,
-        options: (group.options || []).map((option, oIdx) => {
-          if (oIdx !== optionIndex) return option;
-          const rules = (option.visibility_rules || []).map((rule, rIdx) =>
-            rIdx === ruleIndex ? toggleRuleDay(rule, day) : rule,
-          );
-          return { ...option, visibility_rules: rules };
-        }),
+        ...option,
+        visibility_rules: (option.visibility_rules || []).map((rule, rIdx) =>
+          rIdx === ruleIndex ? toggleRuleDay(rule, day) : rule,
+        ),
       };
     });
-    setEditingOptionGroups(next);
+    setEditingDisplayOptions(next);
   };
 
-  const removeOptionVisibilityRule = (
-    groupIndex: number,
+  const removeDisplayOptionVisibilityRule = (
     optionIndex: number,
     ruleIndex: number,
   ) => {
-    const groups = getEditingOptionGroups();
-    const next = groups.map((group, gIdx) => {
-      if (gIdx !== groupIndex) return group;
+    const options = getEditingDisplayOptions();
+    const next = options.map((option, idx) => {
+      if (idx !== optionIndex) return option;
       return {
-        ...group,
-        options: (group.options || []).map((option, oIdx) => {
-          if (oIdx !== optionIndex) return option;
-          return {
-            ...option,
-            visibility_rules: (option.visibility_rules || []).filter(
-              (_, rIdx) => rIdx !== ruleIndex,
-            ),
-          };
-        }),
+        ...option,
+        visibility_rules: (option.visibility_rules || []).filter(
+          (_, rIdx) => rIdx !== ruleIndex,
+        ),
       };
     });
-    setEditingOptionGroups(next);
+    setEditingDisplayOptions(next);
   };
 
   const persistMenuChanges = async ({
@@ -1803,11 +1691,11 @@ export default function MenuDetailPage() {
       });
       return false;
     }
-    if (!menuTimezone.trim()) {
+    if (!menuTimezone) {
       toast({
         variant: "warning",
         title: "Timezone required",
-        description: "Please provide a valid timezone (e.g. America/Toronto).",
+        description: "Please select a timezone.",
       });
       return false;
     }
@@ -1822,7 +1710,7 @@ export default function MenuDetailPage() {
         body: JSON.stringify({
           name: menuName.trim(),
           is_active: menuActive,
-          timezone: menuTimezone.trim(),
+          timezone: menuTimezone,
         }),
       });
       if (!res.ok) {
@@ -1842,11 +1730,12 @@ export default function MenuDetailPage() {
       setMenu({ ...menu, ...data });
       setMenuName(data.name || menuName);
       setMenuActive(Boolean(data.is_active));
-      setMenuTimezone(data.timezone || menuTimezone);
+      const resolvedTimezone = canonicalizeMenuTimezone(data.timezone || menuTimezone);
+      setMenuTimezone(resolvedTimezone);
       setMenuBaseline({
         name: data.name || menuName,
         is_active: Boolean(data.is_active),
-        timezone: data.timezone || menuTimezone,
+        timezone: resolvedTimezone,
       });
       setPageDirty(false);
       if (showSuccessToast) {
@@ -2019,7 +1908,8 @@ export default function MenuDetailPage() {
     activeQrVariant === "logo" ? logoQrOpenUrl! : standardQrOpenUrl;
   const activeQrPdfUrl =
     activeQrVariant === "logo" ? logoQrPdfUrl! : standardQrPdfUrl;
-  const editingOptionGroupsDraft = editingItem ? getEditingOptionGroups() : [];
+  const timezoneOptions = TIMEZONE_ABBREVIATION_OPTIONS;
+  const editingDisplayOptionsDraft = editingItem ? getEditingDisplayOptions() : [];
   const editingItemVisibilityRulesDraft = editingItem
     ? getEditingItemVisibilityRules()
     : [];
@@ -2133,26 +2023,6 @@ export default function MenuDetailPage() {
               )}
             </div>
 
-            <div className="mx-auto w-full max-w-sm space-y-1">
-              <label className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                Menu timezone
-              </label>
-              <input
-                type="text"
-                value={menuTimezone}
-                onChange={(e) => {
-                  setMenuTimezone(e.target.value);
-                  setPageDirty(true);
-                }}
-                placeholder="e.g. America/Toronto"
-                disabled={!canManageMenus}
-                className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)] disabled:opacity-70"
-              />
-              <p className="text-[11px] text-[var(--cms-muted)]">
-                Visibility windows use this timezone.
-              </p>
-            </div>
-
             <div className="flex flex-wrap items-center justify-center gap-2">
               {canManageMenus && (
                 <button
@@ -2205,6 +2075,32 @@ export default function MenuDetailPage() {
                 <QrCode className="w-3.5 h-3.5" />
                 QR Code
               </button>
+              {canManageMenus && (
+                <div className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] pl-2.5 pr-2">
+                  <label
+                    htmlFor="menu-timezone-select"
+                    className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--cms-muted)]"
+                  >
+                    TZ
+                  </label>
+                  <select
+                    id="menu-timezone-select"
+                    value={menuTimezone}
+                    onChange={(e) => {
+                      setMenuTimezone(e.target.value);
+                      setPageDirty(true);
+                    }}
+                    className="h-7 w-[5.25rem] bg-transparent text-xs font-semibold text-[var(--cms-text)] focus:outline-none"
+                    aria-label="Menu timezone"
+                  >
+                    {timezoneOptions.map((timezone) => (
+                      <option key={timezone.value} value={timezone.value}>
+                        {timezone.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {canManageMenus && (
                 <button
                   type="button"
@@ -3258,10 +3154,10 @@ export default function MenuDetailPage() {
                         <summary className="list-none cursor-pointer flex items-center justify-between gap-3 px-4 py-3.5 [&::-webkit-details-marker]:hidden">
                           <div>
                             <div className="text-sm font-semibold text-[var(--cms-text)]">
-                              Display Options
+                              Options
                             </div>
                             <div className="text-xs text-[var(--cms-muted)]">
-                              Add selectable choices shown in the public item drawer.
+                              View-only options displayed under this item.
                             </div>
                           </div>
                           <ChevronDown className="w-4 h-4 text-[var(--cms-muted)] transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" />
@@ -3269,37 +3165,37 @@ export default function MenuDetailPage() {
                         <div className="px-4 pb-4 space-y-3">
                           <div className="flex items-center justify-between gap-2">
                             <p className="text-xs text-[var(--cms-muted)]">
-                              Single-select works like radio choices. Multiple allows combining options.
+                              No ordering logic. These are shown as informational choices only.
                             </p>
                             <button
                               type="button"
-                              onClick={addOptionGroup}
+                              onClick={addDisplayOption}
                               className="h-8 shrink-0 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 text-xs font-semibold text-[var(--cms-text)] transition-colors hover:bg-[var(--cms-pill)]"
                             >
-                              Add group
+                              Add option
                             </button>
                           </div>
 
-                          {editingOptionGroupsDraft.length === 0 ? (
+                          {editingDisplayOptionsDraft.length === 0 ? (
                             <div className="rounded-xl border border-dashed border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 py-6 text-center text-xs text-[var(--cms-muted)]">
-                              No option groups yet.
+                              No options yet.
                             </div>
                           ) : (
-                            <div className="space-y-4">
-                              {editingOptionGroupsDraft.map((group, groupIndex) => (
+                            <div className="space-y-3">
+                              {editingDisplayOptionsDraft.map((option, optionIndex) => (
                                 <div
-                                  key={group.id || `option-group-${groupIndex}`}
+                                  key={option.id || `option-${optionIndex}`}
                                   className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-3.5 space-y-3"
                                 >
                                   <div className="flex items-center justify-between gap-3">
                                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--cms-muted)]">
-                                      Group {groupIndex + 1}
+                                      Option {optionIndex + 1}
                                     </p>
                                     <button
                                       type="button"
-                                      onClick={() => removeOptionGroup(groupIndex)}
+                                      onClick={() => removeDisplayOption(optionIndex)}
                                       className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 transition-colors hover:bg-red-500/10"
-                                      aria-label="Remove option group"
+                                      aria-label="Remove option"
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />
                                     </button>
@@ -3308,18 +3204,18 @@ export default function MenuDetailPage() {
                                   <div className="grid gap-3 sm:grid-cols-2">
                                     <div className="space-y-1.5 sm:col-span-2">
                                       <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                        Group name
+                                        Name
                                       </label>
                                       <input
                                         type="text"
-                                        value={group.name}
+                                        value={option.name}
                                         onChange={(e) =>
-                                          updateOptionGroupField(
-                                            groupIndex,
+                                          updateDisplayOptionField(
+                                            optionIndex,
                                             "name",
                                             e.target.value,
                                           )}
-                                        placeholder="e.g. Choose your base"
+                                        placeholder="e.g. Chicken"
                                         className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
                                       />
                                     </div>
@@ -3329,10 +3225,10 @@ export default function MenuDetailPage() {
                                       </label>
                                       <input
                                         type="text"
-                                        value={group.description || ""}
+                                        value={option.description || ""}
                                         onChange={(e) =>
-                                          updateOptionGroupField(
-                                            groupIndex,
+                                          updateDisplayOptionField(
+                                            optionIndex,
                                             "description",
                                             e.target.value || null,
                                           )}
@@ -3342,420 +3238,212 @@ export default function MenuDetailPage() {
                                     </div>
                                     <div className="space-y-1.5">
                                       <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                        Selection mode
-                                      </label>
-                                      <select
-                                        value={group.selection_mode}
-                                        onChange={(e) =>
-                                          updateOptionGroupSelectionMode(
-                                            groupIndex,
-                                            e.target.value === "multiple"
-                                              ? "multiple"
-                                              : "single",
-                                          )}
-                                        className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                                      >
-                                        <option value="single">Single</option>
-                                        <option value="multiple">Multiple</option>
-                                      </select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                        Display style
-                                      </label>
-                                      <select
-                                        value={group.display_style}
-                                        onChange={(e) =>
-                                          updateOptionGroupField(
-                                            groupIndex,
-                                            "display_style",
-                                            e.target.value === "list" ||
-                                              e.target.value === "cards"
-                                              ? e.target.value
-                                              : "chips",
-                                          )}
-                                        className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                                      >
-                                        <option value="chips">Chips</option>
-                                        <option value="list">List</option>
-                                        <option value="cards">Cards</option>
-                                      </select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                        Minimum selects
+                                        Badge
                                       </label>
                                       <input
-                                        type="number"
-                                        min={0}
-                                        max={group.selection_mode === "single" ? 1 : undefined}
-                                        value={group.min_select}
+                                        type="text"
+                                        value={option.badge || ""}
                                         onChange={(e) =>
-                                          updateOptionGroupField(
-                                            groupIndex,
-                                            "min_select",
-                                            group.selection_mode === "single"
-                                              ? Math.min(1, Math.max(0, Number(e.target.value) || 0))
-                                              : Math.max(0, Number(e.target.value) || 0),
+                                          updateDisplayOptionField(
+                                            optionIndex,
+                                            "badge",
+                                            e.target.value || null,
                                           )}
+                                        placeholder="e.g. Popular"
                                         className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
                                       />
                                     </div>
                                     <div className="space-y-1.5">
                                       <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                        Maximum selects
+                                        Image URL
                                       </label>
                                       <input
-                                        type="number"
-                                        min={0}
-                                        value={group.max_select ?? ""}
+                                        type="text"
+                                        value={option.image_url || ""}
                                         onChange={(e) =>
-                                          updateOptionGroupField(
-                                            groupIndex,
-                                            "max_select",
-                                            e.target.value === ""
-                                              ? null
-                                              : Math.max(
-                                                0,
-                                                Number(e.target.value) || 0,
-                                              ),
+                                          updateDisplayOptionField(
+                                            optionIndex,
+                                            "image_url",
+                                            e.target.value || null,
                                           )}
-                                        placeholder={
-                                          group.selection_mode === "single"
-                                            ? "1"
-                                            : "No limit"
-                                        }
-                                        disabled={group.selection_mode === "single"}
-                                        className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)] disabled:opacity-60"
+                                        placeholder="https://..."
+                                        className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
                                       />
                                     </div>
                                   </div>
 
-                                  <div className="space-y-2">
+                                  <div className="flex flex-wrap items-center gap-3">
+                                    <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--cms-text)]">
+                                      <input
+                                        type="checkbox"
+                                        checked={option.is_active !== false}
+                                        onChange={(e) =>
+                                          updateDisplayOptionField(
+                                            optionIndex,
+                                            "is_active",
+                                            e.target.checked,
+                                          )}
+                                        className="h-4 w-4 rounded border-[var(--cms-border)] bg-[var(--cms-panel-strong)]"
+                                      />
+                                      Active
+                                    </label>
+                                  </div>
+
+                                  <div className="rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-3 space-y-2">
                                     <div className="flex items-center justify-between gap-2">
                                       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                        Options
+                                        Option visibility
                                       </p>
                                       <button
                                         type="button"
-                                        onClick={() => addOptionToGroup(groupIndex)}
-                                        className="h-8 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 text-xs font-semibold text-[var(--cms-text)] transition-colors hover:bg-[var(--cms-pill)]"
+                                        onClick={() =>
+                                          addDisplayOptionVisibilityRule(optionIndex)}
+                                        className="h-7 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-2.5 text-[11px] font-semibold text-[var(--cms-text)] transition-colors hover:bg-[var(--cms-pill)]"
                                       >
-                                        Add option
+                                        Add rule
                                       </button>
                                     </div>
 
-                                    {(group.options || []).length === 0 ? (
-                                      <div className="rounded-xl border border-dashed border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-4 text-xs text-[var(--cms-muted)] text-center">
-                                        Add at least one option to this group.
-                                      </div>
+                                    {(option.visibility_rules || []).length === 0 ? (
+                                      <p className="text-[11px] text-[var(--cms-muted)]">
+                                        Always visible.
+                                      </p>
                                     ) : (
-                                      <div className="space-y-3">
-                                        {(group.options || []).map((option, optionIndex) => (
-                                          <div
-                                            key={option.id || `option-${groupIndex}-${optionIndex}`}
-                                            className="rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] p-3 space-y-3"
-                                          >
-                                            <div className="flex items-center justify-between gap-3">
-                                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                                Option {optionIndex + 1}
-                                              </p>
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  removeOptionFromGroup(
-                                                    groupIndex,
-                                                    optionIndex,
-                                                  )}
-                                                className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 transition-colors hover:bg-red-500/10"
-                                                aria-label="Remove option"
-                                              >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                              </button>
-                                            </div>
-
-                                            <div className="grid gap-3 sm:grid-cols-2">
-                                              <div className="space-y-1.5 sm:col-span-2">
-                                                <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                                  Name
-                                                </label>
-                                                <input
-                                                  type="text"
-                                                  value={option.name}
-                                                  onChange={(e) =>
-                                                    updateOptionField(
-                                                      groupIndex,
-                                                      optionIndex,
-                                                      "name",
-                                                      e.target.value,
-                                                    )}
-                                                  placeholder="e.g. Chicken"
-                                                  className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                                                />
-                                              </div>
-                                              <div className="space-y-1.5 sm:col-span-2">
-                                                <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                                  Description
-                                                </label>
-                                                <input
-                                                  type="text"
-                                                  value={option.description || ""}
-                                                  onChange={(e) =>
-                                                    updateOptionField(
-                                                      groupIndex,
-                                                      optionIndex,
-                                                      "description",
-                                                      e.target.value || null,
-                                                    )}
-                                                  placeholder="Optional"
-                                                  className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                                                />
-                                              </div>
-                                              <div className="space-y-1.5">
-                                                <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                                  Badge
-                                                </label>
-                                                <input
-                                                  type="text"
-                                                  value={option.badge || ""}
-                                                  onChange={(e) =>
-                                                    updateOptionField(
-                                                      groupIndex,
-                                                      optionIndex,
-                                                      "badge",
-                                                      e.target.value || null,
-                                                    )}
-                                                  placeholder="e.g. Popular"
-                                                  className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                                                />
-                                              </div>
-                                              <div className="space-y-1.5">
-                                                <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                                  Image URL
-                                                </label>
-                                                <input
-                                                  type="text"
-                                                  value={option.image_url || ""}
-                                                  onChange={(e) =>
-                                                    updateOptionField(
-                                                      groupIndex,
-                                                      optionIndex,
-                                                      "image_url",
-                                                      e.target.value || null,
-                                                    )}
-                                                  placeholder="https://..."
-                                                  className="h-10 w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 text-sm focus:outline-none focus:border-[var(--cms-text)]"
-                                                />
-                                              </div>
-                                            </div>
-
-                                            <div className="flex flex-wrap items-center gap-3">
-                                              <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--cms-text)]">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={option.is_active !== false}
-                                                  onChange={(e) =>
-                                                    updateOptionField(
-                                                      groupIndex,
-                                                      optionIndex,
-                                                      "is_active",
-                                                      e.target.checked,
-                                                    )}
-                                                  className="h-4 w-4 rounded border-[var(--cms-border)] bg-[var(--cms-panel-strong)]"
-                                                />
-                                                Active
-                                              </label>
-                                              <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--cms-text)]">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={option.is_default === true}
-                                                  onChange={(e) =>
-                                                    updateOptionField(
-                                                      groupIndex,
-                                                      optionIndex,
-                                                      "is_default",
-                                                      e.target.checked,
-                                                    )}
-                                                  className="h-4 w-4 rounded border-[var(--cms-border)] bg-[var(--cms-panel-strong)]"
-                                                />
-                                                Default
-                                              </label>
-                                            </div>
-
-                                            <div className="rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-3 space-y-2">
+                                      <div className="space-y-2">
+                                        {(option.visibility_rules || []).map(
+                                          (rule, ruleIndex) => (
+                                            <div
+                                              key={rule.id || `opt-rule-${optionIndex}-${ruleIndex}`}
+                                              className="rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-2.5 space-y-2"
+                                            >
                                               <div className="flex items-center justify-between gap-2">
-                                                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                                  Option visibility
-                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                  <select
+                                                    value={rule.kind}
+                                                    onChange={(e) =>
+                                                      updateDisplayOptionVisibilityRuleField(
+                                                        optionIndex,
+                                                        ruleIndex,
+                                                        "kind",
+                                                        e.target.value === "exclude"
+                                                          ? "exclude"
+                                                          : "include",
+                                                      )}
+                                                    className="h-8 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2 text-xs focus:outline-none focus:border-[var(--cms-text)]"
+                                                  >
+                                                    <option value="include">
+                                                      Include
+                                                    </option>
+                                                    <option value="exclude">
+                                                      Exclude
+                                                    </option>
+                                                  </select>
+                                                  <label className="inline-flex items-center gap-1.5 text-xs text-[var(--cms-muted)]">
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={rule.is_active !== false}
+                                                      onChange={(e) =>
+                                                        updateDisplayOptionVisibilityRuleField(
+                                                          optionIndex,
+                                                          ruleIndex,
+                                                          "is_active",
+                                                          e.target.checked,
+                                                        )}
+                                                      className="h-3.5 w-3.5 rounded border-[var(--cms-border)]"
+                                                    />
+                                                    Active
+                                                  </label>
+                                                </div>
                                                 <button
                                                   type="button"
                                                   onClick={() =>
-                                                    addOptionVisibilityRule(
-                                                      groupIndex,
+                                                    removeDisplayOptionVisibilityRule(
                                                       optionIndex,
+                                                      ruleIndex,
                                                     )}
-                                                  className="h-7 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2.5 text-[11px] font-semibold text-[var(--cms-text)] transition-colors hover:bg-[var(--cms-pill)]"
+                                                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 transition-colors hover:bg-red-500/10"
+                                                  aria-label="Remove visibility rule"
                                                 >
-                                                  Add rule
+                                                  <Trash2 className="h-3.5 w-3.5" />
                                                 </button>
                                               </div>
-
-                                              {(option.visibility_rules || []).length === 0 ? (
-                                                <p className="text-[11px] text-[var(--cms-muted)]">
-                                                  Always visible.
-                                                </p>
-                                              ) : (
-                                                <div className="space-y-2">
-                                                  {(option.visibility_rules || []).map(
-                                                    (rule, ruleIndex) => (
-                                                      <div
-                                                        key={rule.id || `opt-rule-${groupIndex}-${optionIndex}-${ruleIndex}`}
-                                                        className="rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel)] p-2.5 space-y-2"
-                                                      >
-                                                        <div className="flex items-center justify-between gap-2">
-                                                          <div className="flex items-center gap-2">
-                                                            <select
-                                                              value={rule.kind}
-                                                              onChange={(e) =>
-                                                                updateOptionVisibilityRuleField(
-                                                                  groupIndex,
-                                                                  optionIndex,
-                                                                  ruleIndex,
-                                                                  "kind",
-                                                                  e.target.value ===
-                                                                    "exclude"
-                                                                    ? "exclude"
-                                                                    : "include",
-                                                                )}
-                                                              className="h-8 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-2 text-xs focus:outline-none focus:border-[var(--cms-text)]"
-                                                            >
-                                                              <option value="include">
-                                                                Include
-                                                              </option>
-                                                              <option value="exclude">
-                                                                Exclude
-                                                              </option>
-                                                            </select>
-                                                            <label className="inline-flex items-center gap-1.5 text-xs text-[var(--cms-muted)]">
-                                                              <input
-                                                                type="checkbox"
-                                                                checked={
-                                                                  rule.is_active !== false
-                                                                }
-                                                                onChange={(e) =>
-                                                                  updateOptionVisibilityRuleField(
-                                                                    groupIndex,
-                                                                    optionIndex,
-                                                                    ruleIndex,
-                                                                    "is_active",
-                                                                    e.target.checked,
-                                                                  )}
-                                                                className="h-3.5 w-3.5 rounded border-[var(--cms-border)]"
-                                                              />
-                                                              Active
-                                                            </label>
-                                                          </div>
-                                                          <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                              removeOptionVisibilityRule(
-                                                                groupIndex,
-                                                                optionIndex,
-                                                                ruleIndex,
-                                                              )}
-                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 transition-colors hover:bg-red-500/10"
-                                                            aria-label="Remove visibility rule"
-                                                          >
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                          </button>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                          <input
-                                                            type="time"
-                                                            value={rule.start_time_local}
-                                                            onChange={(e) =>
-                                                              updateOptionVisibilityRuleField(
-                                                                groupIndex,
-                                                                optionIndex,
-                                                                ruleIndex,
-                                                                "start_time_local",
-                                                                e.target.value,
-                                                              )}
-                                                            className="h-8 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-2 text-xs focus:outline-none focus:border-[var(--cms-text)]"
-                                                          />
-                                                          <input
-                                                            type="time"
-                                                            value={rule.end_time_local}
-                                                            onChange={(e) =>
-                                                              updateOptionVisibilityRuleField(
-                                                                groupIndex,
-                                                                optionIndex,
-                                                                ruleIndex,
-                                                                "end_time_local",
-                                                                e.target.value,
-                                                              )}
-                                                            className="h-8 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-2 text-xs focus:outline-none focus:border-[var(--cms-text)]"
-                                                          />
-                                                          <input
-                                                            type="date"
-                                                            value={rule.start_date || ""}
-                                                            onChange={(e) =>
-                                                              updateOptionVisibilityRuleField(
-                                                                groupIndex,
-                                                                optionIndex,
-                                                                ruleIndex,
-                                                                "start_date",
-                                                                e.target.value || null,
-                                                              )}
-                                                            className="h-8 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-2 text-xs focus:outline-none focus:border-[var(--cms-text)]"
-                                                          />
-                                                          <input
-                                                            type="date"
-                                                            value={rule.end_date || ""}
-                                                            onChange={(e) =>
-                                                              updateOptionVisibilityRuleField(
-                                                                groupIndex,
-                                                                optionIndex,
-                                                                ruleIndex,
-                                                                "end_date",
-                                                                e.target.value || null,
-                                                              )}
-                                                            className="h-8 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-2 text-xs focus:outline-none focus:border-[var(--cms-text)]"
-                                                          />
-                                                        </div>
-                                                        <div className="flex flex-wrap gap-1.5">
-                                                          {WEEKDAY_OPTIONS.map((day) => {
-                                                            const selected = (
-                                                              rule.days_of_week || []
-                                                            ).includes(day.value);
-                                                            return (
-                                                              <button
-                                                                key={`opt-rule-day-${groupIndex}-${optionIndex}-${ruleIndex}-${day.value}`}
-                                                                type="button"
-                                                                onClick={() =>
-                                                                  toggleOptionVisibilityRuleDay(
-                                                                    groupIndex,
-                                                                    optionIndex,
-                                                                    ruleIndex,
-                                                                    day.value,
-                                                                  )}
-                                                                className={`h-6 min-w-[2rem] rounded-md border px-2 text-[10px] font-semibold transition-colors ${selected
-                                                                  ? "bg-[var(--cms-accent)] text-white border-[var(--cms-accent)]"
-                                                                  : "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] border-[var(--cms-border)] hover:text-[var(--cms-text)]"}`}
-                                                              >
-                                                                {day.label}
-                                                              </button>
-                                                            );
-                                                          })}
-                                                        </div>
-                                                      </div>
-                                                    ),
-                                                  )}
-                                                </div>
-                                              )}
+                                              <div className="grid grid-cols-2 gap-2">
+                                                <input
+                                                  type="time"
+                                                  value={rule.start_time_local}
+                                                  onChange={(e) =>
+                                                    updateDisplayOptionVisibilityRuleField(
+                                                      optionIndex,
+                                                      ruleIndex,
+                                                      "start_time_local",
+                                                      e.target.value,
+                                                    )}
+                                                  className="h-8 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2 text-xs focus:outline-none focus:border-[var(--cms-text)]"
+                                                />
+                                                <input
+                                                  type="time"
+                                                  value={rule.end_time_local}
+                                                  onChange={(e) =>
+                                                    updateDisplayOptionVisibilityRuleField(
+                                                      optionIndex,
+                                                      ruleIndex,
+                                                      "end_time_local",
+                                                      e.target.value,
+                                                    )}
+                                                  className="h-8 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2 text-xs focus:outline-none focus:border-[var(--cms-text)]"
+                                                />
+                                                <input
+                                                  type="date"
+                                                  value={rule.start_date || ""}
+                                                  onChange={(e) =>
+                                                    updateDisplayOptionVisibilityRuleField(
+                                                      optionIndex,
+                                                      ruleIndex,
+                                                      "start_date",
+                                                      e.target.value || null,
+                                                    )}
+                                                  className="h-8 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2 text-xs focus:outline-none focus:border-[var(--cms-text)]"
+                                                />
+                                                <input
+                                                  type="date"
+                                                  value={rule.end_date || ""}
+                                                  onChange={(e) =>
+                                                    updateDisplayOptionVisibilityRuleField(
+                                                      optionIndex,
+                                                      ruleIndex,
+                                                      "end_date",
+                                                      e.target.value || null,
+                                                    )}
+                                                  className="h-8 rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2 text-xs focus:outline-none focus:border-[var(--cms-text)]"
+                                                />
+                                              </div>
+                                              <div className="flex flex-wrap gap-1.5">
+                                                {WEEKDAY_OPTIONS.map((day) => {
+                                                  const selected = (
+                                                    rule.days_of_week || []
+                                                  ).includes(day.value);
+                                                  return (
+                                                    <button
+                                                      key={`opt-rule-day-${optionIndex}-${ruleIndex}-${day.value}`}
+                                                      type="button"
+                                                      onClick={() =>
+                                                        toggleDisplayOptionVisibilityRuleDay(
+                                                          optionIndex,
+                                                          ruleIndex,
+                                                          day.value,
+                                                        )}
+                                                      className={`h-6 min-w-[2rem] rounded-md border px-2 text-[10px] font-semibold transition-colors ${selected
+                                                        ? "bg-[var(--cms-accent)] text-white border-[var(--cms-accent)]"
+                                                        : "bg-[var(--cms-panel)] text-[var(--cms-muted)] border-[var(--cms-border)] hover:text-[var(--cms-text)]"}`}
+                                                    >
+                                                      {day.label}
+                                                    </button>
+                                                  );
+                                                })}
+                                              </div>
                                             </div>
-                                          </div>
-                                        ))}
+                                          ),
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -3943,22 +3631,6 @@ export default function MenuDetailPage() {
                                     })}
                                   </div>
 
-                                  <div className="space-y-1 max-w-[10rem]">
-                                    <label className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--cms-muted)]">
-                                      Priority
-                                    </label>
-                                    <input
-                                      type="number"
-                                      value={rule.priority}
-                                      onChange={(e) =>
-                                        updateItemVisibilityRuleField(
-                                          ruleIndex,
-                                          "priority",
-                                          Number(e.target.value) || 0,
-                                        )}
-                                      className="h-9 w-full rounded-lg border border-[var(--cms-border)] bg-[var(--cms-panel)] px-2.5 text-xs focus:outline-none focus:border-[var(--cms-text)]"
-                                    />
-                                  </div>
                                 </div>
                               ))}
                             </div>

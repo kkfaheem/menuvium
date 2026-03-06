@@ -209,7 +209,6 @@ def _replace_item_options_and_visibility(
                     start_date=rule.start_date,
                     end_date=rule.end_date,
                     is_active=rule.is_active,
-                    priority=rule.priority,
                 )
             )
 
@@ -256,7 +255,6 @@ def _replace_item_options_and_visibility(
                         start_date=rule.start_date,
                         end_date=rule.end_date,
                         is_active=rule.is_active,
-                        priority=rule.priority,
                     )
                 )
 

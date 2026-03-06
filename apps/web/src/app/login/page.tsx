@@ -1,16 +1,22 @@
 "use client";
 
 import { Authenticator, ThemeProvider, useAuthenticator, View } from "@aws-amplify/ui-react";
+import { Amplify } from "aws-amplify";
+import { signInWithRedirect } from "aws-amplify/auth";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
 export default function LoginPage() {
     const router = useRouter();
     const { authStatus } = useAuthenticator(context => [context.authStatus]);
+    const [hasOAuth, setHasOAuth] = useState(Boolean(process.env.NEXT_PUBLIC_COGNITO_DOMAIN?.trim()));
+    const [googleLoading, setGoogleLoading] = useState(false);
+    const [socialError, setSocialError] = useState<string | null>(null);
 
     useEffect(() => {
         if (authStatus !== 'authenticated') return;
@@ -19,8 +25,28 @@ export default function LoginPage() {
         router.push("/link-account");
     }, [authStatus, router]);
 
+    useEffect(() => {
+        try {
+            const oauth = Amplify.getConfig()?.Auth?.Cognito?.loginWith?.oauth;
+            if (oauth) setHasOAuth(true);
+        } catch {
+            // Ignore; env-based fallback above still applies.
+        }
+    }, []);
+
     const isConfigured = process.env.NEXT_PUBLIC_USER_POOL_ID && process.env.NEXT_PUBLIC_USER_POOL_ID !== 'us-east-1_dummy';
-    const hasOAuth = Boolean(process.env.NEXT_PUBLIC_COGNITO_DOMAIN);
+
+    const handleGoogleSignIn = async () => {
+        setSocialError(null);
+        setGoogleLoading(true);
+        try {
+            await signInWithRedirect({ provider: "Google" });
+        } catch (error) {
+            console.error("Google sign-in failed", error);
+            setGoogleLoading(false);
+            setSocialError("Google sign-in is temporarily unavailable. Please try again.");
+        }
+    };
 
     const amplifyTheme = useMemo(() => {
         const base = {
@@ -122,23 +148,47 @@ export default function LoginPage() {
                             </CardHeader>
                             <CardContent>
                                 {isConfigured ? (
-                                    <ThemeProvider theme={amplifyTheme}>
-                                        <View className="auth-wrapper">
-                                            <Authenticator
-                                                loginMechanisms={["email"]}
-                                                socialProviders={hasOAuth ? ["google"] : []}
-                                                signUpAttributes={["email", "name"]}
-                                                formFields={{
-                                                    signUp: {
-                                                        email: { label: "Email", placeholder: "Enter your email", order: 1 },
-                                                        name: { label: "Full Name", placeholder: "Enter your full name", order: 2 },
-                                                        password: { label: "Password", placeholder: "Create a password", order: 3 },
-                                                        confirm_password: { label: "Confirm Password", placeholder: "Confirm your password", order: 4 },
-                                                    }
-                                                }}
-                                            />
-                                        </View>
-                                    </ThemeProvider>
+                                    <div className="space-y-4">
+                                        {hasOAuth ? (
+                                            <div className="space-y-3">
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full"
+                                                    onClick={() => void handleGoogleSignIn()}
+                                                    loading={googleLoading}
+                                                >
+                                                    Continue with Google
+                                                </Button>
+                                                <div className="flex items-center gap-3 text-xs text-muted">
+                                                    <span className="h-px flex-1 bg-border" />
+                                                    <span>or continue with email</span>
+                                                    <span className="h-px flex-1 bg-border" />
+                                                </div>
+                                            </div>
+                                        ) : null}
+
+                                        <ThemeProvider theme={amplifyTheme}>
+                                            <View className="auth-wrapper">
+                                                <Authenticator
+                                                    initialState="signIn"
+                                                    loginMechanisms={["email"]}
+                                                    socialProviders={[]}
+                                                    signUpAttributes={["email", "name"]}
+                                                    formFields={{
+                                                        signUp: {
+                                                            email: { label: "Email", placeholder: "Enter your email", order: 1 },
+                                                            name: { label: "Full Name", placeholder: "Enter your full name", order: 2 },
+                                                            password: { label: "Password", placeholder: "Create a password", order: 3 },
+                                                            confirm_password: { label: "Confirm Password", placeholder: "Confirm your password", order: 4 },
+                                                        }
+                                                    }}
+                                                />
+                                            </View>
+                                        </ThemeProvider>
+                                        {socialError ? (
+                                            <p className="text-xs text-red-400">{socialError}</p>
+                                        ) : null}
+                                    </div>
                                 ) : (
                                     <div className="space-y-3">
                                         <div className="rounded-xl border border-border bg-[var(--cms-accent-subtle)] px-4 py-3 text-sm leading-relaxed">

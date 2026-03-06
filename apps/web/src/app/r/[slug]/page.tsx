@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Search, X, AlertCircle, SlidersHorizontal, Check } from "lucide-react";
+import { Search, X, AlertCircle, SlidersHorizontal } from "lucide-react";
 import { MENU_THEME_BY_ID, MenuThemeId } from "@/lib/menuThemes";
 import { getApiBase } from "@/lib/apiBase";
 import {
@@ -17,9 +17,6 @@ import type {
   DietaryTag,
   Allergen,
 } from "@/types";
-
-type DrawerOptionGroup = NonNullable<Item["option_groups"]>[number];
-type DrawerOption = NonNullable<DrawerOptionGroup["options"]>[number];
 
 export default function PublicMenuPage() {
   const params = useParams();
@@ -42,9 +39,6 @@ export default function PublicMenuPage() {
 
   // Modal State
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
-  const [selectedOptionsByGroup, setSelectedOptionsByGroup] = useState<
-    Record<string, string[]>
-  >({});
 
   useEffect(() => {
     if (!selectedItem) return;
@@ -75,60 +69,6 @@ export default function PublicMenuPage() {
       setSelectedItem(updated);
     }
   }, [menu, selectedItem]);
-
-  useEffect(() => {
-    if (!selectedItem) {
-      setSelectedOptionsByGroup({});
-      return;
-    }
-    const nextSelections: Record<string, string[]> = {};
-    (selectedItem.option_groups || []).forEach((group, groupIndex) => {
-      const groupKey = group.id || `group-${groupIndex}`;
-      const options = group.options || [];
-      if (options.length === 0) return;
-      const optionKeys = options.map(
-        (option, optionIndex) => option.id || `${groupKey}-option-${optionIndex}`,
-      );
-      const defaultKeys = options
-        .map((option, optionIndex) =>
-          option.is_default
-            ? option.id || `${groupKey}-option-${optionIndex}`
-            : null,
-        )
-        .filter(Boolean) as string[];
-      const minSelect = Math.max(0, Number(group.min_select) || 0);
-      const maxSelect =
-        group.max_select === null || group.max_select === undefined
-          ? null
-          : Math.max(0, Number(group.max_select) || 0);
-
-      if (group.selection_mode === "single") {
-        if (defaultKeys.length > 0) {
-          nextSelections[groupKey] = [defaultKeys[0]];
-        } else if (minSelect > 0) {
-          nextSelections[groupKey] = [optionKeys[0]];
-        } else {
-          nextSelections[groupKey] = [];
-        }
-        return;
-      }
-
-      const seed = [...defaultKeys];
-      if (seed.length < minSelect) {
-        for (const optionKey of optionKeys) {
-          if (!seed.includes(optionKey)) {
-            seed.push(optionKey);
-          }
-          if (seed.length >= minSelect) break;
-        }
-      }
-      nextSelections[groupKey] =
-        maxSelect !== null && seed.length > maxSelect
-          ? seed.slice(0, maxSelect)
-          : seed;
-    });
-    setSelectedOptionsByGroup(nextSelections);
-  }, [selectedItem?.id]);
 
   useEffect(() => {
     if (menuId) fetchMenu();
@@ -251,64 +191,8 @@ export default function PublicMenuPage() {
     }
   };
 
-  const getDrawerGroupKey = (group: DrawerOptionGroup, groupIndex: number) =>
-    group.id || `group-${groupIndex}`;
-
-  const getDrawerOptionKey = (
-    groupKey: string,
-    option: DrawerOption,
-    optionIndex: number,
-  ) => option.id || `${groupKey}-option-${optionIndex}`;
-
-  const getGroupRequirementLabel = (group: DrawerOptionGroup) => {
-    const minSelect = Math.max(0, Number(group.min_select) || 0);
-    const maxSelect =
-      group.max_select === null || group.max_select === undefined
-        ? null
-        : Math.max(0, Number(group.max_select) || 0);
-    if (group.selection_mode === "single") {
-      return minSelect > 0 ? "Choose 1" : "Optional";
-    }
-    if (minSelect > 0 && maxSelect !== null) {
-      return `Choose ${minSelect}-${maxSelect}`;
-    }
-    if (minSelect > 0) {
-      return `Choose at least ${minSelect}`;
-    }
-    if (maxSelect !== null) {
-      return `Choose up to ${maxSelect}`;
-    }
-    return "Optional";
-  };
-
-  const toggleDrawerOption = (
-    group: DrawerOptionGroup,
-    groupIndex: number,
-    option: DrawerOption,
-    optionIndex: number,
-  ) => {
-    const groupKey = getDrawerGroupKey(group, groupIndex);
-    const optionKey = getDrawerOptionKey(groupKey, option, optionIndex);
-    const maxSelect =
-      group.max_select === null || group.max_select === undefined
-        ? null
-        : Math.max(0, Number(group.max_select) || 0);
-
-    setSelectedOptionsByGroup((prev) => {
-      const current = prev[groupKey] || [];
-      if (group.selection_mode === "single") {
-        return { ...prev, [groupKey]: [optionKey] };
-      }
-      const isSelected = current.includes(optionKey);
-      if (isSelected) {
-        return { ...prev, [groupKey]: current.filter((key) => key !== optionKey) };
-      }
-      if (maxSelect !== null && current.length >= maxSelect) {
-        return prev;
-      }
-      return { ...prev, [groupKey]: [...current, optionKey] };
-    });
-  };
+  const getItemDisplayOptions = (item: Item) =>
+    (item.option_groups || []).flatMap((group) => group.options || []);
 
   const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -444,26 +328,6 @@ export default function PublicMenuPage() {
         };
       })
       .filter((cat) => cat.items.length > 0) || [];
-
-  const selectedOptionsSummary = useMemo(() => {
-    if (!selectedItem) return "";
-    const labels: string[] = [];
-    (selectedItem.option_groups || []).forEach((group, groupIndex) => {
-      const groupKey = getDrawerGroupKey(group, groupIndex);
-      const selectedKeys = selectedOptionsByGroup[groupKey] || [];
-      if (selectedKeys.length === 0) return;
-      const optionNames = (group.options || [])
-        .filter((option, optionIndex) =>
-          selectedKeys.includes(getDrawerOptionKey(groupKey, option, optionIndex)),
-        )
-        .map((option) => option.name)
-        .filter((name): name is string => Boolean(name));
-      if (optionNames.length > 0) {
-        labels.push(...optionNames);
-      }
-    });
-    return labels.join(", ");
-  }, [selectedItem, selectedOptionsByGroup]);
 
   const previewTheme = searchParams.get("theme");
   const previewShowImages = searchParams.get("show_images");
@@ -1646,173 +1510,67 @@ export default function PublicMenuPage() {
                     "No description available for this item."}
                 </p>
 
-                {(selectedItem.option_groups?.length ?? 0) > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4
-                        className="text-xs font-bold uppercase tracking-widest"
-                        style={{ color: palette.muted }}
-                      >
-                        Options
-                      </h4>
-                    </div>
-                    {(selectedItem.option_groups || []).map((group, groupIndex) => {
-                      const groupKey = getDrawerGroupKey(group, groupIndex);
-                      const selectedKeys = selectedOptionsByGroup[groupKey] || [];
-                      const minSelect = Math.max(0, Number(group.min_select) || 0);
-                      const maxSelect =
-                        group.max_select === null || group.max_select === undefined
-                          ? null
-                          : Math.max(0, Number(group.max_select) || 0);
-                      const isValid =
-                        selectedKeys.length >= minSelect &&
-                        (maxSelect === null || selectedKeys.length <= maxSelect);
-                      const isCards = group.display_style === "cards";
-                      const isList = group.display_style === "list";
-
-                      return (
+                {getItemDisplayOptions(selectedItem).length > 0 && (
+                  <div className="space-y-3">
+                    <h4
+                      className="text-xs font-bold uppercase tracking-widest"
+                      style={{ color: palette.muted }}
+                    >
+                      Options
+                    </h4>
+                    <div
+                      className="rounded-2xl border p-3 space-y-2"
+                      style={{
+                        borderColor: palette.border,
+                        backgroundColor: palette.surfaceAlt,
+                      }}
+                    >
+                      {getItemDisplayOptions(selectedItem).map((option, optionIndex) => (
                         <div
-                          key={group.id || `drawer-group-${groupIndex}`}
-                          className="rounded-2xl border p-4 space-y-3"
+                          key={option.id || `drawer-option-${optionIndex}`}
+                          className="rounded-xl border p-3"
                           style={{
                             borderColor: palette.border,
-                            backgroundColor: palette.surfaceAlt,
+                            backgroundColor: palette.surface,
                           }}
                         >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="font-semibold text-sm">{group.name}</p>
-                              {group.description && (
+                          <div className="flex items-start gap-3">
+                            {option.image_url && (
+                              <img
+                                src={option.image_url}
+                                alt={option.name}
+                                className="h-12 w-12 rounded-lg object-cover shrink-0"
+                              />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-sm">{option.name}</p>
+                                {option.badge && (
+                                  <span
+                                    className="inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]"
+                                    style={{
+                                      borderColor: palette.border,
+                                      color: palette.muted,
+                                      backgroundColor: palette.surfaceAlt,
+                                    }}
+                                  >
+                                    {option.badge}
+                                  </span>
+                                )}
+                              </div>
+                              {option.description && (
                                 <p
                                   className="text-xs mt-1 leading-relaxed"
                                   style={{ color: palette.muted }}
                                 >
-                                  {group.description}
+                                  {option.description}
                                 </p>
                               )}
                             </div>
-                            <div className="text-right">
-                              <p
-                                className="text-[10px] font-bold uppercase tracking-[0.14em]"
-                                style={{ color: palette.muted }}
-                              >
-                                {getGroupRequirementLabel(group)}
-                              </p>
-                              <p
-                                className="text-[10px] mt-1"
-                                style={{
-                                  color: isValid ? palette.muted : palette.accent,
-                                }}
-                              >
-                                {selectedKeys.length} selected
-                              </p>
-                            </div>
-                          </div>
-
-                          <div
-                            className={
-                              isCards
-                                ? "grid grid-cols-1 gap-2 sm:grid-cols-2"
-                                : isList
-                                  ? "space-y-2"
-                                  : "flex flex-wrap gap-2"
-                            }
-                          >
-                            {(group.options || []).map((option, optionIndex) => {
-                              const optionKey = getDrawerOptionKey(
-                                groupKey,
-                                option,
-                                optionIndex,
-                              );
-                              const selected = selectedKeys.includes(optionKey);
-                              return (
-                                <button
-                                  key={option.id || `drawer-option-${groupIndex}-${optionIndex}`}
-                                  type="button"
-                                  onClick={() =>
-                                    toggleDrawerOption(
-                                      group,
-                                      groupIndex,
-                                      option,
-                                      optionIndex,
-                                    )}
-                                  className={`transition-colors ${isCards
-                                    ? "w-full rounded-xl border p-3 text-left"
-                                    : isList
-                                      ? "w-full rounded-xl border px-3 py-2.5 text-left"
-                                      : "rounded-full border px-3 py-2 text-xs font-semibold"}`}
-                                  style={{
-                                    borderColor: selected
-                                      ? palette.accent
-                                      : palette.border,
-                                    backgroundColor: selected
-                                      ? `color-mix(in srgb, ${palette.accent} 15%, ${palette.surfaceAlt})`
-                                      : palette.surface,
-                                    color: palette.text,
-                                  }}
-                                >
-                                  <div className="flex items-start gap-2.5">
-                                    {isCards && option.image_url && (
-                                      <img
-                                        src={option.image_url}
-                                        alt={option.name}
-                                        className="h-12 w-12 rounded-lg object-cover shrink-0"
-                                      />
-                                    )}
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="font-semibold text-sm">
-                                          {option.name}
-                                        </span>
-                                        {selected && (
-                                          <Check
-                                            className="h-4 w-4 shrink-0"
-                                            style={{ color: palette.accent }}
-                                          />
-                                        )}
-                                      </div>
-                                      {option.description && (
-                                        <p
-                                          className="text-xs mt-1"
-                                          style={{ color: palette.muted }}
-                                        >
-                                          {option.description}
-                                        </p>
-                                      )}
-                                      {option.badge && (
-                                        <span
-                                          className="inline-flex mt-2 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]"
-                                          style={{
-                                            borderColor: palette.border,
-                                            color: palette.muted,
-                                            backgroundColor: palette.surfaceAlt,
-                                          }}
-                                        >
-                                          {option.badge}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </button>
-                              );
-                            })}
                           </div>
                         </div>
-                      );
-                    })}
-
-                    {selectedOptionsSummary && (
-                      <div
-                        className="rounded-xl border px-3 py-2 text-xs font-semibold"
-                        style={{
-                          borderColor: palette.border,
-                          backgroundColor: palette.surfaceAlt,
-                          color: palette.muted,
-                        }}
-                      >
-                        Selected: {selectedOptionsSummary}
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
                 )}
 

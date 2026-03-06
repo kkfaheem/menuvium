@@ -431,6 +431,255 @@ class ZipImportResult(BaseModel):
     allergens_created: int
 
 
+def import_menu_from_zip_bytes(
+    menu: Menu,
+    zip_bytes: bytes,
+    session: Session,
+    public_prefix: str = "",
+) -> ZipImportResult:
+    """Import a Menuvium ZIP payload into an existing menu."""
+    # Read ZIP file
+    try:
+        zip_buffer = io.BytesIO(zip_bytes)
+        zf = zipfile.ZipFile(zip_buffer, "r")
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Invalid or corrupted ZIP file")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read ZIP file: {str(e)}")
+
+    # Extract and validate manifest
+    try:
+        manifest_path, base_prefix = _select_manifest_path(zf)
+        manifest_data = zf.read(manifest_path)
+        manifest = json.loads(manifest_data.decode("utf-8"))
+    except KeyError:
+        raise HTTPException(status_code=400, detail="ZIP archive missing manifest.json")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid manifest.json format")
+
+    # Validate manifest version
+    version = manifest.get("version", "1.0")
+    if not version.startswith("1."):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported manifest version: {version}. Expected 1.x"
+        )
+
+    # Apply manifest metadata to menu
+    menu_name = manifest.get("menu_name")
+    if menu_name:
+        menu.name = menu_name
+    menu_slug = manifest.get("menu_slug")
+    if menu_slug:
+        menu.slug = menu_slug
+    menu_theme = manifest.get("menu_theme")
+    if menu_theme:
+        menu.theme = menu_theme
+
+    menu_title_design_config = manifest.get("menu_title_design_config")
+    menu_logos_filenames = manifest.get("menu_logos_filenames", [])
+
+    # Get list of files in ZIP for image lookup (needed for banner/logo import)
+    zip_files = set(zf.namelist())
+
+    # Import banner image if present in ZIP
+    banner_filename = manifest.get("menu_banner_filename")
+    resolved_banner = _resolve_zip_member(zip_files, base_prefix, banner_filename) if banner_filename else None
+    if resolved_banner:
+        try:
+            image_data = zf.read(resolved_banner)
+            ext = resolved_banner.split(".")[-1].lower() if "." in resolved_banner else "jpg"
+            content_type_map = {
+                "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                "gif": "image/gif", "webp": "image/webp"
+            }
+            content_type = content_type_map.get(ext, "image/jpeg")
+            _s3_key, public_url = _upload_image_to_storage(
+                image_data, f"banner_{uuid.uuid4()}.{ext}", content_type, public_prefix
+            )
+            menu.banner_url = public_url
+        except Exception as e:
+            print(f"Warning: Failed to import banner: {e}")
+
+    # Import logo image if present in ZIP
+    logo_filename = manifest.get("menu_logo_filename")
+    resolved_logo = _resolve_zip_member(zip_files, base_prefix, logo_filename) if logo_filename else None
+    if resolved_logo:
+        try:
+            image_data = zf.read(resolved_logo)
+            ext = resolved_logo.split(".")[-1].lower() if "." in resolved_logo else "jpg"
+            content_type_map = {
+                "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                "gif": "image/gif", "webp": "image/webp"
+            }
+            content_type = content_type_map.get(ext, "image/jpeg")
+            _s3_key, public_url = _upload_image_to_storage(
+                image_data, f"logo_{uuid.uuid4()}.{ext}", content_type, public_prefix
+            )
+            menu.logo_url = public_url
+        except Exception as e:
+            print(f"Warning: Failed to import logo: {e}")
+
+    if menu_title_design_config and isinstance(menu_title_design_config, dict):
+        new_logos_urls = []
+        for logo_fn in menu_logos_filenames:
+            if not logo_fn:
+                new_logos_urls.append("")
+                continue
+
+            resolved_logo = _resolve_zip_member(zip_files, base_prefix, logo_fn)
+            if resolved_logo:
+                try:
+                    image_data = zf.read(resolved_logo)
+                    ext = resolved_logo.split(".")[-1].lower() if "." in resolved_logo else "jpg"
+                    content_type_map = {
+                        "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+                        "gif": "image/gif", "webp": "image/webp"
+                    }
+                    content_type = content_type_map.get(ext, "image/jpeg")
+                    _s3_key, public_url = _upload_image_to_storage(
+                        image_data, f"config_logo_{uuid.uuid4()}.{ext}", content_type, public_prefix
+                    )
+                    new_logos_urls.append(public_url)
+                except Exception as e:
+                    print(f"Warning: Failed to import config logo: {e}")
+                    new_logos_urls.append("")
+            else:
+                new_logos_urls.append("")
+
+        menu_title_design_config["logos"] = new_logos_urls
+        menu.title_design_config = menu_title_design_config
+
+    session.add(menu)
+    session.flush()
+
+    # Track statistics
+    categories_created = 0
+    items_created = 0
+    photos_imported = 0
+    tags_created_set = set()
+    allergens_created_set = set()
+
+    # Process categories
+    categories_data = manifest.get("categories", [])
+    for cat_data in categories_data:
+        cat_name = cat_data.get("name", "Untitled Category")
+        cat_rank = cat_data.get("rank", categories_created)
+
+        category = Category(name=cat_name, menu_id=menu.id, rank=cat_rank)
+        session.add(category)
+        session.flush()
+        categories_created += 1
+
+        # Process items in category
+        items_data = cat_data.get("items", [])
+        for item_index, item_data in enumerate(items_data):
+            item_name = item_data.get("name")
+            if not item_name:
+                continue
+
+            # Create item
+            new_item = Item(
+                name=item_name,
+                description=item_data.get("description"),
+                price=item_data.get("price", 0.0),
+                position=item_data.get("position", item_index),
+                is_sold_out=item_data.get("is_sold_out", False),
+                category_id=category.id
+            )
+            session.add(new_item)
+            session.flush()
+            items_created += 1
+
+            # Link dietary tags (get-or-create)
+            # Supports both object format {name, icon} and legacy string format
+            dietary_tags = item_data.get("dietary_tags", [])
+            for tag_data in dietary_tags:
+                if isinstance(tag_data, dict):
+                    tag_name = tag_data.get("name")
+                    tag_icon = tag_data.get("icon")
+                elif isinstance(tag_data, str):
+                    tag_name = tag_data
+                    tag_icon = None
+                else:
+                    continue
+
+                if tag_name:
+                    tag = _get_or_create_dietary_tag(session, tag_name, tag_icon)
+                    if tag not in new_item.dietary_tags:
+                        new_item.dietary_tags.append(tag)
+                    tags_created_set.add(tag_name)
+
+            # Link allergens (get-or-create)
+            # Supports both object format {name} and legacy string format
+            allergens = item_data.get("allergens", [])
+            for allergen_data in allergens:
+                if isinstance(allergen_data, dict):
+                    allergen_name = allergen_data.get("name")
+                elif isinstance(allergen_data, str):
+                    allergen_name = allergen_data
+                else:
+                    continue
+
+                if allergen_name:
+                    allergen = _get_or_create_allergen(session, allergen_name)
+                    if allergen not in new_item.allergens:
+                        new_item.allergens.append(allergen)
+                    allergens_created_set.add(allergen_name)
+
+            # Process photos
+            photos_data = item_data.get("photos", [])
+            for photo_data in photos_data:
+                zip_path = photo_data.get("filename")
+                resolved_photo = _resolve_zip_member(zip_files, base_prefix, zip_path) if zip_path else None
+                if not resolved_photo:
+                    continue
+
+                try:
+                    image_data = zf.read(resolved_photo)
+                    # Extract just the filename for upload
+                    image_filename = resolved_photo.split("/")[-1]
+
+                    # Determine content type from extension
+                    ext = image_filename.split(".")[-1].lower() if "." in image_filename else "jpg"
+                    content_type_map = {
+                        "jpg": "image/jpeg",
+                        "jpeg": "image/jpeg",
+                        "png": "image/png",
+                        "gif": "image/gif",
+                        "webp": "image/webp"
+                    }
+                    content_type = content_type_map.get(ext, "image/jpeg")
+
+                    # Upload to storage
+                    s3_key, public_url = _upload_image_to_storage(
+                        image_data, image_filename, content_type, public_prefix
+                    )
+
+                    # Create photo record
+                    photo = ItemPhoto(
+                        s3_key=s3_key,
+                        url=public_url,
+                        item_id=new_item.id
+                    )
+                    session.add(photo)
+                    photos_imported += 1
+                except Exception as e:
+                    # Log but continue - missing images shouldn't fail the import
+                    print(f"Warning: Failed to import photo {zip_path}: {e}")
+                    continue
+
+    zf.close()
+
+    return ZipImportResult(
+        categories_created=categories_created,
+        items_created=items_created,
+        photos_imported=photos_imported,
+        tags_created=len(tags_created_set),
+        allergens_created=len(allergens_created_set)
+    )
+
+
 @router.post("/menu/from-zip", response_model=ZipImportResult, status_code=201)
 def import_menu_from_zip(
     menu_id: uuid.UUID,
@@ -450,253 +699,20 @@ def import_menu_from_zip(
     """
     menu = _get_menu_or_404(menu_id, session, user)
     public_prefix = forwarded_prefix(request)
-    
+
     # Validate file type
     if not file.filename or not file.filename.lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="File must be a ZIP archive")
-    
-    # Read ZIP file
-    try:
-        file_content = file.file.read()
-        zip_buffer = io.BytesIO(file_content)
-        zf = zipfile.ZipFile(zip_buffer, "r")
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="Invalid or corrupted ZIP file")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read ZIP file: {str(e)}")
-    
-    # Extract and validate manifest
-    try:
-        manifest_path, base_prefix = _select_manifest_path(zf)
-        manifest_data = zf.read(manifest_path)
-        manifest = json.loads(manifest_data.decode("utf-8"))
-    except KeyError:
-        raise HTTPException(status_code=400, detail="ZIP archive missing manifest.json")
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid manifest.json format")
-    
-    # Validate manifest version
-    version = manifest.get("version", "1.0")
-    if not version.startswith("1."):
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Unsupported manifest version: {version}. Expected 1.x"
-        )
-    
-    # Apply manifest metadata to menu
-    menu_name = manifest.get("menu_name")
-    if menu_name:
-        menu.name = menu_name
-    menu_slug = manifest.get("menu_slug")
-    if menu_slug:
-        menu.slug = menu_slug
-    menu_theme = manifest.get("menu_theme")
-    if menu_theme:
-        menu.theme = menu_theme
-        
-    menu_title_design_config = manifest.get("menu_title_design_config")
-    menu_logos_filenames = manifest.get("menu_logos_filenames", [])
-    
-    # Get list of files in ZIP for image lookup (needed for banner/logo import)
-    zip_files = set(zf.namelist())
-    
-    # Import banner image if present in ZIP
-    banner_filename = manifest.get("menu_banner_filename")
-    resolved_banner = _resolve_zip_member(zip_files, base_prefix, banner_filename) if banner_filename else None
-    if resolved_banner:
-        try:
-            image_data = zf.read(resolved_banner)
-            ext = resolved_banner.split(".")[-1].lower() if "." in resolved_banner else "jpg"
-            content_type_map = {
-                "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
-                "gif": "image/gif", "webp": "image/webp"
-            }
-            content_type = content_type_map.get(ext, "image/jpeg")
-            s3_key, public_url = _upload_image_to_storage(
-                image_data, f"banner_{uuid.uuid4()}.{ext}", content_type, public_prefix
-            )
-            menu.banner_url = public_url
-        except Exception as e:
-            print(f"Warning: Failed to import banner: {e}")
-    
-    # Import logo image if present in ZIP
-    logo_filename = manifest.get("menu_logo_filename")
-    resolved_logo = _resolve_zip_member(zip_files, base_prefix, logo_filename) if logo_filename else None
-    if resolved_logo:
-        try:
-            image_data = zf.read(resolved_logo)
-            ext = resolved_logo.split(".")[-1].lower() if "." in resolved_logo else "jpg"
-            content_type_map = {
-                "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
-                "gif": "image/gif", "webp": "image/webp"
-            }
-            content_type = content_type_map.get(ext, "image/jpeg")
-            s3_key, public_url = _upload_image_to_storage(
-                image_data, f"logo_{uuid.uuid4()}.{ext}", content_type, public_prefix
-            )
-            menu.logo_url = public_url
-        except Exception as e:
-            print(f"Warning: Failed to import logo: {e}")
-            
-    if menu_title_design_config and isinstance(menu_title_design_config, dict):
-        new_logos_urls = []
-        for logo_fn in menu_logos_filenames:
-            if not logo_fn:
-                new_logos_urls.append("")
-                continue
-            
-            resolved_logo = _resolve_zip_member(zip_files, base_prefix, logo_fn)
-            if resolved_logo:
-                try:
-                    image_data = zf.read(resolved_logo)
-                    ext = resolved_logo.split(".")[-1].lower() if "." in resolved_logo else "jpg"
-                    content_type_map = {
-                        "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
-                        "gif": "image/gif", "webp": "image/webp"
-                    }
-                    content_type = content_type_map.get(ext, "image/jpeg")
-                    s3_key, public_url = _upload_image_to_storage(
-                        image_data, f"config_logo_{uuid.uuid4()}.{ext}", content_type, public_prefix
-                    )
-                    new_logos_urls.append(public_url)
-                except Exception as e:
-                    print(f"Warning: Failed to import config logo: {e}")
-                    new_logos_urls.append("")
-            else:
-                new_logos_urls.append("")
-                
-        menu_title_design_config["logos"] = new_logos_urls
-        menu.title_design_config = menu_title_design_config
-    
-    session.add(menu)
-    session.flush()
-    
-    # Track statistics
-    categories_created = 0
-    items_created = 0
-    photos_imported = 0
-    tags_created_set = set()
-    allergens_created_set = set()
-    
-    # Process categories
-    categories_data = manifest.get("categories", [])
-    for cat_data in categories_data:
-        cat_name = cat_data.get("name", "Untitled Category")
-        cat_rank = cat_data.get("rank", categories_created)
-        
-        category = Category(name=cat_name, menu_id=menu.id, rank=cat_rank)
-        session.add(category)
-        session.flush()
-        categories_created += 1
-        
-        # Process items in category
-        items_data = cat_data.get("items", [])
-        for item_index, item_data in enumerate(items_data):
-            item_name = item_data.get("name")
-            if not item_name:
-                continue
-            
-            # Create item
-            new_item = Item(
-                name=item_name,
-                description=item_data.get("description"),
-                price=item_data.get("price", 0.0),
-                position=item_data.get("position", item_index),
-                is_sold_out=item_data.get("is_sold_out", False),
-                category_id=category.id
-            )
-            session.add(new_item)
-            session.flush()
-            items_created += 1
-            
-            # Link dietary tags (get-or-create)
-            # Supports both object format {name, icon} and legacy string format
-            dietary_tags = item_data.get("dietary_tags", [])
-            for tag_data in dietary_tags:
-                if isinstance(tag_data, dict):
-                    tag_name = tag_data.get("name")
-                    tag_icon = tag_data.get("icon")
-                elif isinstance(tag_data, str):
-                    tag_name = tag_data
-                    tag_icon = None
-                else:
-                    continue
-                
-                if tag_name:
-                    tag = _get_or_create_dietary_tag(session, tag_name, tag_icon)
-                    if tag not in new_item.dietary_tags:
-                        new_item.dietary_tags.append(tag)
-                    tags_created_set.add(tag_name)
-            
-            # Link allergens (get-or-create)
-            # Supports both object format {name} and legacy string format
-            allergens = item_data.get("allergens", [])
-            for allergen_data in allergens:
-                if isinstance(allergen_data, dict):
-                    allergen_name = allergen_data.get("name")
-                elif isinstance(allergen_data, str):
-                    allergen_name = allergen_data
-                else:
-                    continue
-                
-                if allergen_name:
-                    allergen = _get_or_create_allergen(session, allergen_name)
-                    if allergen not in new_item.allergens:
-                        new_item.allergens.append(allergen)
-                    allergens_created_set.add(allergen_name)
-            
-            # Process photos
-            photos_data = item_data.get("photos", [])
-            for photo_data in photos_data:
-                zip_path = photo_data.get("filename")
-                resolved_photo = _resolve_zip_member(zip_files, base_prefix, zip_path) if zip_path else None
-                if not resolved_photo:
-                    continue
-                
-                try:
-                    image_data = zf.read(resolved_photo)
-                    # Extract just the filename for upload
-                    image_filename = resolved_photo.split("/")[-1]
-                    
-                    # Determine content type from extension
-                    ext = image_filename.split(".")[-1].lower() if "." in image_filename else "jpg"
-                    content_type_map = {
-                        "jpg": "image/jpeg",
-                        "jpeg": "image/jpeg",
-                        "png": "image/png",
-                        "gif": "image/gif",
-                        "webp": "image/webp"
-                    }
-                    content_type = content_type_map.get(ext, "image/jpeg")
-                    
-                    # Upload to storage
-                    s3_key, public_url = _upload_image_to_storage(
-                        image_data, image_filename, content_type, public_prefix
-                    )
-                    
-                    # Create photo record
-                    photo = ItemPhoto(
-                        s3_key=s3_key,
-                        url=public_url,
-                        item_id=new_item.id
-                    )
-                    session.add(photo)
-                    photos_imported += 1
-                except Exception as e:
-                    # Log but continue - missing images shouldn't fail the import
-                    print(f"Warning: Failed to import photo {zip_path}: {e}")
-                    continue
-    
-    session.commit()
-    zf.close()
-    
-    return ZipImportResult(
-        categories_created=categories_created,
-        items_created=items_created,
-        photos_imported=photos_imported,
-        tags_created=len(tags_created_set),
-        allergens_created=len(allergens_created_set)
+
+    file_content = file.file.read()
+    result = import_menu_from_zip_bytes(
+        menu=menu,
+        zip_bytes=file_content,
+        session=session,
+        public_prefix=public_prefix,
     )
+    session.commit()
+    return result
 
 
 class ManifestPreview(BaseModel):

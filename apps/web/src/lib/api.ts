@@ -358,6 +358,18 @@ export interface AdminJob {
     finished_at?: string;
 }
 
+export interface ImporterDirectImportResult {
+    menu_id: string;
+    menu_name: string;
+    org_id: string;
+    org_name: string;
+    categories_created: number;
+    items_created: number;
+    photos_imported: number;
+    tags_created: number;
+    allergens_created: number;
+}
+
 export interface AdminCompanyDetail extends AdminOrganization {
     item_count: number;
     total_ai_tokens: number;
@@ -457,6 +469,8 @@ export const adminApi = {
     createImporterJob: (data: { restaurant_name: string; location_hint?: string; website_override?: string }) =>
         api.post<AdminJob>("/admin/menu-importer/jobs", data),
     getImporterJobDetails: (id: string) => api.get<any>(`/admin/menu-importer/jobs/${id}`),
+    importProcessedMenu: (jobId: string, data: { org_id: string }) =>
+        api.post<ImporterDirectImportResult>(`/admin/menu-importer/jobs/${jobId}/import`, data),
     downloadImporterZip: async (jobId: string, restaurantName: string) => {
         const base = getApiBase();
         const token = await getAuthToken();

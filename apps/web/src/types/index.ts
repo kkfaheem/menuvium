@@ -29,7 +29,6 @@ export interface VisibilityRule {
   start_date?: string | null;
   end_date?: string | null;
   is_active: boolean;
-  priority: number;
 }
 
 export interface ItemOption {

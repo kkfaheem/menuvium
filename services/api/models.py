@@ -209,7 +209,6 @@ class VisibilityRuleBase(SQLModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     is_active: bool = Field(default=True)
-    priority: int = Field(default=0)
 
 
 class ItemOptionGroup(ItemOptionGroupBase, table=True):

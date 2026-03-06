@@ -158,7 +158,6 @@ export default function SettingsPage() {
         }
         fetchDietaryTags();
         fetchAllergens();
-        fetchProfile();
     }, []);
 
     const createDietaryTag = async (name: string) => {
@@ -610,16 +609,6 @@ export default function SettingsPage() {
 	            </header>
 
             <div className="inline-flex w-fit rounded-xl border border-border bg-panelStrong p-1">
-                <button
-                    type="button"
-                    onClick={() => setActiveTab("profile")}
-                    className={cn(
-                        "h-9 rounded-lg px-4 text-xs font-semibold transition-colors",
-                        activeTab === "profile" ? activeOptionClasses : "text-muted hover:text-foreground"
-                    )}
-                >
-                    Profile
-                </button>
                 <button
                     type="button"
                     onClick={() => setActiveTab("general")}

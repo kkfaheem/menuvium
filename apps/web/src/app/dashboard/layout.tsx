@@ -210,8 +210,7 @@ export default function DashboardLayout({
         if (mode === "manager") {
             const restricted =
                 pathname === "/dashboard" ||
-                pathname.startsWith("/dashboard/companies") ||
-                pathname.startsWith("/dashboard/settings");
+                pathname.startsWith("/dashboard/companies");
             if (restricted) {
                 router.replace("/dashboard/menus");
             }
@@ -470,21 +469,6 @@ export default function DashboardLayout({
                                 Companies
                             </Link>
                         )}
-                        {!isManager && (
-                            <Link
-                                href="/dashboard/settings"
-                                onClick={() => setNavOpen(false)}
-                                className={cn(
-                                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
-                                    pathname === "/dashboard/settings"
-                                        ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
-                                        : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
-                                )}
-                            >
-                                <Settings className="w-5 h-5" />
-                                Settings
-                            </Link>
-                        )}
                         <Link
                             href="/dashboard/mode"
                             onClick={() => setNavOpen(false)}
@@ -668,22 +652,50 @@ export default function DashboardLayout({
                                 </div>
                             ) : null}
 
-                            <div className="flex items-center gap-3 px-2 py-1">
+                            <Link
+                                href="/dashboard/profile"
+                                onClick={() => setNavOpen(false)}
+                                className={cn(
+                                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                    pathname.startsWith("/dashboard/profile")
+                                        ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                        : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                )}
+                            >
+                                <UserCircle className="w-5 h-5" />
+                                Profile
+                            </Link>
+
+                            <Link
+                                href="/dashboard/settings"
+                                onClick={() => setNavOpen(false)}
+                                className={cn(
+                                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors",
+                                    pathname.startsWith("/dashboard/settings")
+                                        ? "bg-[var(--cms-accent-subtle)] text-[var(--cms-text)]"
+                                        : "text-[var(--cms-muted)] hover:text-[var(--cms-text)] hover:bg-pill"
+                                )}
+                            >
+                                <Settings className="w-5 h-5" />
+                                Settings
+                            </Link>
+
+                            <div className="flex items-center gap-2 px-1 pt-1">
                                 <ThemeToggle />
+                                <button
+                                    onClick={() => {
+                                        if (typeof window !== "undefined") {
+                                            window.sessionStorage.removeItem(LINK_PROMPT_SKIP_KEY);
+                                        }
+                                        signOut();
+                                    }}
+                                    className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-3 text-sm font-semibold text-muted transition-colors hover:bg-pill hover:text-[var(--cms-text)]"
+                                >
+                                    <LogOut className="w-4 h-4" />
+                                    Sign Out
+                                </button>
                             </div>
                         </div>
-                        <button
-                            onClick={() => {
-                                if (typeof window !== "undefined") {
-                                    window.sessionStorage.removeItem(LINK_PROMPT_SKIP_KEY);
-                                }
-                                signOut();
-                            }}
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-muted hover:text-[var(--cms-text)] hover:bg-pill transition-colors"
-                        >
-                            <LogOut className="w-5 h-5" />
-                            Sign Out
-                        </button>
                     </div>
                 </aside>
 

@@ -1,17 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { useAuthenticator } from "@aws-amplify/ui-react";
-import { adminApi, AdminJob } from "@/lib/api";
+import { adminApi, AdminJob, AdminOrganization } from "@/lib/api";
 import {
     Download,
     Loader2,
     Plus,
-    RefreshCw,
     X,
     ChevronRight,
-    Search,
     Ban,
     RotateCcw,
     CheckCircle2,
@@ -23,18 +20,13 @@ import {
     History,
     Activity
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
 // ---------------------------------------------------------------------------
 // Types & Helpers
 // ---------------------------------------------------------------------------
-
-interface LogEntry {
-    time: string;
-    message: string;
-}
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
     QUEUED: <Clock className="w-3.5 h-3.5" />,
@@ -92,7 +84,6 @@ function formatDateTime(iso: string) {
 // ---------------------------------------------------------------------------
 
 export default function AdminMenuImporterPage() {
-    const router = useRouter();
     const { user } = useAuthenticator((ctx) => [ctx.user]);
 
     // Jobs state
@@ -101,6 +92,11 @@ export default function AdminMenuImporterPage() {
     const [loading, setLoading] = useState(true);
     const [selectedJob, setSelectedJob] = useState<any | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const [companies, setCompanies] = useState<AdminOrganization[]>([]);
+    const [loadingCompanies, setLoadingCompanies] = useState(false);
+    const [selectedImportOrgId, setSelectedImportOrgId] = useState("");
+    const [importingProcessed, setImportingProcessed] = useState(false);
+    const [importResultNote, setImportResultNote] = useState<string | null>(null);
 
     // Form state
     const [formName, setFormName] = useState("");
@@ -125,6 +121,24 @@ export default function AdminMenuImporterPage() {
         setLoading(true);
         fetchJobs();
     }, [user, fetchJobs]);
+
+    const fetchCompanies = useCallback(async () => {
+        setLoadingCompanies(true);
+        try {
+            const data = await adminApi.getOrganizations(1, 200);
+            setCompanies(data.items);
+            setSelectedImportOrgId((prev) => prev || data.items[0]?.id || "");
+        } catch (err) {
+            console.error("Failed to fetch companies for import", err);
+        } finally {
+            setLoadingCompanies(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!user) return;
+        fetchCompanies();
+    }, [user, fetchCompanies]);
 
     // Polling
     useEffect(() => {
@@ -168,6 +182,29 @@ export default function AdminMenuImporterPage() {
             alert(err.message || "Action failed");
         }
     };
+
+    const handleDirectImport = async () => {
+        if (!selectedJob || !selectedImportOrgId) return;
+        setImportingProcessed(true);
+        setImportResultNote(null);
+        try {
+            const result = await adminApi.importProcessedMenu(selectedJob.id, { org_id: selectedImportOrgId });
+            setImportResultNote(
+                `Imported "${result.menu_name}" to ${result.org_name} (${result.categories_created} categories, ${result.items_created} items).`
+            );
+            fetchJobs();
+            const updated = await adminApi.getImporterJobDetails(selectedJob.id);
+            setSelectedJob(updated);
+        } catch (err: any) {
+            alert(err.message || "Failed to import processed menu");
+        } finally {
+            setImportingProcessed(false);
+        }
+    };
+
+    useEffect(() => {
+        setImportResultNote(null);
+    }, [selectedJob?.id]);
 
     return (
         <div className="space-y-8 pb-10">
@@ -399,6 +436,40 @@ export default function AdminMenuImporterPage() {
                                 )}
                             </div>
 
+                            {selectedJob.status === 'COMPLETED' && (
+                                <div className="space-y-2 rounded-2xl border border-border bg-panelStrong/20 p-4">
+                                    <label className="text-[10px] font-bold text-muted uppercase tracking-wide">
+                                        Direct Import to Company
+                                    </label>
+                                    <div className="flex items-center gap-2">
+                                        <select
+                                            value={selectedImportOrgId}
+                                            onChange={(e) => setSelectedImportOrgId(e.target.value)}
+                                            className="flex-1 px-3 py-2 rounded-lg bg-panelStrong border border-border focus:border-[var(--cms-accent)] outline-none transition-colors text-sm"
+                                        >
+                                            <option value="">Select company…</option>
+                                            {companies.map((company) => (
+                                                <option key={company.id} value={company.id}>
+                                                    {company.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <Button
+                                            size="sm"
+                                            className="shrink-0 bg-[var(--cms-accent)]"
+                                            disabled={!selectedImportOrgId || loadingCompanies || importingProcessed}
+                                            onClick={handleDirectImport}
+                                        >
+                                            {importingProcessed ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                                            Import
+                                        </Button>
+                                    </div>
+                                    {importResultNote && (
+                                        <p className="text-xs text-emerald-400">{importResultNote}</p>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Job Logs */}
                             <div className="space-y-4">
                                 <h3 className="text-sm font-bold uppercase tracking-wider text-muted flex items-center gap-2">
@@ -431,4 +502,3 @@ export default function AdminMenuImporterPage() {
         </div>
     );
 }
-

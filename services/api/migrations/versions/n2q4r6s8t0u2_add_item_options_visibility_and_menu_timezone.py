@@ -62,7 +62,6 @@ def upgrade() -> None:
         sa.Column("start_date", sa.Date(), nullable=True),
         sa.Column("end_date", sa.Date(), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("priority", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("item_id", sa.Uuid(), nullable=True),
         sa.Column("option_id", sa.Uuid(), nullable=True),

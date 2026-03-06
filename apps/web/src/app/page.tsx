@@ -430,17 +430,15 @@ export default function Home() {
 
     const heroStudioImage = `/images/tour-editor-v6-${themeSuffix}@2x.png`;
     const heroGuestImage = "/images/hero/guest-view-reference.png";
-    const heroArSceneImage = `/images/tour-ar-v6-${themeSuffix}@2x.png`;
-    const heroArDishImage = "/images/hero/wagyu_burger.png";
-    const heroQrScanPhoneImage = "/images/hero/qr-scan-phone-reference.jpg";
+    const heroArPhoneImage = "/images/hero/hero-ar-phone-custom.png";
+    const heroQrScanPhoneImage = "/images/hero/hero-qr-phone-custom.png";
     const activeShowcaseImage = `/images/${activeShowcase.imageBase}-${themeSuffix}@2x.png`;
 
     useEffect(() => {
         const preloadSources = [
             heroStudioImage,
             heroGuestImage,
-            heroArSceneImage,
-            heroArDishImage,
+            heroArPhoneImage,
             heroQrScanPhoneImage,
             activeShowcaseImage,
         ];
@@ -451,7 +449,7 @@ export default function Home() {
             img.loading = "eager";
             img.src = src;
         });
-    }, [heroStudioImage, heroGuestImage, heroArSceneImage, heroArDishImage, heroQrScanPhoneImage, activeShowcaseImage]);
+    }, [heroStudioImage, heroGuestImage, heroArPhoneImage, heroQrScanPhoneImage, activeShowcaseImage]);
 
     if (!mounted) {
         return <div className="min-h-screen bg-background" />;
@@ -770,46 +768,17 @@ export default function Home() {
                                         >
                                             <div className="hero-phone-screen relative overflow-hidden rounded-[0.78rem]">
                                                 <span aria-hidden="true" className="hero-phone-punch" />
-                                                <div className="hero-ar-ui relative h-full w-full">
+                                                <div className="relative h-full w-full">
                                                     <Image
-                                                        src={heroArSceneImage}
-                                                        alt="Restaurant scene"
+                                                        src={heroArPhoneImage}
+                                                        alt="Phone screen showing AR menu preview"
                                                         fill
                                                         sizes="(min-width: 1024px) 18vw, 30vw"
-                                                        quality={92}
+                                                        quality={96}
                                                         priority
                                                         fetchPriority="high"
-                                                        className="hero-ar-scene-bg object-cover object-center"
+                                                        className="object-cover object-center"
                                                     />
-                                                    <div aria-hidden="true" className="hero-ar-scene-vignette absolute inset-0" />
-                                                    <div aria-hidden="true" className="hero-ar-table-plane absolute inset-x-0 bottom-0 h-[38%]" />
-
-                                                    <div className="hero-ar-target absolute left-1/2 top-[56%] z-20 h-[44%] w-[86%] -translate-x-1/2 -translate-y-1/2">
-                                                        <span className="hero-ar-corner hero-ar-corner-tl" />
-                                                        <span className="hero-ar-corner hero-ar-corner-tr" />
-                                                        <span className="hero-ar-corner hero-ar-corner-bl" />
-                                                        <span className="hero-ar-corner hero-ar-corner-br" />
-                                                    </div>
-
-                                                    <div className="hero-ar-dish-wrap absolute inset-x-0 bottom-[14%] z-30 mx-auto h-[48%] w-[94%]">
-                                                        <Image
-                                                            src={heroArDishImage}
-                                                            alt="Dish rendered in augmented reality"
-                                                            fill
-                                                            sizes="(min-width: 1024px) 16vw, 28vw"
-                                                            quality={96}
-                                                            priority
-                                                            fetchPriority="high"
-                                                            className="object-contain drop-shadow-[0_22px_20px_rgba(0,0,0,0.45)]"
-                                                        />
-                                                    </div>
-
-                                                    <div className="hero-ar-surface-shadow absolute left-1/2 top-[74%] z-20 h-5 w-[62%] -translate-x-1/2 rounded-[999px]" />
-                                                    <div className="hero-ar-ui-controls absolute inset-x-0 bottom-3 z-40 flex items-end justify-center gap-2.5">
-                                                        <span className="hero-ar-ui-btn hero-ar-ui-btn-side" />
-                                                        <span className="hero-ar-ui-btn hero-ar-ui-btn-main" />
-                                                        <span className="hero-ar-ui-btn hero-ar-ui-btn-side" />
-                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
