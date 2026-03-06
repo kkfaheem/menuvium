@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { LayoutDashboard, UtensilsCrossed, LogOut, Settings, Building2, Menu, X, Palette, Zap, Activity, BarChart3, Shield, UserCircle, CreditCard, Bell, Check } from "lucide-react";
 import { useAuthenticator } from "@aws-amplify/ui-react";
 import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Logo } from "@/components/Logo";
 import { cn } from "@/lib/cn";
@@ -217,13 +217,12 @@ export default function DashboardLayout({
         }
     }, [mounted, user, mode, pathname, router, isModePage, modeReady, linkCheckReady]);
 
-    useEffect(() => {
-        if (!mounted || authStatus !== "authenticated" || !user || isModePage) return;
-        let cancelled = false;
-
-        const loadNotifications = async () => {
+    const loadNotifications = useCallback(
+        async (options?: { showLoader?: boolean }) => {
+            if (authStatus !== "authenticated" || !user || isModePage) return;
+            const showLoader = options?.showLoader ?? false;
             try {
-                setNotificationsLoading(true);
+                if (showLoader) setNotificationsLoading(true);
                 setNotificationError(null);
                 const token = await getAuthToken();
                 const res = await fetch(`${getApiBase()}/organizations/ownership-transfer/notifications`, {
@@ -233,31 +232,21 @@ export default function DashboardLayout({
                     throw new Error("Failed to load notifications");
                 }
                 const data = (await res.json()) as OwnershipTransferNotification[];
-                if (!cancelled) {
-                    setOwnershipNotifications(Array.isArray(data) ? data : []);
-                }
+                setOwnershipNotifications(Array.isArray(data) ? data : []);
             } catch (error) {
-                if (!cancelled) {
-                    setNotificationError("Could not load notifications");
-                }
+                setNotificationError("Could not load notifications");
                 console.error("Failed to load ownership transfer notifications", error);
             } finally {
-                if (!cancelled) {
-                    setNotificationsLoading(false);
-                }
+                if (showLoader) setNotificationsLoading(false);
             }
-        };
+        },
+        [authStatus, user, isModePage]
+    );
 
+    useEffect(() => {
+        if (!mounted || authStatus !== "authenticated" || !user || isModePage) return;
         void loadNotifications();
-        const intervalId = window.setInterval(() => {
-            void loadNotifications();
-        }, 30000);
-
-        return () => {
-            cancelled = true;
-            window.clearInterval(intervalId);
-        };
-    }, [mounted, authStatus, user, isModePage]);
+    }, [mounted, authStatus, user, isModePage, loadNotifications]);
 
     const markNotificationsRead = async () => {
         const unread = ownershipNotifications.some((notification) => !notification.is_read);
@@ -279,6 +268,7 @@ export default function DashboardLayout({
         const next = !notificationsOpen;
         setNotificationsOpen(next);
         if (next) {
+            await loadNotifications({ showLoader: true });
             await markNotificationsRead();
         }
     };
