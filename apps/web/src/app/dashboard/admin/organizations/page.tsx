@@ -25,6 +25,7 @@ export default function AdminOrganizationsPage() {
     const [newName, setNewName] = useState("");
     const [newOwnerId, setNewOwnerId] = useState("");
     const [editingOrg, setEditingOrg] = useState<AdminOrganization | null>(null);
+    const ownerCandidates = (editingOrg?.members || []).filter((member) => Boolean(member.user_id));
 
     useEffect(() => {
         if (!user) return;
@@ -141,14 +142,31 @@ export default function AdminOrganizationsPage() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">Owner Cognito ID (sub)</label>
-                                <input
-                                    type="text"
-                                    value={newOwnerId}
-                                    onChange={(e) => setNewOwnerId(e.target.value)}
-                                    placeholder="UUID from Cognito"
-                                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
-                                />
+                                <label className="text-sm font-medium">Transfer Ownership</label>
+                                {ownerCandidates.length > 0 ? (
+                                    <select
+                                        value={newOwnerId}
+                                        onChange={(e) => setNewOwnerId(e.target.value)}
+                                        className="h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                                    >
+                                        {ownerCandidates.map((member) => (
+                                            <option key={`${member.id}-${member.user_id}`} value={member.user_id || ""}>
+                                                {member.email} {member.role ? `(${member.role})` : ""}
+                                            </option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <input
+                                        type="text"
+                                        value={newOwnerId}
+                                        onChange={(e) => setNewOwnerId(e.target.value)}
+                                        placeholder="Enter new owner Cognito ID"
+                                        className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
+                                    />
+                                )}
+                                <p className="text-xs text-muted">
+                                    Choose an existing company member. Owner transfer will update owner/member roles automatically.
+                                </p>
                             </div>
                             <div className="flex justify-end gap-3 pt-4">
                                 <button

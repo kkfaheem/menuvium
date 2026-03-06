@@ -425,23 +425,106 @@ def update_organization(org_id: uuid.UUID, data: AdminOrganizationUpdate, sessio
     if data.name:
         org.name = data.name
     if data.owner_id:
-        org.owner_id = data.owner_id
+        requested_owner_id = data.owner_id.strip()
+        if not requested_owner_id:
+            raise HTTPException(status_code=400, detail="owner_id cannot be empty")
+
+        if requested_owner_id != org.owner_id:
+            previous_owner_id = org.owner_id
+            all_members = session.exec(
+                select(OrganizationMember).where(OrganizationMember.org_id == org.id)
+            ).all()
+
+            new_owner_member = next((m for m in all_members if m.user_id == requested_owner_id), None)
+            resolved_owner_email = _resolve_cognito_user_email(requested_owner_id)
+
+            if not new_owner_member and resolved_owner_email:
+                new_owner_member = next(
+                    (
+                        m
+                        for m in all_members
+                        if isinstance(m.email, str) and m.email.lower() == resolved_owner_email.lower()
+                    ),
+                    None,
+                )
+                if new_owner_member:
+                    new_owner_member.user_id = requested_owner_id
+
+            if not new_owner_member:
+                new_owner_member = OrganizationMember(
+                    id=uuid.uuid4(),
+                    org_id=org.id,
+                    user_id=requested_owner_id,
+                    email=resolved_owner_email or requested_owner_id,
+                    role="owner",
+                    can_manage_availability=True,
+                    can_edit_items=True,
+                    can_manage_menus=True,
+                    can_manage_users=True,
+                    created_at=datetime.utcnow(),
+                )
+                session.add(new_owner_member)
+                all_members.append(new_owner_member)
+
+            new_owner_member.user_id = requested_owner_id
+            new_owner_member.role = "owner"
+            new_owner_member.can_manage_availability = True
+            new_owner_member.can_edit_items = True
+            new_owner_member.can_manage_menus = True
+            new_owner_member.can_manage_users = True
+            session.add(new_owner_member)
+
+            for member in all_members:
+                if member.id == new_owner_member.id:
+                    continue
+
+                was_owner = (
+                    (previous_owner_id and member.user_id == previous_owner_id)
+                    or (member.role == "owner" and member.user_id != requested_owner_id)
+                )
+                if not was_owner:
+                    continue
+
+                member.role = "manager"
+                member.can_manage_availability = True
+                member.can_edit_items = True
+                member.can_manage_menus = True
+                member.can_manage_users = True
+                session.add(member)
+
+            org.owner_id = requested_owner_id
         
     session.add(org)
     session.commit()
     session.refresh(org)
     
     menu_count = session.exec(select(func.count(Menu.id)).where(Menu.org_id == org.id)).one()
-    member_count = session.exec(select(func.count(OrganizationMember.id)).where(OrganizationMember.org_id == org.id)).one()
+    all_members = session.exec(select(OrganizationMember).where(OrganizationMember.org_id == org.id)).all()
+    member_reads = [
+        AdminMemberRead(
+            id=m.id,
+            email=m.email,
+            role=m.role,
+            user_id=m.user_id,
+        )
+        for m in all_members
+    ]
+    owner_email = next((m.email for m in all_members if m.user_id == org.owner_id), None)
+    if not owner_email:
+        owner_email = next((m.email for m in all_members if m.role == "owner"), None)
+    if not owner_email:
+        owner_email = _resolve_cognito_user_email(org.owner_id)
     
     return AdminOrganizationRead(
         id=org.id,
         name=org.name,
         slug=org.slug,
         owner_id=org.owner_id,
+        owner_email=owner_email,
         created_at=org.created_at,
         menu_count=menu_count,
-        member_count=member_count
+        member_count=len(member_reads),
+        members=member_reads,
     )
 
 

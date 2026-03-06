@@ -14,6 +14,8 @@ export default function CompanyProfilePage() {
     const [company, setCompany] = useState<AdminCompanyDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [selectedOwnerId, setSelectedOwnerId] = useState("");
+    const [transferringOwner, setTransferringOwner] = useState(false);
 
     useEffect(() => {
         const fetchDetail = async () => {
@@ -21,6 +23,10 @@ export default function CompanyProfilePage() {
                 setLoading(true);
                 const data = await adminApi.getCompanyDetail(id);
                 setCompany(data);
+                const firstCandidate = data.members.find(
+                    (member) => member.user_id && member.user_id !== data.owner_id
+                );
+                setSelectedOwnerId(firstCandidate?.user_id || "");
             } catch (err: any) {
                 console.error("Failed to load company details", err);
                 setError(err.message || "Failed to load company details");
@@ -60,6 +66,32 @@ export default function CompanyProfilePage() {
             hour: "2-digit",
             minute: "2-digit"
         });
+    };
+
+    const transferCandidates = company.members.filter(
+        (member) => member.user_id && member.user_id !== company.owner_id
+    );
+
+    const handleTransferOwnership = async () => {
+        if (!selectedOwnerId || !company) return;
+        const selectedMember = transferCandidates.find((member) => member.user_id === selectedOwnerId);
+        const label = selectedMember?.email || selectedOwnerId;
+        if (!window.confirm(`Transfer ownership of ${company.name} to ${label}?`)) return;
+
+        try {
+            setTransferringOwner(true);
+            await adminApi.updateOrganization(company.id, { owner_id: selectedOwnerId });
+            const refreshed = await adminApi.getCompanyDetail(company.id);
+            setCompany(refreshed);
+            const nextCandidate = refreshed.members.find(
+                (member) => member.user_id && member.user_id !== refreshed.owner_id
+            );
+            setSelectedOwnerId(nextCandidate?.user_id || "");
+        } catch (err: any) {
+            alert(err?.message || "Failed to transfer ownership");
+        } finally {
+            setTransferringOwner(false);
+        }
     };
 
     return (
@@ -290,6 +322,44 @@ export default function CompanyProfilePage() {
                                 <label className="text-[10px] font-bold text-muted uppercase">Internal ID</label>
                                 <div className="text-xs font-mono truncate select-all">{company.id}</div>
                             </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="bg-panelStrong/20">
+                        <CardHeader>
+                            <CardTitle className="text-sm font-semibold">Transfer Ownership</CardTitle>
+                            <CardDescription className="text-xs">
+                                Move company ownership to an existing linked team member.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {transferCandidates.length > 0 ? (
+                                <>
+                                    <select
+                                        value={selectedOwnerId}
+                                        onChange={(e) => setSelectedOwnerId(e.target.value)}
+                                        className="h-10 w-full rounded-lg border border-border bg-panel px-3 text-sm"
+                                    >
+                                        <option value="">Select member...</option>
+                                        {transferCandidates.map((member) => (
+                                            <option key={`${member.id}-${member.user_id}`} value={member.user_id || ""}>
+                                                {member.email} {member.role ? `(${member.role})` : ""}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        onClick={() => void handleTransferOwnership()}
+                                        disabled={!selectedOwnerId || transferringOwner}
+                                        className="h-10 w-full rounded-lg bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                                    >
+                                        {transferringOwner ? "Transferring..." : "Transfer Ownership"}
+                                    </button>
+                                </>
+                            ) : (
+                                <p className="text-xs text-muted">
+                                    No eligible members with linked user accounts are available for ownership transfer.
+                                </p>
+                            )}
                         </CardContent>
                     </Card>
 
