@@ -11,7 +11,6 @@ import { getJwtSub } from "@/lib/jwt";
 import { getAuthToken } from "@/lib/authToken";
 import { getCachedOrFetch, getCachedValue } from "@/lib/dashboardCache";
 import type { Category, Menu, Organization, OrgPermissions } from "@/types";
-import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 
 type OrgCachePayload = {
@@ -412,12 +411,6 @@ export default function MenusPage() {
                                             </div>
                                         </div>
                                     )}
-                                    {/* Top-Right Badges */}
-                                    <div className="absolute top-3 right-3 flex items-center gap-2">
-                                        <Badge variant={menu.is_active ? "success" : "outline"} className="shadow-sm backdrop-blur-md bg-background/90">
-                                            {menu.is_active ? "Active" : "Inactive"}
-                                        </Badge>
-                                    </div>
                                 </div>
 
                                 {/* Card Body */}
@@ -426,6 +419,15 @@ export default function MenusPage() {
                                         <h3 className="text-xl font-bold tracking-tight text-foreground line-clamp-1 group-hover:text-[var(--cms-accent)] transition-colors">
                                             {menu.name}
                                         </h3>
+                                        <span
+                                            className={`shrink-0 text-sm font-semibold ${
+                                                menu.is_active
+                                                    ? "text-[var(--cms-accent-strong)]"
+                                                    : "text-[var(--cms-muted)]"
+                                            }`}
+                                        >
+                                            {menu.is_active ? "Active" : "Inactive"}
+                                        </span>
                                     </div>
                                     <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-medium text-muted">
                                         <div className="flex items-center gap-1.5 rounded-lg bg-black/10 px-2.5 py-1.5 dark:bg-white/5">

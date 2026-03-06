@@ -1595,7 +1595,7 @@ export default function MenuDetailPage() {
                 <button
                   onClick={handleSaveMenu}
                   disabled={isSavingMenu || !pageDirty}
-                  className={`inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none ${pageDirty && !isSavingMenu
+                  className={`inline-flex h-10 min-w-[7.5rem] items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors duration-150 motion-reduce:transition-none ${pageDirty && !isSavingMenu
                       ? "bg-[var(--cms-accent)] text-white hover:bg-[var(--cms-accent-strong)]"
                       : "bg-[var(--cms-panel-strong)] text-[var(--cms-muted)] cursor-not-allowed"
                     }`}
