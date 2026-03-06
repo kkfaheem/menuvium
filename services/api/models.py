@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime, time
 from typing import Optional, List
-from sqlalchemy import UniqueConstraint, Column, JSON, Text
+from sqlalchemy import UniqueConstraint, Column, JSON, Text, CheckConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import SQLModel, Field, Relationship
 
@@ -66,6 +66,7 @@ class MenuBase(SQLModel):
     slug: Optional[str] = Field(default=None, index=True) # Optional now, mostly for internal display
     is_active: bool = Field(default=True)
     theme: str = Field(default="noir")
+    timezone: str = Field(default="UTC")
     show_item_images: bool = Field(default=True)  # Whether to show item images on public page
     banner_url: Optional[str] = None
     logo_url: Optional[str] = None
@@ -157,7 +158,15 @@ class Item(ItemBase, table=True):
     
     category: Category = Relationship(back_populates="items")
     photos: List["ItemPhoto"] = Relationship(back_populates="item")
-    
+    option_groups: List["ItemOptionGroup"] = Relationship(
+        back_populates="item",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    visibility_rules: List["VisibilityRule"] = Relationship(
+        back_populates="item",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
     dietary_tags: List[DietaryTag] = Relationship(back_populates="items", link_model=ItemDietaryTagLink)
     allergens: List[Allergen] = Relationship(back_populates="items", link_model=ItemAllergenLink)
 
@@ -165,10 +174,116 @@ class ItemPhoto(ItemPhotoBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     item: Item = Relationship(back_populates="photos")
 
+
+class ItemOptionGroupBase(SQLModel):
+    item_id: uuid.UUID = Field(foreign_key="item.id", index=True)
+    name: str
+    description: Optional[str] = None
+    selection_mode: str = Field(default="single")  # single, multiple
+    min_select: int = Field(default=0)
+    max_select: Optional[int] = None
+    display_style: str = Field(default="chips")  # chips, list, cards
+    position: int = Field(default=0)
+    is_active: bool = Field(default=True)
+
+
+class ItemOptionBase(SQLModel):
+    group_id: uuid.UUID = Field(foreign_key="itemoptiongroup.id", index=True)
+    name: str
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    badge: Optional[str] = None
+    position: int = Field(default=0)
+    is_default: bool = Field(default=False)
+    is_active: bool = Field(default=True)
+
+
+class VisibilityRuleBase(SQLModel):
+    kind: str = Field(default="include")  # include, exclude
+    days_of_week: List[int] = Field(
+        default_factory=list,
+        sa_column=Column(JSON().with_variant(JSONB, "postgresql")),
+    )
+    start_time_local: time
+    end_time_local: time
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    is_active: bool = Field(default=True)
+    priority: int = Field(default=0)
+
+
+class ItemOptionGroup(ItemOptionGroupBase, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+
+    item: Optional["Item"] = Relationship(back_populates="option_groups")
+    options: List["ItemOption"] = Relationship(
+        back_populates="group",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+
+class ItemOption(ItemOptionBase, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+
+    group: Optional[ItemOptionGroup] = Relationship(back_populates="options")
+    visibility_rules: List["VisibilityRule"] = Relationship(
+        back_populates="option",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+
+
+class VisibilityRule(VisibilityRuleBase, table=True):
+    __table_args__ = (
+        CheckConstraint(
+            "(item_id IS NOT NULL AND option_id IS NULL) OR (item_id IS NULL AND option_id IS NOT NULL)",
+            name="ck_visibilityrule_single_target",
+        ),
+        CheckConstraint(
+            "kind IN ('include', 'exclude')",
+            name="ck_visibilityrule_kind",
+        ),
+    )
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    item_id: Optional[uuid.UUID] = Field(default=None, foreign_key="item.id", index=True)
+    option_id: Optional[uuid.UUID] = Field(default=None, foreign_key="itemoption.id", index=True)
+
+    item: Optional[Item] = Relationship(back_populates="visibility_rules")
+    option: Optional[ItemOption] = Relationship(back_populates="visibility_rules")
+
 # Pydantic Schemas for API
+class VisibilityRuleInput(VisibilityRuleBase):
+    pass
+
+
+class ItemOptionInput(SQLModel):
+    name: str
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    badge: Optional[str] = None
+    position: int = 0
+    is_default: bool = False
+    is_active: bool = True
+    visibility_rules: List[VisibilityRuleInput] = []
+
+
+class ItemOptionGroupInput(SQLModel):
+    name: str
+    description: Optional[str] = None
+    selection_mode: str = "single"
+    min_select: int = 0
+    max_select: Optional[int] = None
+    display_style: str = "chips"
+    position: int = 0
+    is_active: bool = True
+    options: List[ItemOptionInput] = []
+
+
 class ItemCreate(ItemBase):
     dietary_tag_ids: List[uuid.UUID] = []
     allergen_ids: List[uuid.UUID] = []
+    option_groups: List[ItemOptionGroupInput] = []
+    visibility_rules: List[VisibilityRuleInput] = []
 
 class ItemUpdate(SQLModel):
     category_id: Optional[uuid.UUID] = None
@@ -179,6 +294,37 @@ class ItemUpdate(SQLModel):
     position: Optional[int] = None
     dietary_tag_ids: Optional[List[uuid.UUID]] = None
     allergen_ids: Optional[List[uuid.UUID]] = None
+    option_groups: Optional[List[ItemOptionGroupInput]] = None
+    visibility_rules: Optional[List[VisibilityRuleInput]] = None
+
+
+class VisibilityRuleRead(VisibilityRuleBase):
+    id: uuid.UUID
+
+
+class ItemOptionRead(SQLModel):
+    id: uuid.UUID
+    name: str
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    badge: Optional[str] = None
+    position: int = 0
+    is_default: bool = False
+    is_active: bool = True
+    visibility_rules: List[VisibilityRuleRead] = []
+
+
+class ItemOptionGroupRead(SQLModel):
+    id: uuid.UUID
+    name: str
+    description: Optional[str] = None
+    selection_mode: str = "single"
+    min_select: int = 0
+    max_select: Optional[int] = None
+    display_style: str = "chips"
+    position: int = 0
+    is_active: bool = True
+    options: List[ItemOptionRead] = []
 
 class DietaryTagRead(DietaryTagBase):
     id: uuid.UUID
@@ -191,6 +337,8 @@ class ItemRead(ItemBase):
     dietary_tags: List[DietaryTagRead] = []
     allergens: List[AllergenRead] = []
     photos: List[ItemPhotoBase] = []
+    option_groups: List[ItemOptionGroupRead] = []
+    visibility_rules: List[VisibilityRuleRead] = []
     ar_status: Optional[str] = None
     ar_error_message: Optional[str] = None
     ar_video_url: Optional[str] = None
@@ -215,6 +363,7 @@ class MenuUpdate(SQLModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None
     theme: Optional[str] = None
+    timezone: Optional[str] = None
     show_item_images: Optional[bool] = None
     banner_url: Optional[str] = None
     logo_url: Optional[str] = None

@@ -20,6 +20,43 @@ export interface ItemPhoto {
   s3_key?: string;
 }
 
+export interface VisibilityRule {
+  id?: string;
+  kind: "include" | "exclude";
+  days_of_week: number[];
+  start_time_local: string;
+  end_time_local: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  is_active: boolean;
+  priority: number;
+}
+
+export interface ItemOption {
+  id?: string;
+  name: string;
+  description?: string | null;
+  image_url?: string | null;
+  badge?: string | null;
+  position: number;
+  is_default: boolean;
+  is_active: boolean;
+  visibility_rules?: VisibilityRule[];
+}
+
+export interface ItemOptionGroup {
+  id?: string;
+  name: string;
+  description?: string | null;
+  selection_mode: "single" | "multiple";
+  min_select: number;
+  max_select?: number | null;
+  display_style: "chips" | "list" | "cards";
+  position: number;
+  is_active: boolean;
+  options: ItemOption[];
+}
+
 export interface Item {
   id: string;
   name: string;
@@ -42,6 +79,8 @@ export interface Item {
   ar_stage?: string | null;
   ar_stage_detail?: string | null;
   ar_progress?: number | null; // 0.0 - 1.0
+  option_groups?: ItemOptionGroup[];
+  visibility_rules?: VisibilityRule[];
 }
 
 export interface Category {
@@ -83,6 +122,7 @@ export interface Menu {
   slug: string;
   is_active?: boolean;
   theme?: string;
+  timezone?: string;
   show_item_images?: boolean;
   banner_url?: string | null;
   logo_url?: string | null;

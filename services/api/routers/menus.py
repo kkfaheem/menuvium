@@ -12,6 +12,7 @@ from sqlmodel import Session, select, delete
 from sqlalchemy.orm import selectinload
 import boto3
 from PIL import Image, ImageOps, ImageDraw
+from zoneinfo import ZoneInfo
 from database import get_session
 from models import (
     Menu,
@@ -23,6 +24,9 @@ from models import (
     ItemPhoto,
     ItemDietaryTagLink,
     ItemAllergenLink,
+    ItemOptionGroup,
+    ItemOption,
+    VisibilityRule,
 )
 from dependencies import get_current_user
 from permissions import get_org_permissions
@@ -183,6 +187,47 @@ def _decode_data_url(data_url: str) -> tuple[bytes, str]:
         return base64.b64decode(payload), content_type
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid logo image payload")
+
+
+def _resolve_menu_timezone(menu: Menu) -> ZoneInfo:
+    timezone_name = (menu.timezone or "UTC").strip() or "UTC"
+    try:
+        return ZoneInfo(timezone_name)
+    except Exception:
+        return ZoneInfo("UTC")
+
+
+def _visibility_rule_matches(rule: VisibilityRule, now_local: datetime) -> bool:
+    if not rule.is_active:
+        return False
+    days = rule.days_of_week or []
+    if days and now_local.weekday() not in days:
+        return False
+    if rule.start_date and now_local.date() < rule.start_date:
+        return False
+    if rule.end_date and now_local.date() > rule.end_date:
+        return False
+
+    start_time = rule.start_time_local
+    end_time = rule.end_time_local
+    current_time = now_local.time()
+    if start_time <= end_time:
+        return start_time <= current_time < end_time
+    return current_time >= start_time or current_time < end_time
+
+
+def _is_visible_with_rules(rules: List[VisibilityRule], now_local: datetime) -> bool:
+    if not rules:
+        return True
+
+    exclude_rules = [rule for rule in rules if rule.kind == "exclude" and rule.is_active]
+    if any(_visibility_rule_matches(rule, now_local) for rule in exclude_rules):
+        return False
+
+    include_rules = [rule for rule in rules if rule.kind == "include" and rule.is_active]
+    if not include_rules:
+        return True
+    return any(_visibility_rule_matches(rule, now_local) for rule in include_rules)
 
 
 def _rgb_from_hex(hex_color: str, default: tuple[int, int, int] = (17, 24, 39)) -> tuple[int, int, int]:
@@ -675,6 +720,15 @@ def update_menu(menu_id: uuid.UUID, menu_update: MenuUpdate, session: Session = 
         raise HTTPException(status_code=403, detail="Not authorized")
 
     menu_data = menu_update.model_dump(exclude_unset=True)
+    if "timezone" in menu_data:
+        timezone_name = (menu_data.get("timezone") or "").strip()
+        if not timezone_name:
+            raise HTTPException(status_code=400, detail="timezone cannot be empty")
+        try:
+            ZoneInfo(timezone_name)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid timezone")
+        menu_data["timezone"] = timezone_name
     previous_logo_url = db_menu.logo_url
     for key, value in menu_data.items():
         setattr(db_menu, key, value)
@@ -706,9 +760,26 @@ def delete_menu(menu_id: uuid.UUID, session: Session = SessionDep, user: dict = 
         item_ids = session.exec(select(Item.id).where(Item.category_id.in_(category_ids))).all()
         item_ids = [row[0] if isinstance(row, tuple) else row for row in item_ids]
         if item_ids:
+            option_group_ids = session.exec(
+                select(ItemOptionGroup.id).where(ItemOptionGroup.item_id.in_(item_ids))
+            ).all()
+            option_group_ids = [row[0] if isinstance(row, tuple) else row for row in option_group_ids]
+            option_ids: list[uuid.UUID] = []
+            if option_group_ids:
+                option_ids = session.exec(
+                    select(ItemOption.id).where(ItemOption.group_id.in_(option_group_ids))
+                ).all()
+                option_ids = [row[0] if isinstance(row, tuple) else row for row in option_ids]
+
             session.exec(delete(ItemPhoto).where(ItemPhoto.item_id.in_(item_ids)))
             session.exec(delete(ItemDietaryTagLink).where(ItemDietaryTagLink.item_id.in_(item_ids)))
             session.exec(delete(ItemAllergenLink).where(ItemAllergenLink.item_id.in_(item_ids)))
+            session.exec(delete(VisibilityRule).where(VisibilityRule.item_id.in_(item_ids)))
+            if option_ids:
+                session.exec(delete(VisibilityRule).where(VisibilityRule.option_id.in_(option_ids)))
+                session.exec(delete(ItemOption).where(ItemOption.id.in_(option_ids)))
+            if option_group_ids:
+                session.exec(delete(ItemOptionGroup).where(ItemOptionGroup.id.in_(option_group_ids)))
             session.exec(delete(Item).where(Item.id.in_(item_ids)))
         session.exec(delete(Category).where(Category.id.in_(category_ids)))
 
@@ -738,17 +809,52 @@ def get_public_menu(menu_id: uuid.UUID, request: Request, session: Session = Ses
             .selectinload(Item.allergens),
             selectinload(Category.items)
             .selectinload(Item.photos),
+            selectinload(Category.items)
+            .selectinload(Item.visibility_rules),
+            selectinload(Category.items)
+            .selectinload(Item.option_groups)
+            .selectinload(ItemOptionGroup.options)
+            .selectinload(ItemOption.visibility_rules),
         )
     ).all()
+
+    now_local = datetime.now(_resolve_menu_timezone(menu))
     for cat in categories:
-        cat.items = sorted(cat.items or [], key=lambda item: item.position)
-        for item in cat.items or []:
+        visible_items: list[Item] = []
+        for item in sorted(cat.items or [], key=lambda item: item.position):
+            if not _is_visible_with_rules(item.visibility_rules or [], now_local):
+                continue
+            visible_groups: list[ItemOptionGroup] = []
+            for group in sorted(item.option_groups or [], key=lambda group: group.position):
+                if not group.is_active:
+                    continue
+                visible_options: list[ItemOption] = []
+                for option in sorted(group.options or [], key=lambda option: option.position):
+                    if not option.is_active:
+                        continue
+                    if not _is_visible_with_rules(option.visibility_rules or [], now_local):
+                        continue
+                    option.image_url = normalize_upload_url(option.image_url, request)
+                    option.visibility_rules = []
+                    visible_options.append(option)
+                if not visible_options:
+                    continue
+                visible_count = len(visible_options)
+                group.options = visible_options
+                if group.max_select is not None:
+                    group.max_select = min(group.max_select, visible_count)
+                group.min_select = min(group.min_select, visible_count)
+                visible_groups.append(group)
+            item.option_groups = visible_groups
+            item.visibility_rules = []
             for photo in item.photos or []:
                 photo.url = normalize_upload_url(photo.url, request)
             item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
             item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
             item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
             item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+            visible_items.append(item)
+        cat.items = visible_items
     menu.categories = categories
     menu.banner_url = normalize_upload_url(menu.banner_url, request)
     menu.logo_url = normalize_upload_url(menu.logo_url, request)

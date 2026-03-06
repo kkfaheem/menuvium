@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlmodel import Session, select
 from database import get_session
-from models import Category, Menu, CategoryRead, Item
+from models import Category, Menu, CategoryRead, Item, ItemOptionGroup, ItemOption
 from dependencies import get_current_user
 from permissions import get_org_permissions
 from url_utils import normalize_upload_url
@@ -45,10 +45,20 @@ def list_categories(menu_id: uuid.UUID, request: Request, session: Session = Ses
             selectinload(Category.items).selectinload(Item.photos),
             selectinload(Category.items).selectinload(Item.dietary_tags),
             selectinload(Category.items).selectinload(Item.allergens),
+            selectinload(Category.items).selectinload(Item.visibility_rules),
+            selectinload(Category.items)
+            .selectinload(Item.option_groups)
+            .selectinload(ItemOptionGroup.options)
+            .selectinload(ItemOption.visibility_rules),
         )
     ).all()
     for category in categories:
         for item in category.items or []:
+            item.option_groups = sorted(item.option_groups or [], key=lambda g: g.position)
+            for group in item.option_groups or []:
+                group.options = sorted(group.options or [], key=lambda o: o.position)
+                for option in group.options or []:
+                    option.image_url = normalize_upload_url(option.image_url, request)
             for photo in item.photos or []:
                 photo.url = normalize_upload_url(photo.url, request)
             item.ar_video_url = normalize_upload_url(item.ar_video_url, request)

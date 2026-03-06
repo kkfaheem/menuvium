@@ -8,7 +8,21 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select, delete
 from database import get_session
-from models import Item, Category, Menu, ItemPhoto, Organization, ItemCreate, ItemUpdate, ItemRead, DietaryTag, Allergen
+from models import (
+    Item,
+    Category,
+    Menu,
+    ItemPhoto,
+    Organization,
+    ItemCreate,
+    ItemUpdate,
+    ItemRead,
+    DietaryTag,
+    Allergen,
+    ItemOption,
+    ItemOptionGroup,
+    VisibilityRule,
+)
 from dependencies import get_current_user
 from pathlib import Path
 from permissions import get_org_permissions
@@ -19,6 +33,10 @@ from url_utils import normalize_upload_url
 router = APIRouter(prefix="/items", tags=["items"])
 SessionDep = Depends(get_session)
 UserDep = Depends(get_current_user)
+
+ALLOWED_SELECTION_MODES = {"single", "multiple"}
+ALLOWED_DISPLAY_STYLES = {"chips", "list", "cards"}
+ALLOWED_VISIBILITY_KINDS = {"include", "exclude"}
 
 class PresignedUrlRequest(BaseModel):
     filename: str
@@ -52,8 +70,198 @@ def _item_org_permissions(session: Session, item: Item, user: dict):
     perms = get_org_permissions(session, menu.org_id, user)
     return perms
 
-@router.get("/{item_id}", response_model=ItemRead)
-def get_item(item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep):
+
+def _normalize_item_media_urls(item: Item, request: Request) -> None:
+    for photo in item.photos or []:
+        photo.url = normalize_upload_url(photo.url, request)
+    for group in item.option_groups or []:
+        for option in group.options or []:
+            option.image_url = normalize_upload_url(option.image_url, request)
+    item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
+    item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
+    item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
+    item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+
+
+def _validate_visibility_rules(rules: list, *, context: str) -> None:
+    for idx, rule in enumerate(rules):
+        if rule.kind not in ALLOWED_VISIBILITY_KINDS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid visibility rule kind at {context}[{idx}]",
+            )
+        if rule.start_date and rule.end_date and rule.start_date > rule.end_date:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Visibility rule start_date must be <= end_date at {context}[{idx}]",
+            )
+        bad_days = [
+            day
+            for day in (rule.days_of_week or [])
+            if not isinstance(day, int) or day < 0 or day > 6
+        ]
+        if bad_days:
+            raise HTTPException(
+                status_code=400,
+                detail=f"days_of_week must contain integers 0-6 at {context}[{idx}]",
+            )
+
+
+def _validate_option_groups(groups: list) -> None:
+    for g_idx, group in enumerate(groups):
+        if group.selection_mode not in ALLOWED_SELECTION_MODES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid selection_mode at option_groups[{g_idx}]",
+            )
+        if group.display_style not in ALLOWED_DISPLAY_STYLES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid display_style at option_groups[{g_idx}]",
+            )
+        if group.min_select < 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"min_select must be >= 0 at option_groups[{g_idx}]",
+            )
+        if group.max_select is not None and group.max_select < 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"max_select must be >= 0 at option_groups[{g_idx}]",
+            )
+        if group.max_select is not None and group.max_select < group.min_select:
+            raise HTTPException(
+                status_code=400,
+                detail=f"max_select must be >= min_select at option_groups[{g_idx}]",
+            )
+        if group.selection_mode == "single":
+            if group.max_select not in (None, 1):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"single-select groups only support max_select=1 at option_groups[{g_idx}]",
+                )
+            if group.min_select > 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"single-select groups only support min_select<=1 at option_groups[{g_idx}]",
+                )
+        if group.options and group.min_select > len(group.options):
+            raise HTTPException(
+                status_code=400,
+                detail=f"min_select exceeds options count at option_groups[{g_idx}]",
+            )
+
+        default_count = sum(1 for opt in group.options if opt.is_default)
+        if group.selection_mode == "single" and default_count > 1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"single-select groups can only have one default option at option_groups[{g_idx}]",
+            )
+
+        for o_idx, option in enumerate(group.options):
+            _validate_visibility_rules(
+                option.visibility_rules or [],
+                context=f"option_groups[{g_idx}].options[{o_idx}].visibility_rules",
+            )
+
+
+def _replace_item_options_and_visibility(
+    *,
+    session: Session,
+    item: Item,
+    option_groups: Optional[list],
+    visibility_rules: Optional[list],
+) -> None:
+    if option_groups is not None:
+        _validate_option_groups(option_groups)
+    if visibility_rules is not None:
+        _validate_visibility_rules(visibility_rules, context="visibility_rules")
+
+    existing_groups = session.exec(
+        select(ItemOptionGroup).where(ItemOptionGroup.item_id == item.id)
+    ).all()
+    existing_group_ids = [group.id for group in existing_groups]
+    existing_option_ids: list[uuid.UUID] = []
+    if existing_group_ids:
+        existing_options = session.exec(
+            select(ItemOption.id).where(ItemOption.group_id.in_(existing_group_ids))
+        ).all()
+        existing_option_ids = [row[0] if isinstance(row, tuple) else row for row in existing_options]
+
+    if option_groups is not None and existing_option_ids:
+        session.exec(
+            delete(VisibilityRule).where(VisibilityRule.option_id.in_(existing_option_ids))
+        )
+    if option_groups is not None and existing_group_ids:
+        session.exec(delete(ItemOption).where(ItemOption.group_id.in_(existing_group_ids)))
+        session.exec(delete(ItemOptionGroup).where(ItemOptionGroup.id.in_(existing_group_ids)))
+
+    if visibility_rules is not None:
+        session.exec(delete(VisibilityRule).where(VisibilityRule.item_id == item.id))
+        for rule in visibility_rules:
+            session.add(
+                VisibilityRule(
+                    item_id=item.id,
+                    kind=rule.kind,
+                    days_of_week=rule.days_of_week,
+                    start_time_local=rule.start_time_local,
+                    end_time_local=rule.end_time_local,
+                    start_date=rule.start_date,
+                    end_date=rule.end_date,
+                    is_active=rule.is_active,
+                    priority=rule.priority,
+                )
+            )
+
+    if option_groups is None:
+        return
+
+    for group in option_groups:
+        db_group = ItemOptionGroup(
+            item_id=item.id,
+            name=group.name,
+            description=group.description,
+            selection_mode=group.selection_mode,
+            min_select=group.min_select,
+            max_select=group.max_select,
+            display_style=group.display_style,
+            position=group.position,
+            is_active=group.is_active,
+        )
+        session.add(db_group)
+        session.flush()
+
+        for option in group.options or []:
+            db_option = ItemOption(
+                group_id=db_group.id,
+                name=option.name,
+                description=option.description,
+                image_url=option.image_url,
+                badge=option.badge,
+                position=option.position,
+                is_default=option.is_default,
+                is_active=option.is_active,
+            )
+            session.add(db_option)
+            session.flush()
+
+            for rule in option.visibility_rules or []:
+                session.add(
+                    VisibilityRule(
+                        option_id=db_option.id,
+                        kind=rule.kind,
+                        days_of_week=rule.days_of_week,
+                        start_time_local=rule.start_time_local,
+                        end_time_local=rule.end_time_local,
+                        start_date=rule.start_date,
+                        end_date=rule.end_date,
+                        is_active=rule.is_active,
+                        priority=rule.priority,
+                    )
+                )
+
+
+def _load_item_with_relations(session: Session, item_id: uuid.UUID) -> Optional[Item]:
     item = session.exec(
         select(Item)
         .where(Item.id == item_id)
@@ -61,20 +269,29 @@ def get_item(item_id: uuid.UUID, request: Request, session: Session = SessionDep
             selectinload(Item.photos),
             selectinload(Item.dietary_tags),
             selectinload(Item.allergens),
+            selectinload(Item.visibility_rules),
+            selectinload(Item.option_groups)
+            .selectinload(ItemOptionGroup.options)
+            .selectinload(ItemOption.visibility_rules),
         )
     ).first()
+    if not item:
+        return None
+    item.option_groups = sorted(item.option_groups or [], key=lambda g: g.position)
+    for group in item.option_groups or []:
+        group.options = sorted(group.options or [], key=lambda o: o.position)
+    return item
+
+@router.get("/{item_id}", response_model=ItemRead)
+def get_item(item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep):
+    item = _load_item_with_relations(session, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     perms = _item_org_permissions(session, item, user)
     if not perms.can_view:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    for photo in item.photos or []:
-        photo.url = normalize_upload_url(photo.url, request)
-    item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
-    item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
-    item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
-    item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+    _normalize_item_media_urls(item, request)
     return ItemRead.model_validate(item)
 
 @router.post("/upload-url", response_model=PresignedUrlResponse)
@@ -279,7 +496,10 @@ def create_item(item_in: ItemCreate, session: Session = SessionDep, user: dict =
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Create Item
-    item = Item.model_validate(item_in)
+    item_payload = item_in.model_dump(
+        exclude={"dietary_tag_ids", "allergen_ids", "option_groups", "visibility_rules"}
+    )
+    item = Item(**item_payload)
     session.add(item)
     
     # Link Tags
@@ -296,8 +516,17 @@ def create_item(item_in: ItemCreate, session: Session = SessionDep, user: dict =
             if alg:
                 item.allergens.append(alg)
 
+    _replace_item_options_and_visibility(
+        session=session,
+        item=item,
+        option_groups=item_in.option_groups,
+        visibility_rules=item_in.visibility_rules,
+    )
+
     session.commit()
-    session.refresh(item)
+    item = _load_item_with_relations(session, item.id)
+    if not item:
+        raise HTTPException(status_code=500, detail="Failed to load created item")
     return item
 
 @router.post("/{item_id}/photos", response_model=ItemPhoto)
@@ -376,7 +605,7 @@ def update_item(item_id: uuid.UUID, item_update: ItemUpdate, session: Session = 
 
     # Update scalar fields
     for key, value in item_data.items():
-        if key not in ["dietary_tag_ids", "allergen_ids"]:
+        if key not in ["dietary_tag_ids", "allergen_ids", "option_groups", "visibility_rules"]:
             setattr(db_item, key, value)
     
     # Update Relationships if provided
@@ -394,9 +623,18 @@ def update_item(item_id: uuid.UUID, item_update: ItemUpdate, session: Session = 
             if alg:
                 db_item.allergens.append(alg)
         
+    _replace_item_options_and_visibility(
+        session=session,
+        item=db_item,
+        option_groups=item_update.option_groups if "option_groups" in item_data else None,
+        visibility_rules=item_update.visibility_rules if "visibility_rules" in item_data else None,
+    )
+
     session.add(db_item)
     session.commit()
-    session.refresh(db_item)
+    db_item = _load_item_with_relations(session, item_id)
+    if not db_item:
+        raise HTTPException(status_code=404, detail="Item not found")
     return db_item
 
 @router.delete("/{item_id}")
@@ -412,6 +650,22 @@ def delete_item(item_id: uuid.UUID, session: Session = SessionDep, user: dict = 
     if not perms.can_edit_items:
         raise HTTPException(status_code=403, detail="Not authorized")
         
+    group_ids = session.exec(
+        select(ItemOptionGroup.id).where(ItemOptionGroup.item_id == db_item.id)
+    ).all()
+    group_ids = [row[0] if isinstance(row, tuple) else row for row in group_ids]
+    option_ids: list[uuid.UUID] = []
+    if group_ids:
+        option_rows = session.exec(
+            select(ItemOption.id).where(ItemOption.group_id.in_(group_ids))
+        ).all()
+        option_ids = [row[0] if isinstance(row, tuple) else row for row in option_rows]
+    if option_ids:
+        session.exec(delete(VisibilityRule).where(VisibilityRule.option_id.in_(option_ids)))
+        session.exec(delete(ItemOption).where(ItemOption.id.in_(option_ids)))
+    if group_ids:
+        session.exec(delete(ItemOptionGroup).where(ItemOptionGroup.id.in_(group_ids)))
+    session.exec(delete(VisibilityRule).where(VisibilityRule.item_id == db_item.id))
     session.delete(db_item)
     session.commit()
     return {"ok": True}
