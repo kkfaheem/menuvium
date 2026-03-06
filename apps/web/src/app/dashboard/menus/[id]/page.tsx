@@ -505,7 +505,7 @@ export default function MenuDetailPage() {
 
   useEffect(() => {
     if (params.id) {
-      fetchMenu(params.id as string);
+      fetchMenu(params.id as string, { blocking: true });
       fetchMetadata();
     }
   }, [params.id, user]);
@@ -551,8 +551,14 @@ export default function MenuDetailPage() {
     }
   };
 
-  const fetchMenu = async (id: string) => {
-    setLoading(true);
+  const fetchMenu = async (
+    id: string,
+    options?: { blocking?: boolean },
+  ) => {
+    const shouldShowBlockingLoading = options?.blocking === true;
+    if (shouldShowBlockingLoading) {
+      setLoading(true);
+    }
     try {
       const token = await getAuthToken();
 
@@ -622,7 +628,9 @@ export default function MenuDetailPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (shouldShowBlockingLoading) {
+        setLoading(false);
+      }
     }
   };
 
