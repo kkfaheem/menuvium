@@ -216,6 +216,28 @@ class TestHTMLMenuExtraction:
         assert "https://restaurant.com/about" not in links
         assert "https://external.com/menu" not in links
 
+    def test_discover_menu_links_allows_order_online_provider(self):
+        from importer.menu_extractor import _discover_menu_links
+        from bs4 import BeautifulSoup
+
+        html = """
+        <html>
+        <body>
+            <a href="https://order.online/business/~12345/">View Menu</a>
+        </body>
+        </html>
+        """
+        soup = BeautifulSoup(html, "html.parser")
+        links = _discover_menu_links("https://restaurant.com", soup)
+        assert "https://order.online/business/~12345/" in links
+
+    def test_discover_provider_menu_links_order_online_redirect(self):
+        from importer.menu_extractor import _discover_provider_menu_links
+
+        payload = 'self.__next_f.push([1,"1d:E{\\"digest\\":\\"NEXT_REDIRECT;replace;/store/34580479?pickup=true\\\\u0026redirected=true;307;\\"}"])'
+        links = _discover_provider_menu_links("https://order.online/business/~14392497/", payload)
+        assert links == ["https://order.online/store/34580479?pickup=true&redirected=true"]
+
     def test_fallback_parse(self):
         from importer.menu_extractor import _fallback_parse
 

@@ -93,6 +93,54 @@ def is_allowed_by_robots(url: str) -> bool:
         return True
 
 
+def _looks_like_cloudflare_block(response: httpx.Response) -> bool:
+    """Detect common Cloudflare challenge/block responses."""
+    server = (response.headers.get("server") or "").lower()
+    text = (response.text or "").lower()
+    return (
+        "cloudflare" in server
+        or "__cf_chl_tk" in text
+        or "cf-browser-verification" in text
+        or "just a moment" in text
+    )
+
+
+async def _fetch_with_cloudscraper(
+    url: str,
+    *,
+    timeout: float,
+    headers: dict[str, str],
+) -> Optional[httpx.Response]:
+    """Best-effort fallback fetch for sites blocked behind Cloudflare."""
+    try:
+        import cloudscraper
+    except Exception:
+        return None
+
+    def _sync_fetch() -> httpx.Response:
+        scraper = cloudscraper.create_scraper(
+            browser={"browser": "chrome", "platform": "linux", "mobile": False}
+        )
+        resp = scraper.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+        safe_headers = {
+            k: v
+            for k, v in dict(resp.headers).items()
+            if k.lower() not in {"content-encoding", "transfer-encoding", "content-length"}
+        }
+        request = httpx.Request("GET", str(resp.url))
+        return httpx.Response(
+            status_code=resp.status_code,
+            headers=safe_headers,
+            content=resp.content,
+            request=request,
+        )
+
+    try:
+        return await asyncio.to_thread(_sync_fetch)
+    except Exception:
+        return None
+
+
 async def fetch_url(
     url: str,
     *,
@@ -122,6 +170,20 @@ async def fetch_url(
                     resp.raise_for_status()
                     return resp
             except httpx.HTTPStatusError as exc:
+                response = exc.response
+                if (
+                    response is not None
+                    and response.status_code in {403, 429, 503}
+                    and _looks_like_cloudflare_block(response)
+                ):
+                    cf_resp = await _fetch_with_cloudscraper(
+                        url,
+                        timeout=timeout,
+                        headers=req_headers,
+                    )
+                    if cf_resp is not None:
+                        cf_resp.raise_for_status()
+                        return cf_resp
                 # Don't retry client errors (4xx) — they won't change
                 if 400 <= exc.response.status_code < 500:
                     raise
@@ -162,6 +224,7 @@ def image_hash(data: bytes) -> str:
 
 def normalize_url(base: str, href: str) -> Optional[str]:
     """Resolve a potentially relative URL against a base URL."""
+    href = (href or "").strip()
     if not href or href.startswith(("data:", "javascript:", "mailto:", "#")):
         return None
     try:

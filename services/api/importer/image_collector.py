@@ -28,6 +28,33 @@ from importer.utils import (
 _html_cache: dict[str, Optional[BeautifulSoup]] = {}
 
 
+def _looks_like_image_bytes(data: bytes) -> bool:
+    """Basic magic-byte check to avoid treating HTML error pages as images."""
+    if len(data) < 16:
+        return False
+    return (
+        data.startswith(b"\xff\xd8\xff")  # JPEG
+        or data.startswith(b"\x89PNG\r\n\x1a\n")  # PNG
+        or data.startswith(b"GIF87a")
+        or data.startswith(b"GIF89a")
+        or (data[:4] == b"RIFF" and data[8:12] == b"WEBP")
+    )
+
+
+def _candidate_image_urls(url: str) -> list[str]:
+    """Expand provider image URL variants that may bypass blocked transforms."""
+    candidates = [url]
+    parsed = urlparse(url)
+    if parsed.netloc.lower().endswith("img.cdn4dd.com") and "/p/fit=" in parsed.path and "/media/" in parsed.path:
+        media_suffix = parsed.path.split("/media/", 1)[1]
+        alt_url = f"{parsed.scheme}://{parsed.netloc}/p/media/{media_suffix}"
+        if parsed.query:
+            alt_url = f"{alt_url}?{parsed.query}"
+        # Prefer original media path for higher quality when available.
+        candidates = [alt_url, url]
+    return candidates
+
+
 async def _get_page_soup(url: str, log_fn) -> Optional[BeautifulSoup]:
     """Fetch and cache a page's BeautifulSoup."""
     if url in _html_cache:
@@ -107,6 +134,11 @@ async def find_dish_image(
     if log_fn is None:
         log_fn = lambda msg: None
 
+    website_images_only = (
+        (os.getenv("IMPORTER_WEBSITE_IMAGES_ONLY") or "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+
     dish_lower = _normalise_name(dish_name)
     if not dish_lower:
         return None
@@ -135,16 +167,20 @@ async def find_dish_image(
 
     # Only use website image if score is meaningful
     if best_url and best_score >= 3:
-        try:
-            data = await fetch_url_bytes(best_url, timeout=15.0)
-            if len(data) > 3000:
-                h = image_hash(data)
-                if h not in seen_hashes:
-                    seen_hashes.add(h)
-                    ext = _get_image_extension(best_url, data)
-                    return {"data": data, "ext": ext, "source": "website"}
-        except Exception:
-            pass
+        for candidate_url in _candidate_image_urls(best_url):
+            try:
+                data = await fetch_url_bytes(candidate_url, timeout=15.0)
+                if len(data) > 3000 and _looks_like_image_bytes(data):
+                    h = image_hash(data)
+                    if h not in seen_hashes:
+                        seen_hashes.add(h)
+                        ext = _get_image_extension(candidate_url, data)
+                        return {"data": data, "ext": ext, "source": "website"}
+            except Exception:
+                continue
+
+    if website_images_only:
+        return None
 
     # --- Strategy 2: DuckDuckGo Images (Free) with style template ---
     try:
@@ -181,7 +217,7 @@ async def _search_duckduckgo_image(
                 continue
             try:
                 img_data = await fetch_url_bytes(img_url, timeout=10.0)
-                if len(img_data) > 5000:
+                if len(img_data) > 5000 and _looks_like_image_bytes(img_data):
                     h = image_hash(img_data)
                     if h not in seen_hashes:
                         seen_hashes.add(h)

@@ -20,3 +20,4 @@ pillow
 pdfplumber
 beautifulsoup4
 ddgs
+cloudscraper

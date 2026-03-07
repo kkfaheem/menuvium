@@ -13,7 +13,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import Optional, Union, List
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 
@@ -53,6 +53,18 @@ MENU_PATH_PATTERNS = [
     "/carte", "/speisekarte", "/carta", "/menukaart",
 ]
 
+# Trusted off-domain menu hosts that many restaurant sites link to.
+MENU_EXTERNAL_HOST_ALLOWLIST = (
+    "order.online",
+    "doordash.com",
+    "ubereats.com",
+    "skiptheddishes.com",
+    "toasttab.com",
+    "chownow.com",
+    "menufy.com",
+    "square.site",
+)
+
 
 async def extract_menu(website_url: str, log_fn=None) -> ParsedMenu:
     """Extract menu categories and items from a restaurant website.
@@ -82,25 +94,36 @@ async def extract_menu(website_url: str, log_fn=None) -> ParsedMenu:
 
         # Re-parse from raw HTML for text extraction (avoid soup mutation issues)
         homepage_text = _extract_menu_text_from_html(html)
-        if len(homepage_text.strip()) > 100:
+        if len(homepage_text.strip()) > 100 and _looks_like_menu(homepage_text):
             all_text_parts.append(homepage_text)
             source_urls.append(website_url)
             log_fn(f"Extracted {len(homepage_text)} chars from homepage")
+        elif len(homepage_text.strip()) > 100:
+            log_fn("Homepage text does not look like menu content, skipping")
         else:
             log_fn(f"Homepage text too short ({len(homepage_text.strip())} chars), skipping")
     except Exception as e:
         log_fn(f"Failed to fetch homepage: {e}")
 
     # Step 2: Try common menu URL paths even if not linked from homepage
-    parsed_base = urlparse(website_url)
-    base_origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
-    for path in MENU_PATH_PATTERNS:
-        candidate = f"{base_origin}{path}"
-        if candidate not in menu_urls and candidate != website_url.rstrip("/"):
-            menu_urls.append(candidate)
+    if not menu_urls:
+        parsed_base = urlparse(website_url)
+        base_origin = f"{parsed_base.scheme}://{parsed_base.netloc}"
+        for path in MENU_PATH_PATTERNS:
+            candidate = f"{base_origin}{path}"
+            if candidate not in menu_urls and candidate != website_url.rstrip("/"):
+                menu_urls.append(candidate)
 
     # Step 3: Collect text from all menu sources
-    for url in menu_urls[:8]:  # Cap at 8 pages
+    visited_urls: set[str] = set()
+    idx = 0
+    while idx < len(menu_urls) and len(visited_urls) < 24:
+        url = menu_urls[idx]
+        idx += 1
+        if url in visited_urls:
+            continue
+        visited_urls.add(url)
+
         try:
             log_fn(f"Fetching menu page: {url}")
             content_bytes = await fetch_url_bytes(url)
@@ -132,6 +155,15 @@ async def extract_menu(website_url: str, log_fn=None) -> ParsedMenu:
                     all_text_parts.append(page_text)
                     source_urls.append(url)
                     log_fn(f"Extracted {len(page_text)} chars from HTML")
+
+                # Some providers (e.g. order.online) expose a business shell URL
+                # that redirects to a concrete /store/... URL in script payload.
+                provider_links = _discover_provider_menu_links(url, content_bytes)
+                for provider_url in provider_links:
+                    if provider_url not in menu_urls:
+                        # Process discovered provider menu URLs immediately.
+                        menu_urls.insert(idx, provider_url)
+                        log_fn(f"Discovered provider menu URL: {provider_url}")
 
                 # Check for embedded PDF links on menu pages
                 page_soup = BeautifulSoup(content_bytes, "html.parser")
@@ -169,7 +201,7 @@ def _discover_menu_links(base_url: str, soup: BeautifulSoup) -> list[str]:
     """Find links on a page that are likely to be menu pages."""
     found: list[str] = []
     parsed_base = urlparse(base_url)
-    base_domain = parsed_base.netloc.lower()
+    base_domain = parsed_base.netloc.lower().removeprefix("www.")
 
     for a in soup.find_all("a", href=True):
         href = a["href"]
@@ -178,19 +210,27 @@ def _discover_menu_links(base_url: str, soup: BeautifulSoup) -> list[str]:
             continue
 
         parsed = urlparse(resolved)
-        # Only follow links on the same domain
-        if parsed.netloc.lower() != base_domain:
+        link_domain = parsed.netloc.lower().removeprefix("www.")
+        is_same_domain = link_domain == base_domain
+        is_allowed_external = any(
+            link_domain == host or link_domain.endswith(f".{host}")
+            for host in MENU_EXTERNAL_HOST_ALLOWLIST
+        )
+        # Follow same-domain links and trusted menu-host providers only.
+        if not is_same_domain and not is_allowed_external:
             continue
 
         path = parsed.path.lower().rstrip("/")
         link_text = (a.get_text() or "").lower().strip()
+        url_text = resolved.lower()
 
         # Check if path matches common menu patterns
         is_menu_path = any(path.endswith(p) or path.endswith(p + "/") for p in MENU_PATH_PATTERNS)
         # Check if link text suggests menu
-        is_menu_text = any(kw in link_text for kw in ["menu", "food", "dinner", "lunch", "drinks"])
+        is_menu_text = any(kw in link_text for kw in ["menu", "food", "dinner", "lunch", "drinks", "order", "pickup"])
+        is_provider_menu_path = any(token in url_text for token in ["/business/", "/store/", "menu"])
 
-        if is_menu_path or is_menu_text:
+        if is_menu_path or is_menu_text or (is_allowed_external and is_provider_menu_path):
             if resolved not in found and resolved != base_url.rstrip("/"):
                 found.append(resolved)
 
@@ -207,6 +247,34 @@ def _find_pdf_links(base_url: str, soup: BeautifulSoup) -> list[str]:
             if resolved:
                 pdfs.append(resolved)
     return pdfs
+
+
+def _discover_provider_menu_links(base_url: str, html: Union[str, bytes]) -> list[str]:
+    """Discover additional menu URLs from provider-specific payloads.
+
+    Current support:
+    - order.online business shell pages that embed NEXT_REDIRECT to /store/...
+    """
+    if isinstance(html, bytes):
+        text = html.decode("utf-8", errors="ignore")
+    else:
+        text = html
+
+    parsed = urlparse(base_url)
+    host = parsed.netloc.lower().removeprefix("www.")
+    # Only business shell pages contain the redirect token we need.
+    if host != "order.online" or "/business/" not in parsed.path:
+        return []
+
+    decoded = text.replace("\\u0026", "&").replace("\\&", "&").replace("\\/", "/")
+    links: list[str] = []
+    # Prefer explicit NEXT_REDIRECT payloads when present.
+    for match in re.finditer(r"NEXT_REDIRECT;replace;(/store/[^;\"']+);307;", decoded):
+        resolved = normalize_url("https://order.online", match.group(1))
+        if resolved and resolved not in links:
+            links.append(resolved)
+
+    return links
 
 
 def _extract_menu_text_from_html(html: Union[str, bytes, BeautifulSoup]) -> str:
@@ -687,4 +755,3 @@ async def generate_style_template(
     except Exception as e:
         log_fn(f"Style template generation failed: {e}")
         return default_style, 0
-
