@@ -34,6 +34,14 @@ You can also override individually:
 - `--max-texture-dim twoK|fourK|eightK` (used with `custom/ultra` when supported)
 - `--max-polygons 500000` (used with `custom/ultra` when supported)
 - `--jpeg-q 1` (higher quality JPEG frames; slower/larger)
+- `--white-bg` (heuristically remaps extracted frame backgrounds to white before photogrammetry)
+- `--skip-preflight` (disable frame-quality gate; enabled by default)
+- `--preflight-adaptive` / `--no-preflight-adaptive` (adaptive mode warns for borderline feature scores instead of hard-failing)
+- `--preflight-min-frames 24`
+- `--preflight-max-blur 12.0`
+- `--preflight-min-feature 0.35` (pass threshold)
+- `--preflight-hard-min-feature 0.22` (adaptive hard-fail threshold)
+- `--preflight-min-motion 0.80`
 
 ## Run (AWS testing)
 
@@ -61,6 +69,23 @@ From the repo root:
   ```bash
   export MENUVIUM_AR_CROP="0.85"
   ```
+- *(Optional)* If alignment is failing and your capture has busy/dark background areas, enable white background preprocessing:
+  ```bash
+  export MENUVIUM_AR_WHITE_BG="1"
+  ```
+- *(Optional)* To bypass preflight quality validation:
+  ```bash
+  export MENUVIUM_AR_PREFLIGHT="0"
+  ```
+- *(Optional)* Adaptive preflight tuning (defaults shown):
+  ```bash
+  export MENUVIUM_AR_PREFLIGHT_ADAPTIVE="1"
+  export MENUVIUM_AR_PREFLIGHT_MIN_FRAMES="24"
+  export MENUVIUM_AR_PREFLIGHT_MAX_BLUR="12.0"
+  export MENUVIUM_AR_PREFLIGHT_MIN_FEATURE="0.35"
+  export MENUVIUM_AR_PREFLIGHT_HARD_MIN_FEATURE="0.22"
+  export MENUVIUM_AR_PREFLIGHT_MIN_MOTION="0.80"
+  ```
 - Run the production script:
   ```bash
   ./run-prod.sh
@@ -73,6 +98,7 @@ From the repo root:
 - This worker polls for jobs (`/ar-jobs/claim`) and processes one at a time.
 - Output keys are stored under `items/ar/<item_id>/...` in your upload bucket (or local uploads when `LOCAL_UPLOADS=1`).
 - Photogrammetry runs with automatic fallbacks: it tries a high-quality config first, then retries with safer settings (and potentially lower detail) if Object Capture returns `processError`.
+- Quality-first behavior is enabled by default: the worker first retries using the requested detail only; if alignment fails, it auto-retries with white-background frame normalization, then a deterministic frame-enhancement pass; only after those fail does it allow lower-detail fallback.
 - For best photorealism, capture matters more than compute:
   - Use 1080p+ (ideally 4K), slow rotation, minimal motion blur.
   - Even lighting, avoid harsh shadows + reflections, keep the dish centered.

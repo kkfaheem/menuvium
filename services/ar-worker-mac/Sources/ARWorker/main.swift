@@ -12,6 +12,14 @@ struct Config {
     let frameFps: Int
     let frameJpegQ: Int
     let frameCrop: Double
+    let frameWhiteBackground: Bool
+    let framePreflightEnabled: Bool
+    let framePreflightAdaptive: Bool
+    let framePreflightMinFrames: Int
+    let framePreflightMaxBlurMean: Double
+    let framePreflightMinFeatureMean: Double
+    let framePreflightHardMinFeatureMean: Double
+    let framePreflightMinMotionMean: Double
     let photogrammetryDetail: String
     let photogrammetryMaxPolygons: Int
     let photogrammetryMaxTextureDimension: String
@@ -103,6 +111,14 @@ func parseConfig() throws -> Config {
     var frameFps = 6
     var frameJpegQ = 2
     var frameCrop = 1.0
+    var frameWhiteBackground = false
+    var framePreflightEnabled = true
+    var framePreflightAdaptive = true
+    var framePreflightMinFrames = 24
+    var framePreflightMaxBlurMean = 12.0
+    var framePreflightMinFeatureMean = 0.35
+    var framePreflightHardMinFeatureMean = 0.22
+    var framePreflightMinMotionMean = 0.80
     var photogrammetryDetail = "full"
     var photogrammetryMaxPolygons = 500_000
     var photogrammetryMaxTextureDimension = "fourK"
@@ -113,6 +129,29 @@ func parseConfig() throws -> Config {
         let normalized = value > 1 ? value / 100.0 : value
         guard normalized.isFinite else { return nil }
         return min(1.0, max(0.5, normalized))
+    }
+
+    func parseBool(_ raw: String) -> Bool? {
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "1", "true", "yes", "on":
+            return true
+        case "0", "false", "no", "off":
+            return false
+        default:
+            return nil
+        }
+    }
+
+    func parsePositiveInt(_ raw: String) -> Int? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Int(trimmed), value > 0 else { return nil }
+        return value
+    }
+
+    func parseNonNegativeDouble(_ raw: String) -> Double? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Double(trimmed), value.isFinite, value >= 0 else { return nil }
+        return value
     }
 
     func applyQualityPreset(_ preset: String) {
@@ -143,6 +182,30 @@ func parseConfig() throws -> Config {
     if let cropEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_CROP"], let parsed = parseCrop(cropEnv) {
         frameCrop = parsed
     }
+    if let whiteBgEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_WHITE_BG"], let parsed = parseBool(whiteBgEnv) {
+        frameWhiteBackground = parsed
+    }
+    if let preflightEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_PREFLIGHT"], let parsed = parseBool(preflightEnv) {
+        framePreflightEnabled = parsed
+    }
+    if let preflightAdaptiveEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_PREFLIGHT_ADAPTIVE"], let parsed = parseBool(preflightAdaptiveEnv) {
+        framePreflightAdaptive = parsed
+    }
+    if let preflightMinFramesEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_PREFLIGHT_MIN_FRAMES"], let parsed = parsePositiveInt(preflightMinFramesEnv) {
+        framePreflightMinFrames = parsed
+    }
+    if let preflightMaxBlurEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_PREFLIGHT_MAX_BLUR"], let parsed = parseNonNegativeDouble(preflightMaxBlurEnv) {
+        framePreflightMaxBlurMean = parsed
+    }
+    if let preflightMinFeatureEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_PREFLIGHT_MIN_FEATURE"], let parsed = parseNonNegativeDouble(preflightMinFeatureEnv) {
+        framePreflightMinFeatureMean = parsed
+    }
+    if let preflightHardMinFeatureEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_PREFLIGHT_HARD_MIN_FEATURE"], let parsed = parseNonNegativeDouble(preflightHardMinFeatureEnv) {
+        framePreflightHardMinFeatureMean = parsed
+    }
+    if let preflightMinMotionEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_PREFLIGHT_MIN_MOTION"], let parsed = parseNonNegativeDouble(preflightMinMotionEnv) {
+        framePreflightMinMotionMean = parsed
+    }
 
     var index = args.startIndex
     while index < args.endIndex {
@@ -171,6 +234,38 @@ func parseConfig() throws -> Config {
             if let parsed = parseCrop(try nextValue()) {
                 frameCrop = parsed
             }
+        case "--white-bg":
+            frameWhiteBackground = true
+        case "--no-white-bg":
+            frameWhiteBackground = false
+        case "--preflight":
+            framePreflightEnabled = true
+        case "--skip-preflight":
+            framePreflightEnabled = false
+        case "--preflight-adaptive":
+            framePreflightAdaptive = true
+        case "--no-preflight-adaptive":
+            framePreflightAdaptive = false
+        case "--preflight-min-frames":
+            if let parsed = parsePositiveInt(try nextValue()) {
+                framePreflightMinFrames = parsed
+            }
+        case "--preflight-max-blur":
+            if let parsed = parseNonNegativeDouble(try nextValue()) {
+                framePreflightMaxBlurMean = parsed
+            }
+        case "--preflight-min-feature":
+            if let parsed = parseNonNegativeDouble(try nextValue()) {
+                framePreflightMinFeatureMean = parsed
+            }
+        case "--preflight-hard-min-feature":
+            if let parsed = parseNonNegativeDouble(try nextValue()) {
+                framePreflightHardMinFeatureMean = parsed
+            }
+        case "--preflight-min-motion":
+            if let parsed = parseNonNegativeDouble(try nextValue()) {
+                framePreflightMinMotionMean = parsed
+            }
         case "--detail":
             photogrammetryDetail = try nextValue()
         case "--max-polygons":
@@ -191,6 +286,8 @@ func parseConfig() throws -> Config {
     }
 
     let normalizedApiBase = apiBaseRaw.hasSuffix("/") ? String(apiBaseRaw.dropLast()) : apiBaseRaw
+    let clampedPreflightMinFeatureMean = max(0.0, framePreflightMinFeatureMean)
+    let clampedPreflightHardMinFeatureMean = max(0.0, min(clampedPreflightMinFeatureMean, framePreflightHardMinFeatureMean))
     return Config(
         apiBase: normalizedApiBase,
         workerToken: tokenRaw,
@@ -198,6 +295,14 @@ func parseConfig() throws -> Config {
         frameFps: max(1, frameFps),
         frameJpegQ: max(1, min(31, frameJpegQ)),
         frameCrop: frameCrop,
+        frameWhiteBackground: frameWhiteBackground,
+        framePreflightEnabled: framePreflightEnabled,
+        framePreflightAdaptive: framePreflightAdaptive,
+        framePreflightMinFrames: max(1, framePreflightMinFrames),
+        framePreflightMaxBlurMean: max(0.0, framePreflightMaxBlurMean),
+        framePreflightMinFeatureMean: clampedPreflightMinFeatureMean,
+        framePreflightHardMinFeatureMean: clampedPreflightHardMinFeatureMean,
+        framePreflightMinMotionMean: max(0.0, framePreflightMinMotionMean),
         photogrammetryDetail: photogrammetryDetail,
         photogrammetryMaxPolygons: max(1, photogrammetryMaxPolygons),
         photogrammetryMaxTextureDimension: photogrammetryMaxTextureDimension
@@ -317,12 +422,73 @@ func processJob(claim: WorkerClaimResponse, config: Config) async throws {
         ]
     )
 
-    let frameCount = (try? FileManager.default.contentsOfDirectory(at: framesDir, includingPropertiesForKeys: nil).count) ?? 0
+    let frameCount = countFrames(in: framesDir)
+    if config.framePreflightEnabled, frameCount > 0 {
+        await tryUpdateProgress(
+            itemId: claim.item_id,
+            jobId: claim.job_id,
+            stage: "extracting_frames",
+            detail: "Preflight frame quality check",
+            progress: 0.18,
+            config: config
+        )
+        let preflight = try runFramePreflight(framesDir: framesDir, frameCount: frameCount, config: config)
+        let metrics = preflight.metrics
+        let detail: String
+        if preflight.warnings.isEmpty {
+            detail = String(
+                format: "Preflight ok (blur %.2f, feature %.3f, motion %.2f)",
+                metrics.blurMean,
+                metrics.edgeMean,
+                metrics.motionMean
+            )
+        } else {
+            detail = String(
+                format: "Preflight warning: %@; blur %.2f, feature %.3f, motion %.2f",
+                preflight.warnings.joined(separator: "; "),
+                metrics.blurMean,
+                metrics.edgeMean,
+                metrics.motionMean
+            )
+        }
+        await tryUpdateProgress(
+            itemId: claim.item_id,
+            jobId: claim.job_id,
+            stage: "extracting_frames",
+            detail: detail,
+            progress: 0.20,
+            config: config
+        )
+    }
+
+    var photogrammetryFramesDir = framesDir
+    if config.frameWhiteBackground, frameCount > 0 {
+        await tryUpdateProgress(
+            itemId: claim.item_id,
+            jobId: claim.job_id,
+            stage: "extracting_frames",
+            detail: "Normalizing background to white",
+            progress: 0.21,
+            config: config
+        )
+
+        let whiteFramesDir = tempDir.appendingPathComponent("frames-white", isDirectory: true)
+        try whitenFrameBackgroundToWhite(
+            inputFramesDir: framesDir,
+            outputFramesDir: whiteFramesDir,
+            frameCount: frameCount,
+            frameJpegQ: config.frameJpegQ
+        )
+        photogrammetryFramesDir = whiteFramesDir
+    }
+
+    let effectiveFrameCount = countFrames(in: photogrammetryFramesDir)
+    let preprocessingSuffix = config.frameWhiteBackground ? ", white-bg" : ""
     await tryUpdateProgress(
         itemId: claim.item_id,
         jobId: claim.job_id,
         stage: "photogrammetry",
-        detail: "Starting photogrammetry (\(frameCount) frames)",
+        detail: "Starting photogrammetry (\(effectiveFrameCount) frames\(preprocessingSuffix))",
         progress: 0.22,
         config: config
     )
@@ -332,37 +498,137 @@ func processJob(claim: WorkerClaimResponse, config: Config) async throws {
 
     let modelUsdz = outputsDir.appendingPathComponent("model.usdz")
     var photogrammetryPrefix = "Photogrammetry"
-    try await runPhotogrammetry(
-        framesDir: framesDir,
-        usdzOut: modelUsdz,
-        detail: config.photogrammetryDetail,
-        customMaxPolygons: config.photogrammetryMaxPolygons,
-        customMaxTextureDimension: config.photogrammetryMaxTextureDimension,
-        status: { message in
-            photogrammetryPrefix = message
+    func runPhotogrammetryPass(allowDetailFallback: Bool) async throws {
+        try await runPhotogrammetry(
+            framesDir: photogrammetryFramesDir,
+            usdzOut: modelUsdz,
+            detail: config.photogrammetryDetail,
+            customMaxPolygons: config.photogrammetryMaxPolygons,
+            customMaxTextureDimension: config.photogrammetryMaxTextureDimension,
+            allowDetailFallback: allowDetailFallback,
+            status: { message in
+                photogrammetryPrefix = message
+                await tryUpdateProgress(
+                    itemId: claim.item_id,
+                    jobId: claim.job_id,
+                    stage: "photogrammetry",
+                    detail: message,
+                    progress: nil,
+                    config: config
+                )
+            },
+            progress: { fraction in
+                let clamped = max(0.0, min(1.0, fraction))
+                let overall = 0.22 + (clamped * 0.58)
+                let stagePercent = Int((clamped * 100).rounded())
+                await tryUpdateProgress(
+                    itemId: claim.item_id,
+                    jobId: claim.job_id,
+                    stage: "photogrammetry",
+                    detail: "\(photogrammetryPrefix) \(stagePercent)%",
+                    progress: overall,
+                    config: config
+                )
+            }
+        )
+    }
+
+    do {
+        try await runPhotogrammetryPass(allowDetailFallback: false)
+    } catch {
+        var qualityFirstError: Error? = error
+
+        if let currentError = qualityFirstError, !config.frameWhiteBackground, frameCount > 0, isAlignmentFailure(currentError) {
             await tryUpdateProgress(
                 itemId: claim.item_id,
                 jobId: claim.job_id,
                 stage: "photogrammetry",
-                detail: message,
-                progress: nil,
+                detail: "Alignment rescue: retrying with white background normalization",
+                progress: 0.22,
                 config: config
             )
-        },
-        progress: { fraction in
-            let clamped = max(0.0, min(1.0, fraction))
-            let overall = 0.22 + (clamped * 0.58)
-            let stagePercent = Int((clamped * 100).rounded())
+            let rescueFramesDir = tempDir.appendingPathComponent("frames-white-rescue", isDirectory: true)
+            try whitenFrameBackgroundToWhite(
+                inputFramesDir: framesDir,
+                outputFramesDir: rescueFramesDir,
+                frameCount: frameCount,
+                frameJpegQ: config.frameJpegQ
+            )
+            photogrammetryFramesDir = rescueFramesDir
+            let rescueFrameCount = countFrames(in: photogrammetryFramesDir)
             await tryUpdateProgress(
                 itemId: claim.item_id,
                 jobId: claim.job_id,
                 stage: "photogrammetry",
-                detail: "\(photogrammetryPrefix) \(stagePercent)%",
-                progress: overall,
+                detail: "Retrying photogrammetry (\(rescueFrameCount) frames, white-bg rescue)",
+                progress: 0.22,
                 config: config
             )
+
+            do {
+                try await runPhotogrammetryPass(allowDetailFallback: false)
+                qualityFirstError = nil
+            } catch {
+                qualityFirstError = error
+            }
         }
-    )
+
+        if let currentError = qualityFirstError, frameCount > 0, isAlignmentFailure(currentError) {
+            let enhancedFramesDir = tempDir.appendingPathComponent("frames-enhanced-rescue", isDirectory: true)
+            let enhancementInputDir = photogrammetryFramesDir
+            let enhancementInputFrameCount = countFrames(in: enhancementInputDir)
+
+            await tryUpdateProgress(
+                itemId: claim.item_id,
+                jobId: claim.job_id,
+                stage: "photogrammetry",
+                detail: "Alignment rescue: retrying with deterministic frame enhancement",
+                progress: 0.22,
+                config: config
+            )
+            try enhanceFramesForAlignment(
+                inputFramesDir: enhancementInputDir,
+                outputFramesDir: enhancedFramesDir,
+                frameCount: max(1, enhancementInputFrameCount),
+                frameJpegQ: config.frameJpegQ
+            )
+            photogrammetryFramesDir = enhancedFramesDir
+            let enhancedFrameCount = countFrames(in: photogrammetryFramesDir)
+            await tryUpdateProgress(
+                itemId: claim.item_id,
+                jobId: claim.job_id,
+                stage: "photogrammetry",
+                detail: "Retrying photogrammetry (\(enhancedFrameCount) frames, enhancement rescue)",
+                progress: 0.22,
+                config: config
+            )
+
+            do {
+                try await runPhotogrammetryPass(allowDetailFallback: false)
+                qualityFirstError = nil
+            } catch {
+                qualityFirstError = error
+            }
+        }
+
+        if let unresolvedQualityFirstError = qualityFirstError {
+            await tryUpdateProgress(
+                itemId: claim.item_id,
+                jobId: claim.job_id,
+                stage: "photogrammetry",
+                detail: "High-quality attempts failed; enabling detail fallback",
+                progress: 0.22,
+                config: config
+            )
+            do {
+                try await runPhotogrammetryPass(allowDetailFallback: true)
+            } catch {
+                throw WorkerError.processing(
+                    "Photogrammetry quality-first and fallback attempts failed: quality-first=\(String(describing: unresolvedQualityFirstError)) | fallback=\(String(describing: error))"
+                )
+            }
+        }
+    }
 
     let modelGlb = outputsDir.appendingPathComponent("model.glb")
     await tryUpdateProgress(
@@ -466,17 +732,253 @@ func processJob(claim: WorkerClaimResponse, config: Config) async throws {
     )
 }
 
+func countFrames(in dir: URL) -> Int {
+    guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+        return 0
+    }
+    return files.filter { $0.pathExtension.lowercased() == "jpg" || $0.pathExtension.lowercased() == "jpeg" }.count
+}
+
+struct FramePreflightMetrics {
+    let frameCount: Int
+    let sampledFrames: Int
+    let blurMean: Double
+    let edgeMean: Double
+    let motionMean: Double
+}
+
+struct FramePreflightResult {
+    let metrics: FramePreflightMetrics
+    let warnings: [String]
+}
+
+func runFramePreflight(framesDir: URL, frameCount: Int, config: Config) throws -> FramePreflightResult {
+    if frameCount < config.framePreflightMinFrames {
+        throw WorkerError.processing(
+            "Preflight failed: too few extracted frames (\(frameCount)). Capture a longer/slower orbit to produce at least \(config.framePreflightMinFrames) frames"
+        )
+    }
+
+    let sampleStep = max(1, frameCount / config.framePreflightMinFrames)
+
+    let blurValues = try collectFrameMetric(
+        framesDir: framesDir,
+        sampleStep: sampleStep,
+        filterChain: "blurdetect=block_pct=80:block_width=32:block_height=32",
+        metricPattern: #"lavfi\.blur=([0-9]+(?:\.[0-9]+)?)"#
+    )
+    let edgeValues = try collectFrameMetric(
+        framesDir: framesDir,
+        sampleStep: sampleStep,
+        filterChain: "edgedetect=low=0.08:high=0.2,signalstats",
+        metricPattern: #"lavfi\.signalstats\.YAVG=([0-9]+(?:\.[0-9]+)?)"#
+    )
+    let motionValues = try collectFrameMetric(
+        framesDir: framesDir,
+        sampleStep: sampleStep,
+        filterChain: "tblend=all_mode=difference,signalstats",
+        metricPattern: #"lavfi\.signalstats\.YAVG=([0-9]+(?:\.[0-9]+)?)"#
+    )
+
+    guard let blurMean = mean(blurValues), let edgeMean = mean(edgeValues), let motionMean = mean(motionValues) else {
+        throw WorkerError.processing("Preflight failed: unable to compute frame quality metrics")
+    }
+
+    var failures: [String] = []
+    var warnings: [String] = []
+    if blurMean > config.framePreflightMaxBlurMean {
+        failures.append(String(format: "frames appear blurry (blurMean %.2f > %.2f)", blurMean, config.framePreflightMaxBlurMean))
+    }
+    if config.framePreflightAdaptive {
+        if edgeMean < config.framePreflightHardMinFeatureMean {
+            failures.append(String(format: "insufficient trackable features (featureMean %.3f < %.3f)", edgeMean, config.framePreflightHardMinFeatureMean))
+        } else if edgeMean < config.framePreflightMinFeatureMean {
+            warnings.append(String(format: "low trackable features (featureMean %.3f < %.3f); continuing in adaptive mode", edgeMean, config.framePreflightMinFeatureMean))
+        }
+    } else if edgeMean < config.framePreflightMinFeatureMean {
+        failures.append(String(format: "insufficient trackable features (featureMean %.3f < %.3f)", edgeMean, config.framePreflightMinFeatureMean))
+    }
+    if motionMean < config.framePreflightMinMotionMean {
+        failures.append(String(format: "insufficient viewpoint/parallax change (motionMean %.2f < %.2f)", motionMean, config.framePreflightMinMotionMean))
+    }
+
+    if !failures.isEmpty {
+        let summary = String(
+            format: "metrics blur=%.2f feature=%.3f motion=%.2f samples=%d",
+            blurMean,
+            edgeMean,
+            motionMean,
+            min(blurValues.count, min(edgeValues.count, motionValues.count))
+        )
+        throw WorkerError.processing("Preflight failed: \(failures.joined(separator: "; ")); \(summary)")
+    }
+
+    return FramePreflightResult(
+        metrics: FramePreflightMetrics(
+            frameCount: frameCount,
+            sampledFrames: min(blurValues.count, min(edgeValues.count, motionValues.count)),
+            blurMean: blurMean,
+            edgeMean: edgeMean,
+            motionMean: motionMean
+        ),
+        warnings: warnings
+    )
+}
+
+func collectFrameMetric(
+    framesDir: URL,
+    sampleStep: Int,
+    filterChain: String,
+    metricPattern: String
+) throws -> [Double] {
+    let vf = "select='not(mod(n\\,\(sampleStep)))',\(filterChain),metadata=mode=print"
+    let output = try runProcess(
+        "ffmpeg",
+        args: [
+            "-nostdin",
+            "-hide_banner",
+            "-nostats",
+            "-v",
+            "info",
+            "-framerate",
+            "30",
+            "-start_number",
+            "1",
+            "-i",
+            framesDir.appendingPathComponent("frame-%04d.jpg").path,
+            "-vf",
+            vf,
+            "-an",
+            "-f",
+            "null",
+            "-",
+        ]
+    )
+
+    let regex = try NSRegularExpression(pattern: metricPattern)
+    let nsrange = NSRange(output.startIndex..<output.endIndex, in: output)
+    var values: [Double] = []
+    for match in regex.matches(in: output, range: nsrange) {
+        guard match.numberOfRanges > 1,
+            let valueRange = Range(match.range(at: 1), in: output),
+            let value = Double(output[valueRange])
+        else {
+            continue
+        }
+        values.append(value)
+    }
+    return values
+}
+
+func mean(_ values: [Double]) -> Double? {
+    guard !values.isEmpty else { return nil }
+    return values.reduce(0.0, +) / Double(values.count)
+}
+
+func whitenFrameBackgroundToWhite(
+    inputFramesDir: URL,
+    outputFramesDir: URL,
+    frameCount: Int,
+    frameJpegQ: Int
+) throws {
+    guard frameCount > 0 else { return }
+
+    try? FileManager.default.removeItem(at: outputFramesDir)
+    try FileManager.default.createDirectory(at: outputFramesDir, withIntermediateDirectories: true)
+
+    let filterComplex = "[0:v]format=rgba,colorkey=0xECECEC:0.34:0.08,lumakey=0.14:0.10:0.02[fg];color=c=white:s=16x16[bg];[bg][fg]scale2ref[bg2][fg2];[bg2][fg2]overlay=shortest=1:format=auto,format=yuvj420p[v]"
+
+    try runProcess(
+        "ffmpeg",
+        args: [
+            "-nostdin",
+            "-y",
+            "-framerate",
+            "30",
+            "-start_number",
+            "1",
+            "-i",
+            inputFramesDir.appendingPathComponent("frame-%04d.jpg").path,
+            "-filter_complex",
+            filterComplex,
+            "-map",
+            "[v]",
+            "-frames:v",
+            String(frameCount),
+            "-r",
+            "30",
+            "-q:v",
+            String(frameJpegQ),
+            outputFramesDir.appendingPathComponent("frame-%04d.jpg").path,
+        ]
+    )
+
+    let outputCount = countFrames(in: outputFramesDir)
+    if outputCount == 0 {
+        throw WorkerError.processing("Background whitening produced no frames")
+    }
+}
+
+func enhanceFramesForAlignment(
+    inputFramesDir: URL,
+    outputFramesDir: URL,
+    frameCount: Int,
+    frameJpegQ: Int
+) throws {
+    guard frameCount > 0 else { return }
+
+    try? FileManager.default.removeItem(at: outputFramesDir)
+    try FileManager.default.createDirectory(at: outputFramesDir, withIntermediateDirectories: true)
+
+    // Deterministic, conservative enhancement to improve edge/feature detectability
+    // without hallucinating frame-specific details that can hurt alignment.
+    let enhancementFilter = "hqdn3d=0.8:0.8:3:3,eq=contrast=1.05:brightness=0.01:saturation=1.02,unsharp=5:5:0.7:3:3:0.0"
+
+    try runProcess(
+        "ffmpeg",
+        args: [
+            "-nostdin",
+            "-y",
+            "-framerate",
+            "30",
+            "-start_number",
+            "1",
+            "-i",
+            inputFramesDir.appendingPathComponent("frame-%04d.jpg").path,
+            "-vf",
+            enhancementFilter,
+            "-frames:v",
+            String(frameCount),
+            "-r",
+            "30",
+            "-q:v",
+            String(frameJpegQ),
+            outputFramesDir.appendingPathComponent("frame-%04d.jpg").path,
+        ]
+    )
+
+    let outputCount = countFrames(in: outputFramesDir)
+    if outputCount == 0 {
+        throw WorkerError.processing("Frame enhancement produced no frames")
+    }
+}
+
 func runPhotogrammetry(
     framesDir: URL,
     usdzOut: URL,
     detail: String,
     customMaxPolygons: Int,
     customMaxTextureDimension: String,
+    allowDetailFallback: Bool,
     status: @escaping (String) async -> Void,
     progress: @escaping (Double) async -> Void
 ) async throws {
     #if canImport(RealityKit)
     if #available(macOS 12.0, *) {
+        if #available(macOS 13.0, *), !PhotogrammetrySession.isSupported {
+            throw WorkerError.processing("Photogrammetry is not supported on this Mac (requires supported Apple Object Capture hardware/runtime)")
+        }
+
         struct PhotogrammetryAttempt {
             let label: String
             let sampleOrdering: PhotogrammetrySession.Configuration.SampleOrdering
@@ -544,7 +1046,9 @@ func runPhotogrammetry(
         let customPolygonCount = max(1, customMaxPolygons)
 
         let detailFallbackChain: [PhotogrammetrySession.Request.Detail]
-        if #available(macOS 14.0, *), requestedDetail == .custom {
+        if !allowDetailFallback {
+            detailFallbackChain = [requestedDetail]
+        } else if #available(macOS 14.0, *), requestedDetail == .custom {
             detailFallbackChain = [.custom, .full, .medium, .reduced]
         } else if requestedDetail == .raw {
             detailFallbackChain = [.raw, .full, .medium, .reduced]
@@ -554,12 +1058,6 @@ func runPhotogrammetry(
             detailFallbackChain = [.medium, .reduced]
         } else if requestedDetail == .reduced {
             detailFallbackChain = [.reduced, .preview]
-        } else if requestedDetail == .preview {
-            detailFallbackChain = [.preview]
-        } else if requestedDetail == .raw {
-            detailFallbackChain = [requestedDetail]
-        } else if #available(macOS 14.0, *), requestedDetail == .custom {
-            detailFallbackChain = [requestedDetail]
         } else {
             detailFallbackChain = [requestedDetail]
         }
@@ -582,6 +1080,28 @@ func runPhotogrammetry(
                 PhotogrammetryAttempt(
                     label: "Photogrammetry HQ (\(detailLabel(primaryDetail))\(specLabel))",
                     sampleOrdering: .sequential,
+                    featureSensitivity: .high,
+                    objectMaskingEnabled: false,
+                    detail: primaryDetail,
+                    customMaxPolygons: useCustomSpec ? customPolygonCount : nil,
+                    customMaxTextureDimension: useCustomSpec ? customMaxTextureDimension : nil
+                )
+            )
+            attempts.append(
+                PhotogrammetryAttempt(
+                    label: "Photogrammetry HQ Masked Unordered (\(detailLabel(primaryDetail))\(specLabel))",
+                    sampleOrdering: .unordered,
+                    featureSensitivity: .high,
+                    objectMaskingEnabled: true,
+                    detail: primaryDetail,
+                    customMaxPolygons: useCustomSpec ? customPolygonCount : nil,
+                    customMaxTextureDimension: useCustomSpec ? customMaxTextureDimension : nil
+                )
+            )
+            attempts.append(
+                PhotogrammetryAttempt(
+                    label: "Photogrammetry HQ Unordered (\(detailLabel(primaryDetail))\(specLabel))",
+                    sampleOrdering: .unordered,
                     featureSensitivity: .high,
                     objectMaskingEnabled: false,
                     detail: primaryDetail,
@@ -663,7 +1183,12 @@ func runPhotogrammetry(
                 )
                 return
             } catch {
-                let formatted = formatError(error)
+                let formatted: String
+                if let workerError = error as? WorkerError {
+                    formatted = String(describing: workerError)
+                } else {
+                    formatted = formatError(error)
+                }
                 let message = "\(attempt.label): \(formatted)"
                 failures.append(message)
                 fputs("menuvium-ar-worker photogrammetry failed (\(attemptNumber)/\(attempts.count)): \(message)\n", stderr)
@@ -737,7 +1262,37 @@ func runPhotogrammetryAttempt(
     try session.process(requests: [usdzRequest])
 
     var lastProgressReported = -1.0
+    var lastProcessingStage: String?
+    var invalidSampleCount = 0
+    var skippedSampleCount = 0
+    var invalidSampleExamples: [String] = []
+    var sawAutomaticDownsampling = false
+
     for try await output in session.outputs {
+        if #available(macOS 14.0, *) {
+            if case .requestProgressInfo(_, let info) = output {
+                if let stage = info.processingStage {
+                    switch stage {
+                    case .preProcessing:
+                        lastProcessingStage = "preProcessing"
+                    case .imageAlignment:
+                        lastProcessingStage = "imageAlignment"
+                    case .pointCloudGeneration:
+                        lastProcessingStage = "pointCloudGeneration"
+                    case .meshGeneration:
+                        lastProcessingStage = "meshGeneration"
+                    case .textureMapping:
+                        lastProcessingStage = "textureMapping"
+                    case .optimization:
+                        lastProcessingStage = "optimization"
+                    @unknown default:
+                        lastProcessingStage = "unknown"
+                    }
+                }
+                continue
+            }
+        }
+
         switch output {
         case .requestProgress(_, let fractionComplete):
             let fraction = max(0.0, min(1.0, Double(fractionComplete)))
@@ -749,9 +1304,43 @@ func runPhotogrammetryAttempt(
             didComplete = true
             return
         case .requestError(_, let error):
-            throw error
+            var context: [String] = []
+            if let stage = lastProcessingStage {
+                context.append("stage=\(stage)")
+            }
+            if invalidSampleCount > 0 {
+                context.append("invalidSamples=\(invalidSampleCount)")
+            }
+            if skippedSampleCount > 0 {
+                context.append("skippedSamples=\(skippedSampleCount)")
+            }
+            if sawAutomaticDownsampling {
+                context.append("automaticDownsampling=true")
+            }
+            if !invalidSampleExamples.isEmpty {
+                context.append("invalidSampleExamples=\(invalidSampleExamples.joined(separator: "; "))")
+            }
+
+            let nsError = error as NSError
+            if nsError.domain == "CoreOC.PhotogrammetrySession.Error", nsError.code == 6 {
+                context.append(
+                    "hint=Object Capture failed during alignment. Try more texture/feature detail, more viewpoint variation, and cleaner background separation"
+                )
+            }
+
+            let contextSuffix = context.isEmpty ? "" : " [\(context.joined(separator: ", "))]"
+            throw WorkerError.processing("Photogrammetry request error: \(formatError(error))\(contextSuffix)")
         case .processingComplete:
             break
+        case .invalidSample(let id, let reason):
+            invalidSampleCount += 1
+            if invalidSampleExamples.count < 5 {
+                invalidSampleExamples.append("#\(id): \(reason)")
+            }
+        case .skippedSample:
+            skippedSampleCount += 1
+        case .automaticDownsampling:
+            sawAutomaticDownsampling = true
         default:
             break
         }
@@ -760,6 +1349,20 @@ func runPhotogrammetryAttempt(
     throw WorkerError.processing("Photogrammetry session ended unexpectedly")
 }
 #endif
+
+func isAlignmentFailure(_ error: Error) -> Bool {
+    let text = String(describing: error).lowercased()
+    if text.contains("stage=imagealignment") {
+        return true
+    }
+    if text.contains("coreoc.photogrammetrysession.error code 6") {
+        return true
+    }
+    if text.contains("failed during alignment") {
+        return true
+    }
+    return false
+}
 
 func formatError(_ error: Error) -> String {
     let nsError = error as NSError

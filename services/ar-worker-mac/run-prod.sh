@@ -7,6 +7,8 @@ API_BASE="${MENUVIUM_API_BASE:-}"
 WORKER_TOKEN="${MENUVIUM_WORKER_TOKEN:-}"
 QUALITY="${MENUVIUM_AR_QUALITY:-high}"
 CROP="${MENUVIUM_AR_CROP:-}"
+WHITE_BG="${MENUVIUM_AR_WHITE_BG:-0}"
+PREFLIGHT="${MENUVIUM_AR_PREFLIGHT:-1}"
 
 if [[ -z "${API_BASE}" || -z "${WORKER_TOKEN}" ]]; then
   cat >&2 <<'EOF'
@@ -36,10 +38,38 @@ swift build -c release
 
 echo "Tip: close this terminal to stop the worker."
 
+WHITE_BG_LABEL="off"
+WHITE_BG_NORM=$(printf '%s' "${WHITE_BG}" | tr '[:upper:]' '[:lower:]')
+case "${WHITE_BG_NORM}" in
+  1|true|yes|on)
+    WHITE_BG_LABEL="on"
+    ;;
+esac
+
+PREFLIGHT_LABEL="on"
+PREFLIGHT_NORM=$(printf '%s' "${PREFLIGHT}" | tr '[:upper:]' '[:lower:]')
+case "${PREFLIGHT_NORM}" in
+  0|false|no|off)
+    PREFLIGHT_LABEL="off"
+    ;;
+esac
+
+CMD=(.build/release/menuvium-ar-worker --api-base "${API_BASE}" --token "${WORKER_TOKEN}" --quality "${QUALITY}")
+
 if [[ -n "${CROP}" ]]; then
-  echo "Starting worker (quality: ${QUALITY}, crop: ${CROP})..."
-  exec caffeinate -dimsu -- .build/release/menuvium-ar-worker --api-base "${API_BASE}" --token "${WORKER_TOKEN}" --quality "${QUALITY}" --crop "${CROP}"
+  CMD+=(--crop "${CROP}")
+fi
+if [[ "${WHITE_BG_LABEL}" == "on" ]]; then
+  CMD+=(--white-bg)
+fi
+if [[ "${PREFLIGHT_LABEL}" == "off" ]]; then
+  CMD+=(--skip-preflight)
 fi
 
-echo "Starting worker (quality: ${QUALITY})..."
-exec caffeinate -dimsu -- .build/release/menuvium-ar-worker --api-base "${API_BASE}" --token "${WORKER_TOKEN}" --quality "${QUALITY}"
+if [[ -n "${CROP}" ]]; then
+  echo "Starting worker (quality: ${QUALITY}, crop: ${CROP}, white-bg: ${WHITE_BG_LABEL}, preflight: ${PREFLIGHT_LABEL})..."
+else
+  echo "Starting worker (quality: ${QUALITY}, white-bg: ${WHITE_BG_LABEL}, preflight: ${PREFLIGHT_LABEL})..."
+fi
+
+exec caffeinate -dimsu -- "${CMD[@]}"
