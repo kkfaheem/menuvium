@@ -209,48 +209,33 @@ def _find_pdf_links(base_url: str, soup: BeautifulSoup) -> list[str]:
     return pdfs
 
 
-def _extract_menu_text_from_html(html: Union[str, bytes]) -> str:
+def _extract_menu_text_from_html(html: Union[str, bytes, BeautifulSoup]) -> str:
     """Extract readable text from HTML string (non-destructive).
 
-    Accepts raw HTML string or bytes. Parses its own BeautifulSoup
-    so it never mutates any shared soup objects.
+    Accepts raw HTML string/bytes or an existing BeautifulSoup object.
+    Parses its own BeautifulSoup so it never mutates shared soup objects.
     """
-    soup = BeautifulSoup(html, "html.parser")
+    if isinstance(html, BeautifulSoup):
+        soup = BeautifulSoup(str(html), "html.parser")
+    else:
+        soup = BeautifulSoup(html, "html.parser")
 
-    # Tags whose text content we skip entirely
-    SKIP_TAGS = {"script", "style", "noscript"}
+    # Remove noisy chrome tags before extraction.
+    for tag in soup.find_all(["script", "style", "noscript", "header", "nav", "footer"]):
+        tag.decompose()
 
-    # Try to find a main content area — but only use it if it has substantial text
-    target = None
-    for candidate in [
-        soup.find("main"),
-        soup.find(id=re.compile(r"content", re.I)),
-    ]:
-        if candidate and len(candidate.get_text(strip=True)) > 200:
-            target = candidate
-            break
-
-    # Don't use <article> eagerly — many sites have small article elements
-    # that don't contain the menu (e.g., "Call Us", "Address" blocks)
-    if target is None:
-        target = soup.body if soup.body else soup
+    target = (
+        soup.find("main")
+        or soup.find(id=re.compile(r"(content|menu)", re.I))
+        or soup.find("article")
+        or (soup.body if soup.body else soup)
+    )
 
     lines = []
-    for element in target.descendants:
-        if element.name in SKIP_TAGS:
-            continue
-        if hasattr(element, "string") and element.string and not element.name:
-            # This is a NavigableString (text node)
-            text = element.strip()
-            if text and len(text) > 1:
-                # Skip if any ancestor is a skip tag
-                skip = False
-                for parent in element.parents:
-                    if parent.name in SKIP_TAGS:
-                        skip = True
-                        break
-                if not skip:
-                    lines.append(text)
+    for text in target.stripped_strings:
+        normalized = " ".join(text.split())
+        if len(normalized) > 1:
+            lines.append(normalized)
 
     return "\n".join(lines)
 
@@ -702,5 +687,4 @@ async def generate_style_template(
     except Exception as e:
         log_fn(f"Style template generation failed: {e}")
         return default_style, 0
-
 

@@ -30,6 +30,7 @@ from models import (
 )
 from dependencies import get_current_user
 from permissions import get_org_permissions
+from email_utils import EmailConfigError, send_email
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
 
@@ -291,6 +292,26 @@ def request_ownership_transfer(
     session.add(transfer)
     session.commit()
     session.refresh(transfer)
+
+    subject = f"Confirm ownership transfer for {org.name}"
+    text_body = (
+        f"You have been invited to become the owner of {org.name}.\n\n"
+        f"Transfer token: {raw_token}\n"
+        f"This token expires at {expires_at.isoformat()} UTC.\n\n"
+        "If you were not expecting this request, you can ignore this email."
+    )
+    try:
+        send_email(
+            to_email=target_email,
+            subject=subject,
+            text_body=text_body,
+        )
+    except EmailConfigError:
+        # Email is optional; API request should still succeed when SMTP is not configured.
+        pass
+    except Exception:
+        # Best-effort notification; persistence of transfer request is authoritative.
+        pass
 
     return OwnershipTransferRequestRead(
         id=transfer.id,
