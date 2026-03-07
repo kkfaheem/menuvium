@@ -52,10 +52,15 @@ export class MenuviumStack extends cdk.Stack {
         }
 
         // 2. Database (RDS Postgres) with environment-specific sizing
+        const dbSubnetType =
+            vpc.privateSubnets.length > 0
+                ? ec2.SubnetType.PRIVATE_WITH_EGRESS
+                : ec2.SubnetType.PRIVATE_ISOLATED;
+
         const db = new rds.DatabaseInstance(this, 'MenuviumDB', {
             engine: rds.DatabaseInstanceEngine.postgres({ version: rds.PostgresEngineVersion.VER_15 }),
             vpc,
-            vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+            vpcSubnets: { subnetType: dbSubnetType },
             instanceType: new ec2.InstanceType(config.dbInstanceType),
             allocatedStorage: config.dbAllocatedStorage,
             credentials: rds.Credentials.fromGeneratedSecret('postgres'),
