@@ -167,6 +167,15 @@ async def fetch_url(
                     timeout=timeout, follow_redirects=True, verify=False
                 ) as client:
                     resp = await client.get(url, headers=req_headers)
+                    if _looks_like_cloudflare_block(resp):
+                        cf_resp = await _fetch_with_cloudscraper(
+                            url,
+                            timeout=timeout,
+                            headers=req_headers,
+                        )
+                        if cf_resp is not None and not _looks_like_cloudflare_block(cf_resp):
+                            cf_resp.raise_for_status()
+                            return cf_resp
                     resp.raise_for_status()
                     return resp
             except httpx.HTTPStatusError as exc:
