@@ -248,6 +248,8 @@ export default function MenuDetailPage() {
   );
   const [isUploadingArVideo, setIsUploadingArVideo] = useState(false);
   const [isRetryingArGeneration, setIsRetryingArGeneration] = useState(false);
+  const [isCancelingArGeneration, setIsCancelingArGeneration] = useState(false);
+  const [isDeletingArModel, setIsDeletingArModel] = useState(false);
   const [arVideoError, setArVideoError] = useState<string | null>(null);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -296,6 +298,16 @@ export default function MenuDetailPage() {
   const editingItemDisplayPhotoUrl =
     filePreviewUrl || existingEditingItemPhotoUrl;
   const editingItemArStatus = editingItem?.ar_status ?? "none";
+  const hasArVideo = Boolean(editingItem?.ar_video_url);
+  const hasGeneratedArModel = Boolean(
+    editingItem?.ar_model_glb_url ||
+      editingItem?.ar_model_usdz_url ||
+      editingItem?.ar_model_poster_url,
+  );
+  const canRetryFromExistingVideo =
+    hasArVideo &&
+    editingItemArStatus !== "pending" &&
+    editingItemArStatus !== "processing";
   const editingItemArStage = editingItem?.ar_stage || null;
   const editingItemArStageDetail = editingItem?.ar_stage_detail || null;
   const editingItemArProgress =
@@ -1105,6 +1117,102 @@ export default function MenuDetailPage() {
       );
     } finally {
       setIsRetryingArGeneration(false);
+    }
+  };
+
+  const handleCancelArGeneration = async () => {
+    if (!editingItem?.id) return;
+    const canEditItems = Boolean(orgPermissions?.can_edit_items);
+    if (!canEditItems) {
+      toast({
+        variant: "warning",
+        title: "Not authorized",
+        description: "You don’t have permission to edit items.",
+      });
+      return;
+    }
+    if (
+      !window.confirm(
+        "Cancel AR generation for this item? Current processing will stop.",
+      )
+    ) {
+      return;
+    }
+
+    setIsCancelingArGeneration(true);
+    setArVideoError(null);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${apiBase}/items/${editingItem.id}/ar/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || res.statusText || "Unknown error");
+      }
+      const updated = await res.json();
+      setEditingItem((prev) => (prev ? ({ ...prev, ...updated } as any) : prev));
+      setPageDirty(true);
+      if (menu) fetchMenu(menu.id);
+      toast({
+        variant: "success",
+        title: "AR generation canceled",
+      });
+    } catch (e) {
+      console.error(e);
+      setArVideoError(
+        e instanceof Error ? e.message : "Failed to cancel AR generation",
+      );
+    } finally {
+      setIsCancelingArGeneration(false);
+    }
+  };
+
+  const handleDeleteArModel = async () => {
+    if (!editingItem?.id) return;
+    const canEditItems = Boolean(orgPermissions?.can_edit_items);
+    if (!canEditItems) {
+      toast({
+        variant: "warning",
+        title: "Not authorized",
+        description: "You don’t have permission to edit items.",
+      });
+      return;
+    }
+    if (
+      !window.confirm(
+        "Delete generated AR model assets for this item? This cannot be undone.",
+      )
+    ) {
+      return;
+    }
+
+    setIsDeletingArModel(true);
+    setArVideoError(null);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${apiBase}/items/${editingItem.id}/ar/model`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || res.statusText || "Unknown error");
+      }
+      const updated = await res.json();
+      setEditingItem((prev) => (prev ? ({ ...prev, ...updated } as any) : prev));
+      setPageDirty(true);
+      if (menu) fetchMenu(menu.id);
+      toast({
+        variant: "success",
+        title: "AR model deleted",
+      });
+    } catch (e) {
+      console.error(e);
+      setArVideoError(e instanceof Error ? e.message : "Failed to delete AR model");
+    } finally {
+      setIsDeletingArModel(false);
     }
   };
 
@@ -3119,8 +3227,7 @@ export default function MenuDetailPage() {
                               ? "Uploading…"
                               : "Upload & generate"}
                           </button>
-                          {editingItemArStatus === "failed" &&
-                            Boolean(editingItem.ar_video_url) && (
+                          {canRetryFromExistingVideo && (
                               <button
                                 type="button"
                                 onClick={handleRetryArGeneration}
@@ -3128,11 +3235,54 @@ export default function MenuDetailPage() {
                                   !canEditItems ||
                                   !editingItem.id ||
                                   isRetryingArGeneration ||
-                                  isUploadingArVideo
+                                  isUploadingArVideo ||
+                                  isCancelingArGeneration ||
+                                  isDeletingArModel
                                 }
                                 className="h-11 w-full sm:col-span-2 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)] disabled:opacity-60"
                               >
-                                {isRetryingArGeneration ? "Retrying…" : "Retry"}
+                                {isRetryingArGeneration
+                                  ? "Retrying…"
+                                  : editingItemArStatus === "ready"
+                                    ? "Regenerate"
+                                    : "Retry"}
+                              </button>
+                            )}
+                          {(editingItemArStatus === "pending" ||
+                            editingItemArStatus === "processing") && (
+                            <button
+                              type="button"
+                              onClick={handleCancelArGeneration}
+                              disabled={
+                                !canEditItems ||
+                                !editingItem.id ||
+                                isUploadingArVideo ||
+                                isRetryingArGeneration ||
+                                isCancelingArGeneration ||
+                                isDeletingArModel
+                              }
+                              className="h-11 w-full sm:col-span-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 text-sm font-semibold text-red-300 transition-colors duration-150 motion-reduce:transition-none hover:bg-red-500/20 disabled:opacity-60"
+                            >
+                              {isCancelingArGeneration ? "Canceling…" : "Cancel processing"}
+                            </button>
+                          )}
+                          {hasGeneratedArModel &&
+                            editingItemArStatus !== "pending" &&
+                            editingItemArStatus !== "processing" && (
+                              <button
+                                type="button"
+                                onClick={handleDeleteArModel}
+                                disabled={
+                                  !canEditItems ||
+                                  !editingItem.id ||
+                                  isUploadingArVideo ||
+                                  isRetryingArGeneration ||
+                                  isCancelingArGeneration ||
+                                  isDeletingArModel
+                                }
+                                className="h-11 w-full sm:col-span-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 text-sm font-semibold text-red-300 transition-colors duration-150 motion-reduce:transition-none hover:bg-red-500/20 disabled:opacity-60"
+                              >
+                                {isDeletingArModel ? "Deleting…" : "Delete AR model"}
                               </button>
                             )}
                         </div>

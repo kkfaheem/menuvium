@@ -60,6 +60,24 @@ def _safe_local_path(key: str) -> Path:
         raise HTTPException(status_code=400, detail="Invalid upload key")
     return target
 
+
+def _delete_storage_key_best_effort(s3_key: Optional[str]) -> None:
+    if not s3_key:
+        return
+    bucket_name = os.getenv("S3_BUCKET_NAME")
+    if bucket_name:
+        try:
+            boto3.client("s3").delete_object(Bucket=bucket_name, Key=s3_key)
+        except Exception:
+            # Best effort: DB cleanup is enough to hide removed assets in product.
+            pass
+        return
+    if _local_uploads_enabled():
+        try:
+            _safe_local_path(s3_key).unlink(missing_ok=True)
+        except Exception:
+            pass
+
 def _item_org_permissions(session: Session, item: Item, user: dict):
     category = session.get(Category, item.category_id)
     if not category:
@@ -454,6 +472,86 @@ def retry_ar_generation(
     item.ar_model_poster_s3_key = None
     item.ar_model_poster_url = None
     item.ar_created_at = datetime.utcnow()
+    item.ar_updated_at = datetime.utcnow()
+
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+
+    item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
+    item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
+    item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
+    item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+    return ItemRead.model_validate(item)
+
+
+@router.post("/{item_id}/ar/cancel", response_model=ItemRead)
+def cancel_ar_generation(
+    item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep
+):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if item.ar_status not in ("pending", "processing"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel AR job with status '{item.ar_status or 'none'}'.",
+        )
+
+    item.ar_status = "failed"
+    item.ar_error_message = "Canceled by user"
+    item.ar_stage = "canceled"
+    item.ar_stage_detail = "Canceled by user"
+    item.ar_progress = None
+    item.ar_job_id = None
+    item.ar_updated_at = datetime.utcnow()
+
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+
+    item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
+    item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
+    item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
+    item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+    return ItemRead.model_validate(item)
+
+
+@router.delete("/{item_id}/ar/model", response_model=ItemRead)
+def delete_ar_model(
+    item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep
+):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if item.ar_status in ("pending", "processing"):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete AR model while processing. Cancel the job first.",
+        )
+
+    _delete_storage_key_best_effort(item.ar_model_glb_s3_key)
+    _delete_storage_key_best_effort(item.ar_model_usdz_s3_key)
+    _delete_storage_key_best_effort(item.ar_model_poster_s3_key)
+
+    item.ar_model_glb_s3_key = None
+    item.ar_model_glb_url = None
+    item.ar_model_usdz_s3_key = None
+    item.ar_model_usdz_url = None
+    item.ar_model_poster_s3_key = None
+    item.ar_model_poster_url = None
+    item.ar_status = "none"
+    item.ar_error_message = None
+    item.ar_stage = None
+    item.ar_stage_detail = None
+    item.ar_progress = None
+    item.ar_job_id = None
     item.ar_updated_at = datetime.utcnow()
 
     session.add(item)

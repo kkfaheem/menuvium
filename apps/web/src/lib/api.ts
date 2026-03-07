@@ -194,6 +194,14 @@ export const itemApi = {
     deletePhotos: (itemId: string) =>
         api.delete<void>(`/items/${itemId}/photos`),
 
+    /** Cancel active AR generation for an item */
+    cancelARGeneration: (itemId: string) =>
+        api.post<Item>(`/items/${itemId}/ar/cancel`),
+
+    /** Delete generated AR model assets for an item */
+    deleteARModel: (itemId: string) =>
+        api.delete<Item>(`/items/${itemId}/ar/model`),
+
     /** Upload and attach a photo to an item */
     uploadPhoto: async (itemId: string, file: File) => {
         const { upload_url, s3_key, public_url } = await itemApi.getUploadUrl({
