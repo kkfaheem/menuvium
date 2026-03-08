@@ -271,10 +271,23 @@ def _discover_provider_menu_links(base_url: str, html: Union[str, bytes]) -> lis
     # Prefer explicit NEXT_REDIRECT payloads when present.
     for match in re.finditer(r"NEXT_REDIRECT;replace;(/store/[^;\"']+);307;", decoded):
         resolved = normalize_url("https://order.online", match.group(1))
+        resolved = _normalize_order_online_store_url(resolved) if resolved else None
         if resolved and resolved not in links:
             links.append(resolved)
 
     return links
+
+
+def _normalize_order_online_store_url(url: str) -> str:
+    """Normalize order.online store URLs to a stable fetchable form."""
+    parsed = urlparse(url)
+    if parsed.netloc.lower().removeprefix("www.") != "order.online":
+        return url
+    match = re.match(r"^/(?:en/)?store/(\d+)", parsed.path)
+    if not match:
+        return url
+    store_id = match.group(1)
+    return f"https://order.online/en/store/{store_id}"
 
 
 def _extract_menu_text_from_html(html: Union[str, bytes, BeautifulSoup]) -> str:

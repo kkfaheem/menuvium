@@ -236,7 +236,7 @@ class TestHTMLMenuExtraction:
 
         payload = 'self.__next_f.push([1,"1d:E{\\"digest\\":\\"NEXT_REDIRECT;replace;/store/34580479?pickup=true\\\\u0026redirected=true;307;\\"}"])'
         links = _discover_provider_menu_links("https://order.online/business/~14392497/", payload)
-        assert links == ["https://order.online/store/34580479?pickup=true&redirected=true"]
+        assert links == ["https://order.online/en/store/34580479"]
 
     def test_fallback_parse(self):
         from importer.menu_extractor import _fallback_parse
