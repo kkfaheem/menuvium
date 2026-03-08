@@ -1446,6 +1446,15 @@ export default function PublicMenuPage() {
     color: palette.text,
     borderColor: palette.border,
   };
+  const selectedItemPhotoUrl =
+    selectedItem?.photo_url || selectedItem?.photos?.[0]?.url || null;
+  const selectedItemOptions = selectedItem
+    ? getItemDisplayOptions(selectedItem)
+    : [];
+  const hasDietaryTags = (selectedItem?.dietary_tags?.length ?? 0) > 0;
+  const hasAllergens = (selectedItem?.allergens?.length ?? 0) > 0;
+  const hasMetadata = hasDietaryTags || hasAllergens;
+  const modalTitleId = selectedItem ? `menu-item-modal-title-${selectedItem.id}` : undefined;
 
   return (
     <div className="min-h-screen" style={{ colorScheme: menuColorScheme }}>
@@ -1462,10 +1471,14 @@ export default function PublicMenuPage() {
           <div
             className="relative w-full max-w-lg sm:rounded-3xl rounded-t-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-full duration-300 max-h-[90vh] overflow-y-auto border"
             style={modalPanelStyle}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={modalTitleId}
           >
             <button
               onClick={() => setSelectedItem(null)}
-              className="absolute top-4 right-4 z-10 p-2 rounded-full border shadow-sm transition-all"
+              className="absolute top-4 right-4 z-10 p-2 rounded-full border shadow-sm transition-all backdrop-blur-sm"
+              aria-label="Close item details"
               style={{
                 backgroundColor: palette.surfaceAlt,
                 borderColor: palette.border,
@@ -1475,42 +1488,65 @@ export default function PublicMenuPage() {
               <X className="w-5 h-5" />
             </button>
 
-            {selectedItem.photo_url || selectedItem.photos?.[0]?.url ? (
-              <div className="aspect-video w-full relative">
+            {selectedItemPhotoUrl ? (
+              <div
+                className="aspect-[16/10] sm:aspect-video w-full relative border-b"
+                style={{ borderColor: palette.border }}
+              >
                 <img
-                  src={selectedItem.photo_url || selectedItem.photos?.[0]?.url}
+                  src={selectedItemPhotoUrl}
+                  alt={selectedItem.name}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/45 to-transparent pointer-events-none"></div>
               </div>
             ) : (
-              <div className="h-12 bg-gradient-to-b from-black/10 to-transparent"></div>
+              <div
+                className="h-3 border-b"
+                style={{ borderColor: palette.border, backgroundColor: palette.surfaceAlt }}
+              ></div>
             )}
 
-            <div className="p-6 sm:p-8 -mt-12 relative">
-              <div className="flex justify-between items-start mb-4">
-                <h2 className="text-3xl font-black leading-tight">
+            <div className="p-6 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] relative">
+              <div className="border-b pb-6" style={{ borderColor: palette.border }}>
+                <h2
+                  id={modalTitleId}
+                  className="text-2xl sm:text-3xl font-black leading-tight break-words theme-heading"
+                >
                   {selectedItem.name}
                 </h2>
+                <p
+                  className="mt-3 text-2xl font-mono font-bold tabular-nums"
+                  style={{ color: palette.accent }}
+                >
+                  ${selectedItem.price.toFixed(2)}
+                </p>
               </div>
 
-              <p
-                className="text-2xl font-mono font-bold mb-6"
-                style={{ color: palette.accent }}
-              >
-                ${selectedItem.price.toFixed(2)}
-              </p>
-
-              <div className="space-y-6">
-                <p
-                  className="text-lg leading-relaxed font-light"
-                  style={{ color: palette.muted }}
+              <div className="space-y-6 pt-6">
+                <div
+                  className="rounded-2xl border p-4"
+                  style={{
+                    borderColor: palette.border,
+                    backgroundColor: palette.surfaceAlt,
+                  }}
                 >
-                  {selectedItem.description ||
-                    "No description available for this item."}
-                </p>
+                  <h3
+                    className="text-xs font-bold uppercase tracking-widest"
+                    style={{ color: palette.muted }}
+                  >
+                    About this item
+                  </h3>
+                  <p
+                    className="mt-2 text-base leading-relaxed"
+                    style={{ color: palette.muted }}
+                  >
+                    {selectedItem.description ||
+                      "No description available for this item."}
+                  </p>
+                </div>
 
-                {getItemDisplayOptions(selectedItem).length > 0 && (
+                {selectedItemOptions.length > 0 && (
                   <div className="space-y-3">
                     <h4
                       className="text-xs font-bold uppercase tracking-widest"
@@ -1525,7 +1561,7 @@ export default function PublicMenuPage() {
                         backgroundColor: palette.surfaceAlt,
                       }}
                     >
-                      {getItemDisplayOptions(selectedItem).map((option, optionIndex) => (
+                      {selectedItemOptions.map((option, optionIndex) => (
                         <div
                           key={option.id || `drawer-option-${optionIndex}`}
                           className="rounded-xl border p-3"
@@ -1574,14 +1610,11 @@ export default function PublicMenuPage() {
                   </div>
                 )}
 
-                {/* Metadata Grid */}
-                {((selectedItem.dietary_tags?.length ?? 0) > 0 ||
-                  (selectedItem.allergens?.length ?? 0) > 0) && (
+                {hasMetadata && (
                     <div
-                      className="grid grid-cols-2 gap-4 py-6 border-y"
-                      style={{ borderColor: palette.border }}
+                      className={`grid grid-cols-1 gap-4 py-1 ${hasDietaryTags && hasAllergens ? "sm:grid-cols-2" : ""}`}
                     >
-                      {(selectedItem.dietary_tags?.length ?? 0) > 0 && (
+                      {hasDietaryTags && (
                         <div>
                           <h4
                             className="text-xs font-bold uppercase tracking-widest mb-3"
@@ -1604,7 +1637,7 @@ export default function PublicMenuPage() {
                           </div>
                         </div>
                       )}
-                      {(selectedItem.allergens?.length ?? 0) > 0 && (
+                      {hasAllergens && (
                         <div>
                           <h4
                             className="text-xs font-bold uppercase tracking-widest mb-3"
@@ -1629,7 +1662,7 @@ export default function PublicMenuPage() {
                   )}
               </div>
 
-              <div className="mt-8 space-y-3">
+              <div className="mt-8 space-y-3 border-t pt-6" style={{ borderColor: palette.border }}>
                 {selectedItem.ar_status === "ready" &&
                   (selectedItem.ar_model_glb_url ||
                     selectedItem.ar_model_usdz_url) && (
