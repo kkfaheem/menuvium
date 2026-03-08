@@ -9,8 +9,10 @@ Priority:
 """
 
 import os
+import asyncio
 from typing import Optional
 from urllib.parse import urlparse
+import re
 
 import httpx
 
@@ -28,8 +30,10 @@ SKIP_DOMAINS = {
     "yelp.com", "tripadvisor.com", "facebook.com",
     "instagram.com", "twitter.com", "x.com", "tiktok.com",
     "doordash.com", "ubereats.com", "grubhub.com",
+    "skipthedishes.com",
     "opentable.com", "postmates.com", "seamless.com",
     "zomato.com", "foursquare.com", "google.com",
+    "theinfatuation.com", "marketlister.ca",
 }
 
 
@@ -130,7 +134,21 @@ async def resolve_website(
         if result:
             return result
 
-    # 4. No API configured — needs user input
+    # 4. Free fallback (DuckDuckGo) when paid APIs are not configured.
+    result = await _resolve_via_ddgs(
+        search_query=search_query,
+        restaurant_name=restaurant_name,
+        location_hint=location_hint,
+    )
+    if result:
+        if _is_aggregator(result):
+            real = await _follow_aggregator(result)
+            if real:
+                return real
+        elif not _is_skip_domain(result):
+            return result
+
+    # 5. No provider could resolve — needs user input
     return None
 
 
@@ -231,4 +249,132 @@ async def _resolve_via_serpapi(query: str, api_key: str) -> Optional[str]:
                     return link
     except Exception:
         pass
+    return None
+
+
+def _search_tokens(text: Optional[str]) -> list[str]:
+    if not text:
+        return []
+    stop_words = {
+        "restaurant", "official", "website", "site", "menu", "order",
+        "online", "food", "the", "and", "for", "with", "from",
+    }
+    tokens = [t for t in re.findall(r"[a-z0-9]+", text.lower()) if len(t) >= 3]
+    return [t for t in tokens if t not in stop_words]
+
+
+def _score_ddgs_result(
+    *,
+    link: str,
+    title: str,
+    body: str,
+    name_tokens: list[str],
+    location_tokens: list[str],
+) -> tuple[int, int, int, int]:
+    domain = urlparse(link).netloc.lower().lstrip("www.")
+    title_l = title.lower()
+    body_l = body.lower()
+    domain_l = domain.lower()
+
+    score = 0
+    name_hits = 0
+    domain_name_hits = 0
+    location_hits = 0
+
+    for token in name_tokens:
+        hit = False
+        if token in domain_l:
+            score += 12
+            hit = True
+            domain_name_hits += 1
+        if token in title_l:
+            score += 6
+            hit = True
+        if token in body_l:
+            score += 3
+            hit = True
+        if hit:
+            name_hits += 1
+
+    for token in location_tokens:
+        if token in title_l:
+            score += 2
+            location_hits += 1
+        if token in body_l:
+            score += 1
+            location_hits += 1
+
+    # Slight preference for top-level pages.
+    path = urlparse(link).path.strip("/")
+    if not path:
+        score += 2
+
+    return score, name_hits, domain_name_hits, location_hits
+
+
+async def _resolve_via_ddgs(
+    *,
+    search_query: str,
+    restaurant_name: str,
+    location_hint: Optional[str],
+) -> Optional[str]:
+    """Use free DuckDuckGo search to find likely official website."""
+    try:
+        from ddgs import DDGS
+    except Exception:
+        return None
+
+    def _search() -> list[dict]:
+        q = f"{search_query} restaurant official website"
+        return list(DDGS().text(q, max_results=12))
+
+    try:
+        results = await asyncio.to_thread(_search)
+    except Exception:
+        return None
+
+    name_tokens = _search_tokens(restaurant_name)
+    location_tokens = _search_tokens(location_hint)
+    best_link: Optional[str] = None
+    best_score = -1
+
+    for result in results:
+        link = (
+            result.get("href")
+            or result.get("url")
+            or result.get("link")
+            or ""
+        )
+        if not isinstance(link, str) or not link.startswith(("http://", "https://")):
+            continue
+        if _is_aggregator(link) or _is_skip_domain(link):
+            continue
+
+        title = result.get("title") or ""
+        body = result.get("body") or ""
+        score, name_hits, domain_name_hits, location_hits = _score_ddgs_result(
+            link=link,
+            title=title if isinstance(title, str) else "",
+            body=body if isinstance(body, str) else "",
+            name_tokens=name_tokens,
+            location_tokens=location_tokens,
+        )
+        path_l = urlparse(link).path.lower()
+        if name_hits == 0:
+            continue
+        # If we have a location hint, require either a location match
+        # or a strong domain-level name match.
+        if location_tokens:
+            if location_hits == 0 and domain_name_hits < 2:
+                continue
+        # Avoid obvious editorial/review pages unless domain strongly matches.
+        if any(seg in path_l for seg in ("/review", "/reviews", "/blog", "/article", "/category")):
+            if domain_name_hits < 2:
+                continue
+        if score > best_score:
+            best_score = score
+            best_link = link
+
+    if best_link and best_score >= 20:
+        return best_link
     return None
