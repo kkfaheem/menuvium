@@ -137,6 +137,27 @@ export default function PublicMenuPage() {
     return /Android/i.test(navigator.userAgent || "");
   };
 
+  const isIOSSafari = () => {
+    if (!isIOS() || typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    return (
+      /Safari/i.test(ua) &&
+      !/(CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo|YaBrowser|GSA|FBAN|FBAV|Instagram)/i.test(
+        ua,
+      )
+    );
+  };
+
+  const supportsRelAr = () => {
+    if (typeof document === "undefined") return false;
+    const anchor = document.createElement("a");
+    return (
+      !!anchor.relList &&
+      typeof anchor.relList.supports === "function" &&
+      anchor.relList.supports("ar")
+    );
+  };
+
   const openArExperience = (item: Item) => {
     if (typeof window === "undefined") return;
 
@@ -157,18 +178,53 @@ export default function PublicMenuPage() {
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQH9p8vKZQAAAABJRU5ErkJggg==";
 
     if (isIOS() && usdzUrl) {
-      const a = document.createElement("a");
-      a.setAttribute("rel", "ar");
-      a.href = usdzUrl.includes("#")
+      const quickLookUrl = usdzUrl.includes("#")
         ? usdzUrl
         : `${usdzUrl}#allowsContentScaling=0`;
+      const openDirectQuickLook = () => {
+        window.location.href = quickLookUrl;
+      };
+
+      if (!supportsRelAr()) {
+        openDirectQuickLook();
+        return;
+      }
+
+      const a = document.createElement("a");
+      a.setAttribute("rel", "ar");
+      a.href = quickLookUrl;
       const img = document.createElement("img");
       img.src = posterUrl || transparentPixel;
+      img.alt = "";
       a.appendChild(img);
-      a.style.display = "none";
+
+      // Keep the launcher in the DOM (offscreen) for better compatibility in iOS browsers.
+      a.style.position = "fixed";
+      a.style.left = "-9999px";
+      a.style.top = "0";
+      a.style.width = "1px";
+      a.style.height = "1px";
+      a.style.opacity = "0";
+
       document.body.appendChild(a);
+
+      let fallbackTimer: number | null = null;
+      if (!isIOSSafari()) {
+        // Non-Safari iOS browsers can fail to honor rel=ar; fallback to direct USDZ navigation.
+        fallbackTimer = window.setTimeout(() => {
+          if (document.visibilityState === "visible") {
+            openDirectQuickLook();
+          }
+        }, 700);
+      }
+
       a.click();
-      a.remove();
+      window.setTimeout(() => {
+        if (fallbackTimer != null) {
+          window.clearTimeout(fallbackTimer);
+        }
+        a.remove();
+      }, 1200);
       return;
     }
 
