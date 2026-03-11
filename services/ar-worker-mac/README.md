@@ -1,6 +1,6 @@
 # Menuvium AR Worker (macOS)
 
-This worker turns an uploaded dish rotation video into `usdz` (iOS Quick Look) + `glb` (Android Scene Viewer) using Apple Object Capture (RealityKit Photogrammetry).
+This worker turns an uploaded dish turntable video into `usdz` (iOS Quick Look) + `glb` (Android Scene Viewer) using Apple Object Capture (RealityKit Photogrammetry). The pipeline assumes captures come from a photography box + turntable setup.
 
 ## Prereqs
 
@@ -9,6 +9,7 @@ This worker turns an uploaded dish rotation video into `usdz` (iOS Quick Look) +
 - `ffmpeg` in PATH (e.g. `brew install ffmpeg`)
 - Node.js in PATH (used for `npx obj2gltf`)
 - `usdextract` in PATH (ships with Xcode Command Line Tools on macOS)
+- `usdzip` in PATH (ships with Xcode Command Line Tools on macOS; used for placeholder fallback packaging)
 
 ## Run (local Docker)
 
@@ -30,11 +31,12 @@ This worker turns an uploaded dish rotation video into `usdz` (iOS Quick Look) +
 You can also override individually:
 
 - `--fps 6` (frame sampling rate)
+- `--frame-stride 2` (keep every Nth extracted frame; defaults to 2 for turntable spacing)
 - `--detail full|custom|ultra|raw`
 - `--max-texture-dim twoK|fourK|eightK` (used with `custom/ultra` when supported)
 - `--max-polygons 500000` (used with `custom/ultra` when supported)
 - `--jpeg-q 1` (higher quality JPEG frames; slower/larger)
-- `--white-bg` (heuristically remaps extracted frame backgrounds to white before photogrammetry)
+- `--white-bg` / `--no-white-bg` (white background normalization is on by default for photography-box captures)
 - `--skip-preflight` (disable frame-quality gate; enabled by default)
 - `--preflight-adaptive` / `--no-preflight-adaptive` (adaptive mode warns for borderline feature scores instead of hard-failing)
 - `--preflight-min-frames 24`
@@ -42,6 +44,7 @@ You can also override individually:
 - `--preflight-min-feature 0.35` (pass threshold)
 - `--preflight-hard-min-feature 0.22` (adaptive hard-fail threshold)
 - `--preflight-min-motion 0.80`
+- `--placeholder-fallback` / `--no-placeholder-fallback` (on by default; when photogrammetry cannot align, generate a poster-textured fallback USDZ so jobs complete)
 
 ## Run (AWS testing)
 
@@ -69,9 +72,13 @@ From the repo root:
   ```bash
   export MENUVIUM_AR_CROP="0.85"
   ```
-- *(Optional)* If alignment is failing and your capture has busy/dark background areas, enable white background preprocessing:
+- *(Optional)* Control frame spacing for turntable motion:
   ```bash
-  export MENUVIUM_AR_WHITE_BG="1"
+  export MENUVIUM_AR_FRAME_STRIDE="2"
+  ```
+- *(Optional)* Disable white background preprocessing (enabled by default):
+  ```bash
+  export MENUVIUM_AR_WHITE_BG="0"
   ```
 - *(Optional)* To bypass preflight quality validation:
   ```bash
@@ -86,6 +93,10 @@ From the repo root:
   export MENUVIUM_AR_PREFLIGHT_HARD_MIN_FEATURE="0.22"
   export MENUVIUM_AR_PREFLIGHT_MIN_MOTION="0.80"
   ```
+- *(Optional)* Disable placeholder model fallback (enabled by default):
+  ```bash
+  export MENUVIUM_AR_PLACEHOLDER_FALLBACK="0"
+  ```
 - Run the production script:
   ```bash
   ./run-prod.sh
@@ -97,8 +108,10 @@ From the repo root:
 
 - This worker polls for jobs (`/ar-jobs/claim`) and processes one at a time.
 - Output keys are stored under `items/ar/<item_id>/...` in your upload bucket (or local uploads when `LOCAL_UPLOADS=1`).
+- Extraction is tuned for turntable-in-box captures by default: lower-biased crop, frame spacing, and white-background normalization.
 - Photogrammetry runs with automatic fallbacks: it tries a high-quality config first, then retries with safer settings (and potentially lower detail) if Object Capture returns `processError`.
 - Quality-first behavior is enabled by default: the worker first retries using the requested detail only; if alignment fails, it auto-retries with white-background frame normalization, then a deterministic frame-enhancement pass; only after those fail does it allow lower-detail fallback.
+- If all photogrammetry attempts fail (for example, persistent `imageAlignment` `processError`), the worker can generate a poster-textured fallback USDZ/GLB model so the job can still complete.
 - For best photorealism, capture matters more than compute:
   - Use 1080p+ (ideally 4K), slow rotation, minimal motion blur.
   - Even lighting, avoid harsh shadows + reflections, keep the dish centered.

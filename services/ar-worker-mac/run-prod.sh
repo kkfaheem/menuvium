@@ -7,8 +7,10 @@ API_BASE="${MENUVIUM_API_BASE:-}"
 WORKER_TOKEN="${MENUVIUM_WORKER_TOKEN:-}"
 QUALITY="${MENUVIUM_AR_QUALITY:-high}"
 CROP="${MENUVIUM_AR_CROP:-}"
-WHITE_BG="${MENUVIUM_AR_WHITE_BG:-0}"
+WHITE_BG="${MENUVIUM_AR_WHITE_BG:-1}"
 PREFLIGHT="${MENUVIUM_AR_PREFLIGHT:-1}"
+FRAME_STRIDE="${MENUVIUM_AR_FRAME_STRIDE:-2}"
+PLACEHOLDER_FALLBACK="${MENUVIUM_AR_PLACEHOLDER_FALLBACK:-1}"
 
 if [[ -z "${API_BASE}" || -z "${WORKER_TOKEN}" ]]; then
   cat >&2 <<'EOF'
@@ -33,6 +35,21 @@ for tool in ffmpeg npx usdextract swift; do
   fi
 done
 
+PLACEHOLDER_FALLBACK_LABEL="on"
+PLACEHOLDER_FALLBACK_NORM=$(printf '%s' "${PLACEHOLDER_FALLBACK}" | tr '[:upper:]' '[:lower:]')
+case "${PLACEHOLDER_FALLBACK_NORM}" in
+  0|false|no|off)
+    PLACEHOLDER_FALLBACK_LABEL="off"
+    ;;
+esac
+
+if [[ "${PLACEHOLDER_FALLBACK_LABEL}" == "on" ]]; then
+  if ! command -v usdzip >/dev/null 2>&1; then
+    echo "Missing required tool in PATH: usdzip (needed for placeholder fallback)" >&2
+    exit 1
+  fi
+fi
+
 echo "Building worker (release)..."
 swift build -c release
 
@@ -54,7 +71,7 @@ case "${PREFLIGHT_NORM}" in
     ;;
 esac
 
-CMD=(.build/release/menuvium-ar-worker --api-base "${API_BASE}" --token "${WORKER_TOKEN}" --quality "${QUALITY}")
+CMD=(.build/release/menuvium-ar-worker --api-base "${API_BASE}" --token "${WORKER_TOKEN}" --quality "${QUALITY}" --frame-stride "${FRAME_STRIDE}")
 
 if [[ -n "${CROP}" ]]; then
   CMD+=(--crop "${CROP}")
@@ -65,11 +82,14 @@ fi
 if [[ "${PREFLIGHT_LABEL}" == "off" ]]; then
   CMD+=(--skip-preflight)
 fi
+if [[ "${PLACEHOLDER_FALLBACK_LABEL}" == "off" ]]; then
+  CMD+=(--no-placeholder-fallback)
+fi
 
 if [[ -n "${CROP}" ]]; then
-  echo "Starting worker (quality: ${QUALITY}, crop: ${CROP}, white-bg: ${WHITE_BG_LABEL}, preflight: ${PREFLIGHT_LABEL})..."
+  echo "Starting worker (quality: ${QUALITY}, crop: ${CROP}, frame-stride: ${FRAME_STRIDE}, white-bg: ${WHITE_BG_LABEL}, preflight: ${PREFLIGHT_LABEL}, placeholder-fallback: ${PLACEHOLDER_FALLBACK_LABEL})..."
 else
-  echo "Starting worker (quality: ${QUALITY}, white-bg: ${WHITE_BG_LABEL}, preflight: ${PREFLIGHT_LABEL})..."
+  echo "Starting worker (quality: ${QUALITY}, frame-stride: ${FRAME_STRIDE}, white-bg: ${WHITE_BG_LABEL}, preflight: ${PREFLIGHT_LABEL}, placeholder-fallback: ${PLACEHOLDER_FALLBACK_LABEL})..."
 fi
 
 exec caffeinate -dimsu -- "${CMD[@]}"

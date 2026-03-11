@@ -10,6 +10,7 @@ struct Config {
     let workerToken: String
     let pollSeconds: UInt64
     let frameFps: Int
+    let frameStride: Int
     let frameJpegQ: Int
     let frameCrop: Double
     let frameWhiteBackground: Bool
@@ -23,6 +24,7 @@ struct Config {
     let photogrammetryDetail: String
     let photogrammetryMaxPolygons: Int
     let photogrammetryMaxTextureDimension: String
+    let placeholderFallbackEnabled: Bool
 }
 
 struct WorkerClaimResponse: Decodable {
@@ -95,6 +97,9 @@ enum ARWorkerMain {
             try ensureToolExists("ffmpeg")
             try ensureToolExists("npx")
             try ensureToolExists("usdextract")
+            if config.placeholderFallbackEnabled {
+                try ensureToolExists("usdzip")
+            }
             try await runLoop(config: config)
         } catch {
             fputs("menuvium-ar-worker error: \(error)\n", stderr)
@@ -109,9 +114,10 @@ func parseConfig() throws -> Config {
     var workerToken = ProcessInfo.processInfo.environment["MENUVIUM_WORKER_TOKEN"]
     var pollSeconds: UInt64 = 5
     var frameFps = 6
+    var frameStride = 2
     var frameJpegQ = 2
-    var frameCrop = 1.0
-    var frameWhiteBackground = false
+    var frameCrop = 0.85
+    var frameWhiteBackground = true
     var framePreflightEnabled = true
     var framePreflightAdaptive = true
     var framePreflightMinFrames = 24
@@ -122,6 +128,7 @@ func parseConfig() throws -> Config {
     var photogrammetryDetail = "full"
     var photogrammetryMaxPolygons = 500_000
     var photogrammetryMaxTextureDimension = "fourK"
+    var placeholderFallbackEnabled = true
 
     func parseCrop(_ raw: String) -> Double? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "%", with: "")
@@ -185,6 +192,9 @@ func parseConfig() throws -> Config {
     if let whiteBgEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_WHITE_BG"], let parsed = parseBool(whiteBgEnv) {
         frameWhiteBackground = parsed
     }
+    if let frameStrideEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_FRAME_STRIDE"], let parsed = parsePositiveInt(frameStrideEnv) {
+        frameStride = parsed
+    }
     if let preflightEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_PREFLIGHT"], let parsed = parseBool(preflightEnv) {
         framePreflightEnabled = parsed
     }
@@ -205,6 +215,9 @@ func parseConfig() throws -> Config {
     }
     if let preflightMinMotionEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_PREFLIGHT_MIN_MOTION"], let parsed = parseNonNegativeDouble(preflightMinMotionEnv) {
         framePreflightMinMotionMean = parsed
+    }
+    if let placeholderFallbackEnv = ProcessInfo.processInfo.environment["MENUVIUM_AR_PLACEHOLDER_FALLBACK"], let parsed = parseBool(placeholderFallbackEnv) {
+        placeholderFallbackEnabled = parsed
     }
 
     var index = args.startIndex
@@ -228,6 +241,8 @@ func parseConfig() throws -> Config {
             applyQualityPreset(try nextValue())
         case "--fps":
             frameFps = Int(try nextValue()) ?? frameFps
+        case "--frame-stride":
+            frameStride = Int(try nextValue()) ?? frameStride
         case "--jpeg-q":
             frameJpegQ = Int(try nextValue()) ?? frameJpegQ
         case "--crop":
@@ -272,6 +287,10 @@ func parseConfig() throws -> Config {
             photogrammetryMaxPolygons = Int(try nextValue()) ?? photogrammetryMaxPolygons
         case "--max-texture-dim":
             photogrammetryMaxTextureDimension = try nextValue()
+        case "--placeholder-fallback":
+            placeholderFallbackEnabled = true
+        case "--no-placeholder-fallback":
+            placeholderFallbackEnabled = false
         default:
             break
         }
@@ -293,6 +312,7 @@ func parseConfig() throws -> Config {
         workerToken: tokenRaw,
         pollSeconds: pollSeconds,
         frameFps: max(1, frameFps),
+        frameStride: max(1, frameStride),
         frameJpegQ: max(1, min(31, frameJpegQ)),
         frameCrop: frameCrop,
         frameWhiteBackground: frameWhiteBackground,
@@ -305,7 +325,8 @@ func parseConfig() throws -> Config {
         framePreflightMinMotionMean: max(0.0, framePreflightMinMotionMean),
         photogrammetryDetail: photogrammetryDetail,
         photogrammetryMaxPolygons: max(1, photogrammetryMaxPolygons),
-        photogrammetryMaxTextureDimension: photogrammetryMaxTextureDimension
+        photogrammetryMaxTextureDimension: photogrammetryMaxTextureDimension,
+        placeholderFallbackEnabled: placeholderFallbackEnabled
     )
 }
 
@@ -386,10 +407,8 @@ func processJob(claim: WorkerClaimResponse, config: Config) async throws {
     )
     let posterFile = tempDir.appendingPathComponent("poster.jpg")
     let cropFactor = min(1.0, max(0.5, config.frameCrop))
-    let cropFactorString = String(format: "%.4f", cropFactor)
-    let cropFilter = cropFactor < 0.999
-        ? "crop=in_w*\(cropFactorString):in_h*\(cropFactorString):(in_w-out_w)/2:(in_h-out_h)/2"
-        : nil
+    let cropFilter = buildTurntableBoxCropFilter(cropFactor: cropFactor)
+    let frameSelectFilter = "select='not(mod(n\\,\(config.frameStride)))'"
     let posterVf = ([ "select=eq(n\\,0)", cropFilter ].compactMap { $0 }).joined(separator: ",")
     try runProcess(
         "ffmpeg",
@@ -406,7 +425,7 @@ func processJob(claim: WorkerClaimResponse, config: Config) async throws {
         ]
     )
 
-    let framesVf = ([ "fps=\(config.frameFps)", cropFilter ].compactMap { $0 }).joined(separator: ",")
+    let framesVf = ([ "fps=\(config.frameFps)", cropFilter, frameSelectFilter ].compactMap { $0 }).joined(separator: ",")
     try runProcess(
         "ffmpeg",
         args: [
@@ -416,6 +435,8 @@ func processJob(claim: WorkerClaimResponse, config: Config) async throws {
             videoFile.path,
             "-vf",
             framesVf,
+            "-vsync",
+            "vfr",
             "-q:v",
             String(config.frameJpegQ),
             framesDir.appendingPathComponent("frame-%04d.jpg").path,
@@ -623,9 +644,29 @@ func processJob(claim: WorkerClaimResponse, config: Config) async throws {
             do {
                 try await runPhotogrammetryPass(allowDetailFallback: true)
             } catch {
-                throw WorkerError.processing(
+                let photogrammetryFailure = WorkerError.processing(
                     "Photogrammetry quality-first and fallback attempts failed: quality-first=\(String(describing: unresolvedQualityFirstError)) | fallback=\(String(describing: error))"
                 )
+
+                if config.placeholderFallbackEnabled {
+                    await tryUpdateProgress(
+                        itemId: claim.item_id,
+                        jobId: claim.job_id,
+                        stage: "photogrammetry",
+                        detail: "Photogrammetry failed; generating placeholder AR model",
+                        progress: 0.22,
+                        config: config
+                    )
+                    do {
+                        try generatePlaceholderUsdz(usdzOut: modelUsdz, posterFile: posterFile)
+                    } catch {
+                        throw WorkerError.processing(
+                            "Photogrammetry failed and placeholder fallback failed: original=\(String(describing: photogrammetryFailure)) | placeholder=\(String(describing: error))"
+                        )
+                    }
+                } else {
+                    throw photogrammetryFailure
+                }
             }
         }
     }
@@ -739,6 +780,20 @@ func countFrames(in dir: URL) -> Int {
     return files.filter { $0.pathExtension.lowercased() == "jpg" || $0.pathExtension.lowercased() == "jpeg" }.count
 }
 
+func buildTurntableBoxCropFilter(cropFactor: Double) -> String {
+    // Turntable-in-box captures have static ceiling/background regions that
+    // can dominate alignment. Bias the crop lower to keep the rotating subject.
+    let widthFactor = min(1.0, max(0.60, cropFactor))
+    let heightFactor = min(0.80, max(0.48, widthFactor * 0.76))
+    let yOffsetFactor = max(0.0, min(1.0 - heightFactor, 0.28))
+    return String(
+        format: "crop=in_w*%.4f:in_h*%.4f:(in_w-out_w)/2:in_h*%.4f",
+        widthFactor,
+        heightFactor,
+        yOffsetFactor
+    )
+}
+
 struct FramePreflightMetrics {
     let frameCount: Int
     let sampledFrames: Int
@@ -755,7 +810,7 @@ struct FramePreflightResult {
 func runFramePreflight(framesDir: URL, frameCount: Int, config: Config) throws -> FramePreflightResult {
     if frameCount < config.framePreflightMinFrames {
         throw WorkerError.processing(
-            "Preflight failed: too few extracted frames (\(frameCount)). Capture a longer/slower orbit to produce at least \(config.framePreflightMinFrames) frames"
+            "Preflight failed: too few extracted frames (\(frameCount)). Capture a longer/slower turntable rotation to produce at least \(config.framePreflightMinFrames) frames"
         )
     }
 
@@ -960,6 +1015,88 @@ func enhanceFramesForAlignment(
     let outputCount = countFrames(in: outputFramesDir)
     if outputCount == 0 {
         throw WorkerError.processing("Frame enhancement produced no frames")
+    }
+}
+
+func generatePlaceholderUsdz(usdzOut: URL, posterFile: URL) throws {
+    let packageDir = usdzOut.deletingLastPathComponent()
+    let fallbackDir = packageDir.appendingPathComponent("placeholder-usdz", isDirectory: true)
+    try? FileManager.default.removeItem(at: fallbackDir)
+    try FileManager.default.createDirectory(at: fallbackDir, withIntermediateDirectories: true)
+
+    let packagedPoster = fallbackDir.appendingPathComponent("poster.jpg")
+    try? FileManager.default.removeItem(at: packagedPoster)
+    try FileManager.default.copyItem(at: posterFile, to: packagedPoster)
+
+    let usdaFile = fallbackDir.appendingPathComponent("fallback.usda")
+    let usda = """
+    #usda 1.0
+    (
+        defaultPrim = "Root"
+        metersPerUnit = 1
+        upAxis = "Y"
+    )
+
+    def Xform "Root"
+    {
+        def Mesh "FallbackPlane" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            bool doubleSided = true
+            int[] faceVertexCounts = [4]
+            int[] faceVertexIndices = [0, 1, 2, 3]
+            point3f[] points = [(-0.06, 0, -0.06), (0.06, 0, -0.06), (0.06, 0, 0.06), (-0.06, 0, 0.06)]
+            texCoord2f[] primvars:st = [(0, 0), (1, 0), (1, 1), (0, 1)] (
+                interpolation = "vertex"
+            )
+            rel material:binding = </Root/Looks/PreviewMaterial>
+            uniform token subdivisionScheme = "none"
+        }
+
+        def Scope "Looks"
+        {
+            def Material "PreviewMaterial"
+            {
+                token outputs:surface.connect = </Root/Looks/PreviewMaterial/PBRShader.outputs:surface>
+
+                def Shader "PBRShader"
+                {
+                    uniform token info:id = "UsdPreviewSurface"
+                    color3f inputs:diffuseColor.connect = </Root/Looks/PreviewMaterial/DiffuseTexture.outputs:rgb>
+                    float inputs:roughness = 0.85
+                    float inputs:metallic = 0.0
+                    token outputs:surface
+                }
+
+                def Shader "DiffuseTexture"
+                {
+                    uniform token info:id = "UsdUVTexture"
+                    asset inputs:file = @poster.jpg@
+                    token inputs:sourceColorSpace = "sRGB"
+                    float2 inputs:st.connect = </Root/Looks/PreviewMaterial/PrimvarReader_st.outputs:result>
+                    float3 outputs:rgb
+                }
+
+                def Shader "PrimvarReader_st"
+                {
+                    uniform token info:id = "UsdPrimvarReader_float2"
+                    token inputs:varname = "st"
+                    float2 outputs:result
+                }
+            }
+        }
+    }
+    """
+    try usda.write(to: usdaFile, atomically: true, encoding: .utf8)
+
+    try? FileManager.default.removeItem(at: usdzOut)
+    _ = try runProcess("usdzip", args: [usdzOut.path, usdaFile.path, packagedPoster.path])
+
+    let attrs = try FileManager.default.attributesOfItem(atPath: usdzOut.path)
+    let size = (attrs[.size] as? NSNumber)?.int64Value ?? 0
+    if size <= 0 {
+        throw WorkerError.processing("Placeholder USDZ generation produced an empty file")
     }
 }
 
