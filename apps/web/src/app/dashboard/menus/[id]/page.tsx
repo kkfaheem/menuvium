@@ -954,18 +954,21 @@ export default function MenuDetailPage() {
     return { s3_key, public_url };
   };
 
-  const getVideoDurationSeconds = (file: File) =>
-    new Promise<number>((resolve, reject) => {
+  const getVideoMetadata = (file: File) =>
+    new Promise<{ duration: number; width: number; height: number }>((resolve, reject) => {
       const video = document.createElement("video");
       video.preload = "metadata";
       const url = URL.createObjectURL(file);
       video.onloadedmetadata = () => {
+        const duration = video.duration;
+        const width = video.videoWidth;
+        const height = video.videoHeight;
         URL.revokeObjectURL(url);
-        if (!Number.isFinite(video.duration)) {
-          reject(new Error("Could not read video duration"));
+        if (!Number.isFinite(duration) || width <= 0 || height <= 0) {
+          reject(new Error("Could not read video metadata"));
           return;
         }
-        resolve(video.duration);
+        resolve({ duration, width, height });
       };
       video.onerror = () => {
         URL.revokeObjectURL(url);
@@ -1087,7 +1090,7 @@ export default function MenuDetailPage() {
         throw new Error("Invalid file type. Please upload a video.");
       }
 
-      const duration = await getVideoDurationSeconds(arVideoToUpload);
+      const { duration } = await getVideoMetadata(arVideoToUpload);
       if (duration > 20) {
         throw new Error("Please keep the rotation video under 20 seconds.");
       }
@@ -3279,6 +3282,7 @@ export default function MenuDetailPage() {
                             <ul className="mt-2 space-y-1 pl-4 list-disc text-xs text-[var(--cms-muted)]">
                               <li>Use one turntable video under 20 seconds.</li>
                               <li>Keep the dish centered and fully in frame.</li>
+                              <li>Original phone resolution is fine. Menuvium extracts high-quality frames before sending to KIRI.</li>
                               <li>Avoid motion blur, sudden exposure changes, and hands entering the shot.</li>
                             </ul>
                           </div>

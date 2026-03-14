@@ -1,5 +1,6 @@
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,6 +18,7 @@ from ar_pipeline import (
 )
 from database import get_session
 from dependencies import get_current_user
+from kiri_client import KiriApiError
 from kiri_client import KiriSubmittedJob
 from main import app
 from models import ArCaptureAsset, ArConversionJob, Category, Item, Menu, Organization
@@ -213,7 +215,7 @@ def test_process_pending_item_uses_plain_capture_values_after_commit(
     session.commit()
 
     class FakeKiriClient:
-        def submit_photo_video(self, **kwargs):
+        def submit_photo_images(self, **kwargs):
             return KiriSubmittedJob(serialize="serialize-123", calculate_type=1)
 
     def fake_materialize_storage_key_to_path(*, key: str, destination: Path) -> Path:
@@ -228,6 +230,15 @@ def test_process_pending_item_uses_plain_capture_values_after_commit(
         "materialize_storage_key_to_path",
         fake_materialize_storage_key_to_path,
     )
+    monkeypatch.setattr(
+        ar_worker,
+        "extract_video_frames_to_images",
+        lambda **kwargs: SimpleNamespace(
+            probe=SimpleNamespace(duration_seconds=8.0, width=1920, height=1080),
+            desired_frame_count=48,
+            frame_paths=[Path(f"/tmp/frame-{index:04d}.jpg") for index in range(1, 49)],
+        ),
+    )
 
     ar_worker._process_pending_item(test_item.id)
 
@@ -237,3 +248,85 @@ def test_process_pending_item_uses_plain_capture_values_after_commit(
     assert refreshed.ar_status == "processing"
     assert refreshed.ar_stage == AR_STAGE_KIRI_PROCESSING
     assert refreshed.ar_metadata_json["serialize"] == "serialize-123"
+
+
+def test_process_pending_video_extracts_frames_and_submits_photo_images_at_max_quality(
+    session: Session,
+    test_item: Item,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session.add(
+        ArCaptureAsset(
+            item_id=test_item.id,
+            kind="video",
+            position=0,
+            s3_key=f"items/ar/{test_item.id}/video/dish.mov",
+            url="https://example.com/dish.mov",
+        )
+    )
+    test_item.ar_provider = AR_PROVIDER_KIRI
+    test_item.ar_capture_mode = AR_CAPTURE_MODE_PHOTO_SCAN
+    test_item.ar_status = "processing"
+    test_item.ar_stage = "uploading_to_kiri"
+    session.add(test_item)
+    session.commit()
+
+    extracted_paths = [Path(f"/tmp/frame-{index:04d}.jpg") for index in range(1, 61)]
+    captured_kwargs: dict[str, object] = {}
+
+    class FakeKiriClient:
+        def submit_photo_images(self, **kwargs):
+            captured_kwargs.update(kwargs)
+            return KiriSubmittedJob(serialize="serialize-from-frames", calculate_type=1)
+
+        def submit_photo_video(self, **kwargs):
+            raise AssertionError("Raw video submission should not be used for uploaded AR videos")
+
+    def fake_materialize_storage_key_to_path(*, key: str, destination: Path) -> Path:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"video")
+        return destination
+
+    monkeypatch.setattr(ar_worker, "get_engine", lambda: session.get_bind())
+    monkeypatch.setattr(ar_worker, "_kiri_client", lambda: FakeKiriClient())
+    monkeypatch.setattr(
+        ar_worker,
+        "materialize_storage_key_to_path",
+        fake_materialize_storage_key_to_path,
+    )
+    monkeypatch.setattr(
+        ar_worker,
+        "extract_video_frames_to_images",
+        lambda **kwargs: SimpleNamespace(
+            probe=SimpleNamespace(duration_seconds=12.5, width=3840, height=2160),
+            desired_frame_count=75,
+            frame_paths=extracted_paths,
+        ),
+    )
+
+    ar_worker._process_pending_item(test_item.id)
+
+    session.expire_all()
+    refreshed = session.get(Item, test_item.id)
+    assert refreshed is not None
+    assert refreshed.ar_status == "processing"
+    assert refreshed.ar_stage == AR_STAGE_KIRI_PROCESSING
+    assert refreshed.ar_metadata_json["serialize"] == "serialize-from-frames"
+    assert refreshed.ar_metadata_json["provider_input_kind"] == "images"
+    assert refreshed.ar_metadata_json["video_frame_extraction"]["submitted_frame_count"] == 60
+    assert list(captured_kwargs["image_paths"]) == extracted_paths
+    assert captured_kwargs["file_format"] == "usdz"
+    assert captured_kwargs["model_quality"] == 3
+    assert captured_kwargs["texture_quality"] == 3
+    assert captured_kwargs["texture_smoothing"] == 1
+    assert captured_kwargs["is_mask"] == 1
+
+
+def test_format_kiri_submission_error_for_video_resolution_rejection():
+    message = ar_worker._format_kiri_submission_error(
+        KiriApiError("The video does not meet the requirements and cannot be uploaded", code=2009),
+        capture_input_kind="video",
+    )
+
+    assert "1920x1080" in message
+    assert "Re-export" in message

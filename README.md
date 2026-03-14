@@ -71,8 +71,9 @@ menuvium/
 - **Team members** — Invite members by email with granular permission control.
 
 ### AR (Augmented Reality)
-- **Photo sets or video** — Upload multi-image capture sets or a dish video.
-- **KIRI processing** — The API submits captures to KIRI and stores the returned USDZ.
+- **Video-first capture** — Upload a single dish video from the editor.
+- **Backend frame extraction** — The API converts uploaded video into a high-quality image set before submitting to KIRI.
+- **KIRI processing** — The API submits extracted frames to KIRI and stores the returned USDZ.
 - **macOS conversion worker** — A Swift-based worker converts USDZ into GLB for web/Android AR delivery.
 - **Job queue** — Jobs persist in Postgres (`queued` → `kiri_processing` → `conversion_queued` → `ready`).
 
@@ -230,6 +231,9 @@ Service root: `services/api` (Dockerfile-based).
 | `KIRI_API_KEY` | Required for KIRI-backed AR generation |
 | `KIRI_WEBHOOK_SECRET` | Optional but recommended for KIRI webhook completion |
 | `AR_CONVERTER_TOKEN` | Required for the macOS USDZ → GLB converter worker |
+| `KIRI_PHOTO_MODEL_QUALITY` | Optional, defaults to `3` (KIRI Ultra mesh quality) |
+| `KIRI_PHOTO_TEXTURE_QUALITY` | Optional, defaults to `3` (KIRI 8K texture quality) |
+| `AR_VIDEO_FRAME_EXTRACTION_FPS` | Optional, defaults to `6` extracted frames per second before KIRI submission |
 
 ---
 
@@ -237,7 +241,7 @@ Service root: `services/api` (Dockerfile-based).
 
 The normal AR path is now:
 
-1. The API uploads captures to KIRI and stores the returned USDZ.
+1. The API extracts a high-quality image set from the uploaded dish video, then submits those frames to KIRI and stores the returned USDZ.
 2. A separate macOS converter worker turns that USDZ into GLB for web/Android AR.
 
 If the converter is not running, items will remain in `conversion_queued` until it comes back online.

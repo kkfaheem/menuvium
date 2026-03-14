@@ -41,6 +41,7 @@ from database import get_engine
 from kiri_client import KiriApiError, KiriClient
 from models import Item
 from storage_utils import materialize_storage_key_to_path, store_file_from_path
+from video_frame_extractor import extract_video_frames_to_images
 
 
 POLL_INTERVAL_SECONDS = 5
@@ -78,6 +79,40 @@ def _kiri_client() -> KiriClient:
     if not api_key:
         raise RuntimeError("KIRI_API_KEY is not configured")
     return KiriClient(api_key=api_key)
+
+
+def _format_kiri_submission_error(exc: KiriApiError, *, capture_input_kind: str) -> str:
+    if capture_input_kind == "video":
+        if exc.code == 2009:
+            return (
+                "KIRI submission failed: KIRI rejected the video. "
+                "KIRI video uploads must be 1920x1080 or smaller. "
+                "Re-export the clip at 1080p or lower and retry."
+            )
+        if exc.code == 2010:
+            return (
+                "KIRI submission failed: KIRI rejected the video file format. "
+                "Re-export the clip in a standard video format and retry."
+            )
+    return f"KIRI submission failed: {exc}"
+
+
+def _photo_scan_submission_options() -> dict[str, int]:
+    def _env_int(name: str, default: int) -> int:
+        raw = os.getenv(name)
+        if raw is None:
+            return default
+        try:
+            return int(raw)
+        except ValueError:
+            return default
+
+    return {
+        "model_quality": _env_int("KIRI_PHOTO_MODEL_QUALITY", 3),
+        "texture_quality": _env_int("KIRI_PHOTO_TEXTURE_QUALITY", 3),
+        "texture_smoothing": _env_int("KIRI_PHOTO_TEXTURE_SMOOTHING", 1),
+        "is_mask": _env_int("KIRI_PHOTO_IS_MASK", 1),
+    }
 
 
 def _submit_next_pending_job() -> bool:
@@ -176,42 +211,55 @@ def _process_pending_item(item_id) -> None:
     with tempfile.TemporaryDirectory(prefix=f"menuvium-kiri-{item_id}-") as temp_dir:
         temp_path = Path(temp_dir)
         materialized_paths = []
+        provider_input_kind = capture_input_kind
+        frame_extraction_metadata = None
         try:
             for capture in selected_capture_refs:
                 destination = temp_path / f"{capture['position']:04d}-{Path(capture['s3_key']).name}"
                 materialize_storage_key_to_path(key=capture["s3_key"], destination=destination)
                 materialized_paths.append(destination)
 
+            submission_paths = materialized_paths
+            if capture_input_kind == "video":
+                extracted = extract_video_frames_to_images(
+                    video_path=materialized_paths[0],
+                    output_dir=temp_path / "extracted-frames",
+                )
+                submission_paths = extracted.frame_paths
+                provider_input_kind = "images"
+                frame_extraction_metadata = {
+                    "source_duration_seconds": round(extracted.probe.duration_seconds, 3),
+                    "source_width": extracted.probe.width,
+                    "source_height": extracted.probe.height,
+                    "requested_frame_count": extracted.desired_frame_count,
+                    "submitted_frame_count": len(extracted.frame_paths),
+                }
+
             client = _kiri_client()
+            photo_scan_options = _photo_scan_submission_options()
             if capture_mode == AR_CAPTURE_MODE_FEATURELESS:
-                if capture_input_kind == "images":
+                if provider_input_kind == "images":
                     submitted = client.submit_featureless_images(
-                        image_paths=materialized_paths,
+                        image_paths=submission_paths,
                         file_format="usdz",
                     )
                 else:
                     submitted = client.submit_featureless_video(
-                        video_path=materialized_paths[0],
+                        video_path=submission_paths[0],
                         file_format="usdz",
                     )
             else:
-                if capture_input_kind == "images":
+                if provider_input_kind == "images":
                     submitted = client.submit_photo_images(
-                        image_paths=materialized_paths,
+                        image_paths=submission_paths,
                         file_format="usdz",
-                        model_quality=int(os.getenv("KIRI_PHOTO_MODEL_QUALITY", "0")),
-                        texture_quality=int(os.getenv("KIRI_PHOTO_TEXTURE_QUALITY", "0")),
-                        texture_smoothing=int(os.getenv("KIRI_PHOTO_TEXTURE_SMOOTHING", "1")),
-                        is_mask=int(os.getenv("KIRI_PHOTO_IS_MASK", "1")),
+                        **photo_scan_options,
                     )
                 else:
                     submitted = client.submit_photo_video(
-                        video_path=materialized_paths[0],
+                        video_path=submission_paths[0],
                         file_format="usdz",
-                        model_quality=int(os.getenv("KIRI_PHOTO_MODEL_QUALITY", "0")),
-                        texture_quality=int(os.getenv("KIRI_PHOTO_TEXTURE_QUALITY", "0")),
-                        texture_smoothing=int(os.getenv("KIRI_PHOTO_TEXTURE_SMOOTHING", "1")),
-                        is_mask=int(os.getenv("KIRI_PHOTO_IS_MASK", "1")),
+                        **photo_scan_options,
                     )
         except KiriApiError as exc:
             with Session(engine) as session:
@@ -220,12 +268,17 @@ def _process_pending_item(item_id) -> None:
                     fail_item_ar(
                         session=session,
                         item=item,
-                        error_message=f"KIRI submission failed: {exc}",
+                        error_message=_format_kiri_submission_error(
+                            exc,
+                            capture_input_kind=capture_input_kind,
+                        ),
                         detail="KIRI rejected the capture upload",
                     )
                     update_item_ar_metadata(
                         item,
                         provider_message=str(exc),
+                        provider_input_kind=provider_input_kind,
+                        video_frame_extraction=frame_extraction_metadata,
                     )
                     session.commit()
             return
@@ -236,8 +289,16 @@ def _process_pending_item(item_id) -> None:
                     fail_item_ar(
                         session=session,
                         item=item,
-                        error_message=f"Failed to prepare KIRI job: {exc}",
-                        detail="Could not prepare capture files",
+                        error_message=(
+                            f"Failed to prepare KIRI video frames: {exc}"
+                            if capture_input_kind == "video"
+                            else f"Failed to prepare KIRI job: {exc}"
+                        ),
+                        detail=(
+                            "Could not extract submission frames from the uploaded video"
+                            if capture_input_kind == "video"
+                            else "Could not prepare capture files"
+                        ),
                     )
                     session.commit()
             return
@@ -257,6 +318,8 @@ def _process_pending_item(item_id) -> None:
             provider_status=KIRI_STATUS_QUEUING,
             provider_calculate_type=submitted.calculate_type,
             provider_message="submitted",
+            provider_input_kind=provider_input_kind,
+            video_frame_extraction=frame_extraction_metadata,
         )
         session.add(item)
         session.commit()
