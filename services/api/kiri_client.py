@@ -11,9 +11,16 @@ KIRI_BASE_URL = "https://api.kiriengine.app/api"
 
 
 class KiriApiError(RuntimeError):
-    def __init__(self, message: str, *, code: int | None = None):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: int | None = None,
+        status_code: int | None = None,
+    ):
         super().__init__(message)
         self.code = code
+        self.status_code = status_code
 
 
 @dataclass
@@ -147,6 +154,13 @@ class KiriClient:
         return self._parse_response(response)
 
     @staticmethod
+    def _clean_message(value) -> str | None:
+        if not isinstance(value, str):
+            return None
+        stripped = value.strip()
+        return stripped or None
+
+    @staticmethod
     def _normalize_code(value) -> int | None:
         if value is None:
             return None
@@ -184,24 +198,50 @@ class KiriClient:
         try:
             payload = response.json()
         except ValueError as exc:
-            raise KiriApiError(f"KIRI returned non-JSON response ({response.status_code})") from exc
+            raise KiriApiError(
+                f"KIRI returned non-JSON response ({response.status_code})",
+                status_code=response.status_code,
+            ) from exc
 
         if not isinstance(payload, dict):
-            raise KiriApiError(f"KIRI returned an unexpected response shape ({response.status_code})")
+            raise KiriApiError(
+                f"KIRI returned an unexpected response shape ({response.status_code})",
+                status_code=response.status_code,
+            )
 
         code = self._normalize_code(payload.get("code"))
         ok = self._normalize_ok(payload.get("ok"))
+        provider_message = self._clean_message(payload.get("msg"))
+
+        def build_error_message(prefix: str) -> str:
+            details: list[str] = [prefix]
+            if code is not None:
+                details.append(f"code {code}")
+            if provider_message and provider_message.lower() != "success":
+                details.append(provider_message)
+            elif provider_message:
+                details.append("provider returned msg='success' on an error response")
+            return " - ".join(details)
 
         if response.status_code >= 400:
             raise KiriApiError(
-                payload.get("msg") or response.text or f"HTTP {response.status_code}",
+                build_error_message(f"KIRI HTTP {response.status_code}"),
                 code=code,
+                status_code=response.status_code,
             )
 
         if ok is False or code not in (0, None):
-            raise KiriApiError(payload.get("msg") or "KIRI request failed", code=code)
+            raise KiriApiError(
+                build_error_message("KIRI returned a non-success response"),
+                code=code,
+                status_code=response.status_code,
+            )
 
         data = payload.get("data")
         if not isinstance(data, dict):
-            raise KiriApiError("KIRI response missing data object", code=code)
+            raise KiriApiError(
+                "KIRI response missing data object",
+                code=code,
+                status_code=response.status_code,
+            )
         return data

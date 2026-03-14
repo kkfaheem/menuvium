@@ -48,3 +48,28 @@ def test_parse_response_rejects_string_nonzero_code():
         assert "requirements" in str(exc)
     else:
         raise AssertionError("Expected KiriApiError for nonzero KIRI code")
+
+
+def test_parse_response_http_error_with_success_message_is_not_reported_as_success():
+    client = KiriClient(api_key="test-key")
+    response = FakeResponse(
+        status_code=502,
+        payload={
+            "ok": False,
+            "code": "3001",
+            "msg": "success",
+            "data": {},
+        },
+        text='{"ok":false,"code":"3001","msg":"success"}',
+    )
+
+    try:
+        client._parse_response(response)  # noqa: SLF001
+    except KiriApiError as exc:
+        assert exc.code == 3001
+        assert exc.status_code == 502
+        assert "HTTP 502" in str(exc)
+        assert "msg='success'" in str(exc)
+        assert str(exc) != "success"
+    else:
+        raise AssertionError("Expected KiriApiError for HTTP 502 response")
