@@ -156,6 +156,15 @@ def _process_pending_item(item_id) -> None:
             session.commit()
             return
 
+        capture_mode = item.ar_capture_mode
+        selected_capture_refs = [
+            {
+                "position": capture.position,
+                "s3_key": capture.s3_key,
+            }
+            for capture in selected_captures
+        ]
+
         update_item_ar_metadata(item, capture_input_kind=capture_input_kind)
         item.ar_stage = AR_STAGE_UPLOADING_TO_KIRI
         item.ar_stage_detail = "Uploading captures to KIRI"
@@ -168,13 +177,13 @@ def _process_pending_item(item_id) -> None:
         temp_path = Path(temp_dir)
         materialized_paths = []
         try:
-            for capture in selected_captures:
-                destination = temp_path / f"{capture.position:04d}-{Path(capture.s3_key).name}"
-                materialize_storage_key_to_path(key=capture.s3_key, destination=destination)
+            for capture in selected_capture_refs:
+                destination = temp_path / f"{capture['position']:04d}-{Path(capture['s3_key']).name}"
+                materialize_storage_key_to_path(key=capture["s3_key"], destination=destination)
                 materialized_paths.append(destination)
 
             client = _kiri_client()
-            if item.ar_capture_mode == AR_CAPTURE_MODE_FEATURELESS:
+            if capture_mode == AR_CAPTURE_MODE_FEATURELESS:
                 if capture_input_kind == "images":
                     submitted = client.submit_featureless_images(
                         image_paths=materialized_paths,

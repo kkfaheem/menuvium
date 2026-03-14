@@ -1,19 +1,23 @@
 import uuid
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import SQLModel, Session, create_engine, select
 from sqlmodel.pool import StaticPool
 
+import ar_worker
 from ar_pipeline import (
     AR_CAPTURE_MODE_PHOTO_SCAN,
     AR_PROVIDER_KIRI,
     AR_STAGE_CONVERSION_QUEUED,
+    AR_STAGE_KIRI_PROCESSING,
     AR_STAGE_QUEUED,
     CONVERSION_STATUS_QUEUED,
 )
 from database import get_session
 from dependencies import get_current_user
+from kiri_client import KiriSubmittedJob
 from main import app
 from models import ArCaptureAsset, ArConversionJob, Category, Item, Menu, Organization
 
@@ -186,3 +190,50 @@ def test_retry_requeues_conversion_when_usdz_exists(
     assert conversion_job is not None
     assert conversion_job.status == CONVERSION_STATUS_QUEUED
 
+
+def test_process_pending_item_uses_plain_capture_values_after_commit(
+    session: Session,
+    test_item: Item,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    session.add(
+        ArCaptureAsset(
+            item_id=test_item.id,
+            kind="video",
+            position=0,
+            s3_key=f"items/ar/{test_item.id}/video/dish.mp4",
+            url="https://example.com/dish.mp4",
+        )
+    )
+    test_item.ar_provider = AR_PROVIDER_KIRI
+    test_item.ar_capture_mode = AR_CAPTURE_MODE_PHOTO_SCAN
+    test_item.ar_status = "processing"
+    test_item.ar_stage = "uploading_to_kiri"
+    session.add(test_item)
+    session.commit()
+
+    class FakeKiriClient:
+        def submit_photo_video(self, **kwargs):
+            return KiriSubmittedJob(serialize="serialize-123", calculate_type=1)
+
+    def fake_materialize_storage_key_to_path(*, key: str, destination: Path) -> Path:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"video")
+        return destination
+
+    monkeypatch.setattr(ar_worker, "get_engine", lambda: session.get_bind())
+    monkeypatch.setattr(ar_worker, "_kiri_client", lambda: FakeKiriClient())
+    monkeypatch.setattr(
+        ar_worker,
+        "materialize_storage_key_to_path",
+        fake_materialize_storage_key_to_path,
+    )
+
+    ar_worker._process_pending_item(test_item.id)
+
+    session.expire_all()
+    refreshed = session.get(Item, test_item.id)
+    assert refreshed is not None
+    assert refreshed.ar_status == "processing"
+    assert refreshed.ar_stage == AR_STAGE_KIRI_PROCESSING
+    assert refreshed.ar_metadata_json["serialize"] == "serialize-123"
