@@ -29,6 +29,24 @@ def test_parse_response_accepts_string_zero_code_and_string_ok():
     assert payload["calculateType"] == 1
 
 
+def test_parse_response_accepts_body_code_200_when_data_has_success_shape():
+    client = KiriClient(api_key="test-key")
+    response = FakeResponse(
+        status_code=200,
+        payload={
+            "ok": False,
+            "code": 200,
+            "msg": "success",
+            "data": {"serialize": "abc123", "calculateType": 1},
+        },
+    )
+
+    payload = client._parse_response(response)  # noqa: SLF001
+
+    assert payload["serialize"] == "abc123"
+    assert payload["calculateType"] == 1
+
+
 def test_parse_response_rejects_string_nonzero_code():
     client = KiriClient(api_key="test-key")
     response = FakeResponse(

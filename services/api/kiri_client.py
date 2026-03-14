@@ -212,6 +212,19 @@ class KiriClient:
         code = self._normalize_code(payload.get("code"))
         ok = self._normalize_ok(payload.get("ok"))
         provider_message = self._clean_message(payload.get("msg"))
+        data = payload.get("data")
+
+        provider_signals_success = provider_message is not None and provider_message.lower() == "success"
+        has_success_shape = isinstance(data, dict) and (
+            "serialize" in data or "modelUrl" in data or "status" in data or "balance" in data
+        )
+        if (
+            200 <= response.status_code < 300
+            and has_success_shape
+            and provider_signals_success
+            and code in (0, 200, None)
+        ):
+            return data
 
         def build_error_message(prefix: str) -> str:
             details: list[str] = [prefix]
@@ -237,7 +250,6 @@ class KiriClient:
                 status_code=response.status_code,
             )
 
-        data = payload.get("data")
         if not isinstance(data, dict):
             raise KiriApiError(
                 "KIRI response missing data object",
