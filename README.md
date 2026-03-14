@@ -234,6 +234,8 @@ Service root: `services/api` (Dockerfile-based).
 | `KIRI_PHOTO_MODEL_QUALITY` | Optional, defaults to `3` (KIRI Ultra mesh quality) |
 | `KIRI_PHOTO_TEXTURE_QUALITY` | Optional, defaults to `3` (KIRI 8K texture quality) |
 | `AR_VIDEO_FRAME_EXTRACTION_FPS` | Optional, defaults to `6` extracted frames per second before KIRI submission |
+| `AR_VIDEO_FFMPEG_THREADS` | Optional, defaults to `1` to keep Railway ffmpeg memory usage bounded |
+| `AR_VIDEO_NORMALIZE_MAX_DIMENSION` | Optional, defaults to `1920`; oversized uploads are normalized to fit before frame extraction |
 
 ---
 
@@ -241,7 +243,7 @@ Service root: `services/api` (Dockerfile-based).
 
 The normal AR path is now:
 
-1. The API extracts a high-quality image set from the uploaded dish video, then submits those frames to KIRI and stores the returned USDZ.
+1. The API normalizes oversized dish videos to a bounded H.264 file, extracts a high-quality image set from that video, then submits those frames to KIRI and stores the returned USDZ.
 2. A separate macOS converter worker turns that USDZ into GLB for web/Android AR.
 
 If the converter is not running, items will remain in `conversion_queued` until it comes back online.

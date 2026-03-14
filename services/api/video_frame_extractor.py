@@ -62,8 +62,12 @@ def _format_process_failure(*, label: str, completed: subprocess.CompletedProces
         else f"exit code {completed.returncode}"
     )
     if output:
-        return RuntimeError(f"{label} failed ({exit_detail}): {output}")
-    return RuntimeError(f"{label} failed ({exit_detail})")
+        message = f"{label} failed ({exit_detail}): {output}"
+    else:
+        message = f"{label} failed ({exit_detail})"
+    if completed.returncode == -9:
+        message += " The process was SIGKILLed, which usually means the container ran out of memory."
+    return RuntimeError(message)
 
 
 def _run_command(*, command: list[str], label: str) -> subprocess.CompletedProcess[str]:
@@ -71,6 +75,14 @@ def _run_command(*, command: list[str], label: str) -> subprocess.CompletedProce
     if completed.returncode != 0:
         raise _format_process_failure(label=label, completed=completed)
     return completed
+
+
+def _ffmpeg_threads() -> int:
+    return max(_env_int("AR_VIDEO_FFMPEG_THREADS", 1), 1)
+
+
+def _normalized_max_dimension() -> int:
+    return max(_env_int("AR_VIDEO_NORMALIZE_MAX_DIMENSION", 1920), 720)
 
 
 def probe_video(*, video_path: Path, ffprobe_path: str | None = None) -> VideoProbe:
@@ -142,6 +154,7 @@ def _extract_frames_with_ffmpeg(
 ) -> list[Path]:
     jpeg_quality = min(max(_env_int("AR_VIDEO_FRAME_JPEG_QUALITY", 2), 1), 31)
     effective_fps = desired_frame_count / duration_seconds
+    threads = _ffmpeg_threads()
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_pattern = output_dir / "frame-%04d.jpg"
@@ -151,6 +164,8 @@ def _extract_frames_with_ffmpeg(
         "-loglevel",
         "error",
         "-y",
+        "-threads",
+        str(threads),
         "-i",
         str(video_path),
         "-vf",
@@ -178,6 +193,8 @@ def _normalize_video_for_frame_extraction(
     source_video_path: Path,
     normalized_video_path: Path,
 ) -> Path:
+    threads = _ffmpeg_threads()
+    max_dimension = _normalized_max_dimension()
     normalized_video_path.parent.mkdir(parents=True, exist_ok=True)
     command = [
         ffmpeg_path,
@@ -185,6 +202,8 @@ def _normalize_video_for_frame_extraction(
         "-loglevel",
         "error",
         "-y",
+        "-threads",
+        str(threads),
         "-i",
         str(source_video_path),
         "-map",
@@ -193,7 +212,12 @@ def _normalize_video_for_frame_extraction(
         "-sn",
         "-dn",
         "-vf",
-        "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        (
+            f"scale=w=min(iw\\,{max_dimension}):"
+            f"h=min(ih\\,{max_dimension}):"
+            "force_original_aspect_ratio=decrease:"
+            "force_divisible_by=2"
+        ),
         "-pix_fmt",
         "yuv420p",
         "-r",
@@ -201,7 +225,7 @@ def _normalize_video_for_frame_extraction(
         "-c:v",
         "libx264",
         "-preset",
-        "veryfast",
+        os.getenv("AR_VIDEO_NORMALIZE_PRESET", "ultrafast"),
         "-crf",
         os.getenv("AR_VIDEO_NORMALIZE_CRF", "18"),
         "-movflags",
@@ -218,8 +242,13 @@ def extract_video_frames_to_images(*, video_path: Path, output_dir: Path) -> Ext
 
     probe = probe_video(video_path=video_path, ffprobe_path=ffprobe)
     desired_frame_count = _desired_frame_count(duration_seconds=probe.duration_seconds)
+    normalize_before_extraction = max(probe.width, probe.height) > _normalized_max_dimension()
 
     try:
+        if normalize_before_extraction:
+            raise RuntimeError(
+                f"Source video is {probe.width}x{probe.height}; normalizing before extraction"
+            )
         frame_paths = _extract_frames_with_ffmpeg(
             ffmpeg_path=ffmpeg,
             video_path=video_path,
