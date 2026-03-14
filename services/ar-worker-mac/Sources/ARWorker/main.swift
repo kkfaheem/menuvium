@@ -114,10 +114,10 @@ func parseConfig() throws -> Config {
     var workerToken = ProcessInfo.processInfo.environment["MENUVIUM_WORKER_TOKEN"]
     var pollSeconds: UInt64 = 5
     var frameFps = 6
-    var frameStride = 2
+    var frameStride = 1
     var frameJpegQ = 2
-    var frameCrop = 0.85
-    var frameWhiteBackground = true
+    var frameCrop = 1.0
+    var frameWhiteBackground = false
     var framePreflightEnabled = true
     var framePreflightAdaptive = true
     var framePreflightMinFrames = 24
@@ -780,7 +780,11 @@ func countFrames(in dir: URL) -> Int {
     return files.filter { $0.pathExtension.lowercased() == "jpg" || $0.pathExtension.lowercased() == "jpeg" }.count
 }
 
-func buildTurntableBoxCropFilter(cropFactor: Double) -> String {
+func buildTurntableBoxCropFilter(cropFactor: Double) -> String? {
+    if cropFactor >= 0.999 {
+        return nil
+    }
+
     // Turntable-in-box captures have static ceiling/background regions that
     // can dominate alignment. Bias the crop lower to keep the rotating subject.
     let widthFactor = min(1.0, max(0.60, cropFactor))
@@ -1215,17 +1219,6 @@ func runPhotogrammetry(
             )
             attempts.append(
                 PhotogrammetryAttempt(
-                    label: "Photogrammetry HQ (\(detailLabel(primaryDetail))\(specLabel))",
-                    sampleOrdering: .sequential,
-                    featureSensitivity: .high,
-                    objectMaskingEnabled: false,
-                    detail: primaryDetail,
-                    customMaxPolygons: useCustomSpec ? customPolygonCount : nil,
-                    customMaxTextureDimension: useCustomSpec ? customMaxTextureDimension : nil
-                )
-            )
-            attempts.append(
-                PhotogrammetryAttempt(
                     label: "Photogrammetry HQ Masked Unordered (\(detailLabel(primaryDetail))\(specLabel))",
                     sampleOrdering: .unordered,
                     featureSensitivity: .high,
@@ -1237,8 +1230,19 @@ func runPhotogrammetry(
             )
             attempts.append(
                 PhotogrammetryAttempt(
-                    label: "Photogrammetry HQ Unordered (\(detailLabel(primaryDetail))\(specLabel))",
+                    label: "Photogrammetry Safe Masked (\(detailLabel(primaryDetail))\(specLabel))",
                     sampleOrdering: .unordered,
+                    featureSensitivity: .normal,
+                    objectMaskingEnabled: true,
+                    detail: primaryDetail,
+                    customMaxPolygons: useCustomSpec ? customPolygonCount : nil,
+                    customMaxTextureDimension: useCustomSpec ? customMaxTextureDimension : nil
+                )
+            )
+            attempts.append(
+                PhotogrammetryAttempt(
+                    label: "Photogrammetry HQ (\(detailLabel(primaryDetail))\(specLabel))",
+                    sampleOrdering: .sequential,
                     featureSensitivity: .high,
                     objectMaskingEnabled: false,
                     detail: primaryDetail,
@@ -1248,10 +1252,10 @@ func runPhotogrammetry(
             )
             attempts.append(
                 PhotogrammetryAttempt(
-                    label: "Photogrammetry Safe Masked (\(detailLabel(primaryDetail))\(specLabel))",
+                    label: "Photogrammetry HQ Unordered (\(detailLabel(primaryDetail))\(specLabel))",
                     sampleOrdering: .unordered,
-                    featureSensitivity: .normal,
-                    objectMaskingEnabled: true,
+                    featureSensitivity: .high,
+                    objectMaskingEnabled: false,
                     detail: primaryDetail,
                     customMaxPolygons: useCustomSpec ? customPolygonCount : nil,
                     customMaxTextureDimension: useCustomSpec ? customMaxTextureDimension : nil

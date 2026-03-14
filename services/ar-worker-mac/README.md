@@ -31,12 +31,12 @@ This worker turns an uploaded dish turntable video into `usdz` (iOS Quick Look) 
 You can also override individually:
 
 - `--fps 6` (frame sampling rate)
-- `--frame-stride 2` (keep every Nth extracted frame; defaults to 2 for turntable spacing)
+- `--frame-stride 1` (keep every Nth extracted frame; defaults to 1 for highest fidelity, increase only if your turntable capture has too many near-duplicate frames)
 - `--detail full|custom|ultra|raw`
 - `--max-texture-dim twoK|fourK|eightK` (used with `custom/ultra` when supported)
 - `--max-polygons 500000` (used with `custom/ultra` when supported)
 - `--jpeg-q 1` (higher quality JPEG frames; slower/larger)
-- `--white-bg` / `--no-white-bg` (white background normalization is on by default for photography-box captures)
+- `--white-bg` / `--no-white-bg` (white background normalization is off by default; use it only when the raw capture leaves too much background geometry in the solve)
 - `--skip-preflight` (disable frame-quality gate; enabled by default)
 - `--preflight-adaptive` / `--no-preflight-adaptive` (adaptive mode warns for borderline feature scores instead of hard-failing)
 - `--preflight-min-frames 24`
@@ -74,11 +74,11 @@ From the repo root:
   ```
 - *(Optional)* Control frame spacing for turntable motion:
   ```bash
-  export MENUVIUM_AR_FRAME_STRIDE="2"
+  export MENUVIUM_AR_FRAME_STRIDE="1"
   ```
-- *(Optional)* Disable white background preprocessing (enabled by default):
+- *(Optional)* Enable white background preprocessing:
   ```bash
-  export MENUVIUM_AR_WHITE_BG="0"
+  export MENUVIUM_AR_WHITE_BG="1"
   ```
 - *(Optional)* To bypass preflight quality validation:
   ```bash
@@ -108,7 +108,7 @@ From the repo root:
 
 - This worker polls for jobs (`/ar-jobs/claim`) and processes one at a time.
 - Output keys are stored under `items/ar/<item_id>/...` in your upload bucket (or local uploads when `LOCAL_UPLOADS=1`).
-- Extraction is tuned for turntable-in-box captures by default: lower-biased crop, frame spacing, and white-background normalization.
+- Extraction keeps full frames by default for fidelity. Turntable crop and frame thinning are available as opt-in controls when background/support geometry starts to dominate the solve.
 - Photogrammetry runs with automatic fallbacks: it tries a high-quality config first, then retries with safer settings (and potentially lower detail) if Object Capture returns `processError`.
 - Quality-first behavior is enabled by default: the worker first retries using the requested detail only; if alignment fails, it auto-retries with white-background frame normalization, then a deterministic frame-enhancement pass; only after those fail does it allow lower-detail fallback.
 - If all photogrammetry attempts fail (for example, persistent `imageAlignment` `processError`), the worker can generate a poster-textured fallback USDZ/GLB model so the job can still complete.
