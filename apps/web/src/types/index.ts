@@ -20,6 +20,20 @@ export interface ItemPhoto {
   s3_key?: string;
 }
 
+export interface ArCaptureAsset {
+  id: string;
+  kind: "image" | "video" | string;
+  position: number;
+  url: string;
+  metadata_json?: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface ItemArCapturesResponse {
+  capture_mode?: "photo_scan" | "featureless" | string | null;
+  captures: ArCaptureAsset[];
+}
+
 export interface VisibilityRule {
   id?: string;
   kind: "include" | "exclude";

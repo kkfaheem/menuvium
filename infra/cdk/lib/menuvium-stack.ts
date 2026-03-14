@@ -113,18 +113,18 @@ export class MenuviumStack extends cdk.Stack {
         const openAiSecretName = this.node.tryGetContext('openAiSecretName') || 'MenuviumOpenAIKey';
         const openAiSecret = secretsmanager.Secret.fromSecretNameV2(this, 'MenuviumOpenAiSecret', openAiSecretName);
 
-        const arWorkerTokenSecretName = this.node.tryGetContext('arWorkerTokenSecretName') as string | undefined;
-        const arWorkerTokenSecret = arWorkerTokenSecretName
-            ? secretsmanager.Secret.fromSecretNameV2(this, 'MenuviumArWorkerTokenSecret', arWorkerTokenSecretName)
-            : new secretsmanager.Secret(this, 'MenuviumArWorkerTokenSecret', {
-                description: 'Shared token for the external AR photogrammetry worker',
+        const arConverterTokenSecretName = this.node.tryGetContext('arConverterTokenSecretName') as string | undefined;
+        const arConverterTokenSecret = arConverterTokenSecretName
+            ? secretsmanager.Secret.fromSecretNameV2(this, 'MenuviumArConverterTokenSecret', arConverterTokenSecretName)
+            : new secretsmanager.Secret(this, 'MenuviumArConverterTokenSecret', {
+                description: 'Shared token for the external AR USDZ-to-GLB converter worker',
                 generateSecretString: {
                     passwordLength: 32,
                     excludePunctuation: true,
                 },
             });
-        if (!arWorkerTokenSecretName) {
-            (arWorkerTokenSecret as secretsmanager.Secret).applyRemovalPolicy(
+        if (!arConverterTokenSecretName) {
+            (arConverterTokenSecret as secretsmanager.Secret).applyRemovalPolicy(
                 config.environment === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY
             );
         }
@@ -167,7 +167,7 @@ export class MenuviumStack extends cdk.Stack {
                 secrets: {
                     DB_PASSWORD: ecs.Secret.fromSecretsManager(db.secret!, 'password'),
                     OPENAI_API_KEY: ecs.Secret.fromSecretsManager(openAiSecret),
-                    AR_WORKER_TOKEN: ecs.Secret.fromSecretsManager(arWorkerTokenSecret),
+                    AR_CONVERTER_TOKEN: ecs.Secret.fromSecretsManager(arConverterTokenSecret),
                 },
                 logDriver: ecs.LogDrivers.awsLogs({
                     streamPrefix: 'menuvium-api',
@@ -253,7 +253,7 @@ export class MenuviumStack extends cdk.Stack {
         new cdk.CfnOutput(this, 'BucketName', { value: bucket.bucketName });
         new cdk.CfnOutput(this, 'ApiRepoName', { value: apiRepo.repositoryName });
         new cdk.CfnOutput(this, 'ApiRepoUri', { value: apiRepo.repositoryUri });
-        new cdk.CfnOutput(this, 'ArWorkerTokenSecretArn', { value: arWorkerTokenSecret.secretArn });
+        new cdk.CfnOutput(this, 'ArConverterTokenSecretArn', { value: arConverterTokenSecret.secretArn });
 
         if (distribution) {
             new cdk.CfnOutput(this, 'CloudFrontUrl', { value: `https://${distribution.distributionDomainName}` });

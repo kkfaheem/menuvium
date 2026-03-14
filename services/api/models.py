@@ -141,6 +141,12 @@ class Item(ItemBase, table=True):
     ar_status: Optional[str] = Field(default=None, index=True)
     ar_error_message: Optional[str] = None
     ar_luma_capture_id: Optional[str] = None
+    ar_provider: Optional[str] = Field(default=None, index=True)
+    ar_capture_mode: Optional[str] = None
+    ar_metadata_json: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON().with_variant(JSONB, "postgresql")),
+    )
     ar_created_at: Optional[datetime] = None
     ar_updated_at: Optional[datetime] = None
     ar_stage: Optional[str] = None
@@ -166,6 +172,14 @@ class Item(ItemBase, table=True):
         back_populates="item",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    ar_capture_assets: List["ArCaptureAsset"] = Relationship(
+        back_populates="item",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    ar_conversion_jobs: List["ArConversionJob"] = Relationship(
+        back_populates="item",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
     dietary_tags: List[DietaryTag] = Relationship(back_populates="items", link_model=ItemDietaryTagLink)
     allergens: List[Allergen] = Relationship(back_populates="items", link_model=ItemAllergenLink)
@@ -173,6 +187,42 @@ class Item(ItemBase, table=True):
 class ItemPhoto(ItemPhotoBase, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     item: Item = Relationship(back_populates="photos")
+
+
+class ArCaptureAsset(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    item_id: uuid.UUID = Field(foreign_key="item.id", index=True)
+    kind: str = Field(index=True)
+    position: int = Field(default=0)
+    s3_key: str
+    url: str
+    metadata_json: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON().with_variant(JSONB, "postgresql")),
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    item: Optional["Item"] = Relationship(back_populates="ar_capture_assets")
+
+
+class ArConversionJob(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    item_id: uuid.UUID = Field(foreign_key="item.id", index=True)
+    status: str = Field(default="queued", index=True)
+    error_message: Optional[str] = None
+    usdz_s3_key: str
+    usdz_url: str
+    glb_s3_key: Optional[str] = None
+    glb_url: Optional[str] = None
+    attempts: int = Field(default=0)
+    metadata_json: Optional[dict] = Field(
+        default=None,
+        sa_column=Column(JSON().with_variant(JSONB, "postgresql")),
+    )
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    item: Optional["Item"] = Relationship(back_populates="ar_conversion_jobs")
 
 
 class ItemOptionGroupBase(SQLModel):

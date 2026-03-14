@@ -8,7 +8,9 @@ from sqlmodel import SQLModel
 async def lifespan(app: FastAPI):
     # Start the menu-importer background worker
     from importer.worker import start_worker
+    from ar_worker import start_worker as start_ar_worker
     start_worker()
+    start_ar_worker()
     yield
 
 from fastapi.middleware.cors import CORSMiddleware

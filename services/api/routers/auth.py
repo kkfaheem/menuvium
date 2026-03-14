@@ -1,9 +1,13 @@
-import os
+from __future__ import annotations
+
 import json
+import os
+from typing import Optional, Tuple
+
+from botocore.exceptions import ClientError
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from dependencies import get_current_user
-from botocore.exceptions import ClientError
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -23,7 +27,7 @@ def get_cognito_client():
     )
 
 
-def parse_federated_username(username: str) -> tuple[str, str] | None:
+def parse_federated_username(username: str) -> Optional[Tuple[str, str]]:
     """
     Parse Cognito federated usernames like:
       - Google_12345
@@ -80,7 +84,9 @@ def admin_link_provider_for_user(
     )
 
 
-def get_federated_provider_info(user: dict, cognito_username: str) -> tuple[str, str] | None:
+def get_federated_provider_info(
+    user: dict, cognito_username: str
+) -> Optional[Tuple[str, str]]:
     # Primary: infer from cognito username (e.g. google_12345)
     parsed = parse_federated_username(cognito_username)
     if parsed:
@@ -113,9 +119,9 @@ def get_federated_provider_info(user: dict, cognito_username: str) -> tuple[str,
 
 class CheckLinkResponse(BaseModel):
     needs_link: bool
-    provider: str | None = None
-    existing_email: str | None = None
-    existing_name: str | None = None
+    provider: Optional[str] = None
+    existing_email: Optional[str] = None
+    existing_name: Optional[str] = None
 
 
 class LinkAccountsResponse(BaseModel):
@@ -124,8 +130,8 @@ class LinkAccountsResponse(BaseModel):
 
 
 class SessionInfoResponse(BaseModel):
-    email: str | None = None
-    cognito_username: str | None = None
+    email: Optional[str] = None
+    cognito_username: Optional[str] = None
     is_admin: bool
 
 
@@ -134,7 +140,7 @@ def get_admin_emails() -> list[str]:
     return [e.strip().lower() for e in raw.split(",") if e.strip()]
 
 
-def resolve_email_for_user(user: dict) -> str | None:
+def resolve_email_for_user(user: dict) -> Optional[str]:
     email = user.get("email")
     if isinstance(email, str):
         normalized = email.strip().lower()

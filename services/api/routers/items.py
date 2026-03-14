@@ -4,11 +4,21 @@ import boto3
 from botocore.exceptions import ClientError
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlmodel import Session, select, delete
 from database import get_session
+from ar_pipeline import (
+    AR_PROVIDER_KIRI,
+    AR_CAPTURE_MODE_PHOTO_SCAN,
+    kiri_enabled,
+    queue_conversion_from_existing_usdz,
+    queue_kiri_generation,
+    select_generation_input,
+    validate_capture_mode,
+)
 from models import (
+    ArCaptureAsset,
     Item,
     Category,
     Menu,
@@ -29,6 +39,13 @@ from permissions import get_org_permissions
 from url_utils import forwarded_prefix
 from sqlalchemy.orm import selectinload
 from url_utils import normalize_upload_url
+from storage_utils import (
+    create_upload_target,
+    delete_storage_key_best_effort as storage_delete_storage_key_best_effort,
+    local_upload_dir as storage_local_upload_dir,
+    local_uploads_enabled as storage_local_uploads_enabled,
+    safe_local_path as storage_safe_local_path,
+)
 
 router = APIRouter(prefix="/items", tags=["items"])
 SessionDep = Depends(get_session)
@@ -47,36 +64,44 @@ class PresignedUrlResponse(BaseModel):
     s3_key: str
     public_url: str
 
+
+class ArCaptureAssetRead(BaseModel):
+    id: uuid.UUID
+    kind: str
+    position: int
+    url: str
+    metadata_json: Optional[dict] = None
+    created_at: datetime
+
+
+class ItemArCapturesResponse(BaseModel):
+    capture_mode: Optional[str] = None
+    captures: List[ArCaptureAssetRead]
+
+
+class AttachArCaptureRequest(BaseModel):
+    s3_key: str
+    url: str
+    content_type: str
+    filename: Optional[str] = None
+    position: Optional[int] = None
+
+
+class GenerateArRequest(BaseModel):
+    capture_mode: str = AR_CAPTURE_MODE_PHOTO_SCAN
+
 def _local_uploads_enabled() -> bool:
-    return os.getenv("LOCAL_UPLOADS") == "1"
+    return storage_local_uploads_enabled()
 
 def _local_upload_dir() -> Path:
-    return Path(__file__).resolve().parent.parent / "uploads"
+    return storage_local_upload_dir()
 
 def _safe_local_path(key: str) -> Path:
-    base = _local_upload_dir().resolve()
-    target = (base / key).resolve()
-    if not str(target).startswith(str(base) + os.sep):
-        raise HTTPException(status_code=400, detail="Invalid upload key")
-    return target
+    return storage_safe_local_path(key)
 
 
 def _delete_storage_key_best_effort(s3_key: Optional[str]) -> None:
-    if not s3_key:
-        return
-    bucket_name = os.getenv("S3_BUCKET_NAME")
-    if bucket_name:
-        try:
-            boto3.client("s3").delete_object(Bucket=bucket_name, Key=s3_key)
-        except Exception:
-            # Best effort: DB cleanup is enough to hide removed assets in product.
-            pass
-        return
-    if _local_uploads_enabled():
-        try:
-            _safe_local_path(s3_key).unlink(missing_ok=True)
-        except Exception:
-            pass
+    storage_delete_storage_key_best_effort(s3_key)
 
 def _item_org_permissions(session: Session, item: Item, user: dict):
     category = session.get(Category, item.category_id)
@@ -298,6 +323,30 @@ def _load_item_with_relations(session: Session, item_id: uuid.UUID) -> Optional[
         group.options = sorted(group.options or [], key=lambda o: o.position)
     return item
 
+
+def _load_ar_captures(session: Session, item_id: uuid.UUID) -> list[ArCaptureAsset]:
+    return session.exec(
+        select(ArCaptureAsset)
+        .where(ArCaptureAsset.item_id == item_id)
+        .order_by(ArCaptureAsset.position, ArCaptureAsset.created_at, ArCaptureAsset.id)
+    ).all()
+
+
+def _serialize_ar_capture_assets(captures: list[ArCaptureAsset], request: Request) -> list[ArCaptureAssetRead]:
+    serialized: list[ArCaptureAssetRead] = []
+    for capture in captures:
+        serialized.append(
+            ArCaptureAssetRead(
+                id=capture.id,
+                kind=capture.kind,
+                position=capture.position,
+                url=normalize_upload_url(capture.url, request) or capture.url,
+                metadata_json=capture.metadata_json,
+                created_at=capture.created_at,
+            )
+        )
+    return serialized
+
 @router.get("/{item_id}", response_model=ItemRead)
 def get_item(item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep):
     item = _load_item_with_relations(session, item_id)
@@ -347,6 +396,191 @@ def generate_upload_url(req: PresignedUrlRequest, request: Request, user: dict =
         "public_url": f"https://{bucket_name}.s3.amazonaws.com/{key}"
     }
 
+
+@router.get("/{item_id}/ar/captures", response_model=ItemArCapturesResponse)
+def list_ar_captures(
+    item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep
+):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_view:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    captures = _load_ar_captures(session, item_id)
+    return ItemArCapturesResponse(
+        capture_mode=item.ar_capture_mode or AR_CAPTURE_MODE_PHOTO_SCAN,
+        captures=_serialize_ar_capture_assets(captures, request),
+    )
+
+
+@router.post("/{item_id}/ar/capture-upload-url", response_model=PresignedUrlResponse)
+def generate_ar_capture_upload_url(
+    item_id: uuid.UUID,
+    req: PresignedUrlRequest,
+    request: Request,
+    session: Session = SessionDep,
+    user: dict = UserDep,
+):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if not (req.content_type.startswith("image/") or req.content_type.startswith("video/")):
+        raise HTTPException(status_code=400, detail="AR captures must be image/* or video/*")
+
+    filename = os.path.basename(req.filename)
+    key = f"items/ar/{item_id}/capture/{uuid.uuid4()}-{filename}"
+    return create_upload_target(key=key, content_type=req.content_type, request=request)
+
+
+@router.post("/{item_id}/ar/captures", response_model=ItemArCapturesResponse)
+def attach_ar_capture(
+    item_id: uuid.UUID,
+    payload: AttachArCaptureRequest,
+    request: Request,
+    session: Session = SessionDep,
+    user: dict = UserDep,
+):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    content_type = (payload.content_type or "").strip().lower()
+    if content_type.startswith("image/"):
+        kind = "image"
+    elif content_type.startswith("video/"):
+        kind = "video"
+    else:
+        raise HTTPException(status_code=400, detail="AR captures must be image/* or video/*")
+
+    next_position = payload.position
+    if next_position is None:
+        existing_positions = session.exec(
+            select(ArCaptureAsset.position).where(ArCaptureAsset.item_id == item_id)
+        ).all()
+        normalized_positions = [row[0] if isinstance(row, tuple) else row for row in existing_positions]
+        next_position = (max(normalized_positions) + 1) if normalized_positions else 0
+
+    capture = ArCaptureAsset(
+        item_id=item_id,
+        kind=kind,
+        position=max(0, int(next_position)),
+        s3_key=payload.s3_key,
+        url=payload.url,
+        metadata_json={
+            "content_type": payload.content_type,
+            "filename": payload.filename,
+        },
+    )
+    session.add(capture)
+    if kind == "video":
+        item.ar_video_s3_key = payload.s3_key
+        item.ar_video_url = payload.url
+        session.add(item)
+    session.commit()
+
+    captures = _load_ar_captures(session, item_id)
+    return ItemArCapturesResponse(
+        capture_mode=item.ar_capture_mode or AR_CAPTURE_MODE_PHOTO_SCAN,
+        captures=_serialize_ar_capture_assets(captures, request),
+    )
+
+
+@router.delete("/{item_id}/ar/captures/{capture_id}", response_model=ItemArCapturesResponse)
+def delete_ar_capture(
+    item_id: uuid.UUID,
+    capture_id: uuid.UUID,
+    request: Request,
+    session: Session = SessionDep,
+    user: dict = UserDep,
+):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if item.ar_status in ("pending", "processing"):
+        raise HTTPException(status_code=400, detail="Cancel AR processing before removing captures.")
+
+    capture = session.get(ArCaptureAsset, capture_id)
+    if not capture or capture.item_id != item_id:
+        raise HTTPException(status_code=404, detail="AR capture not found")
+
+    _delete_storage_key_best_effort(capture.s3_key)
+    session.delete(capture)
+    session.flush()
+    remaining_video = session.exec(
+        select(ArCaptureAsset)
+        .where(ArCaptureAsset.item_id == item_id)
+        .where(ArCaptureAsset.kind == "video")
+        .order_by(ArCaptureAsset.position, ArCaptureAsset.created_at, ArCaptureAsset.id)
+        .limit(1)
+    ).first()
+    if remaining_video:
+        item.ar_video_s3_key = remaining_video.s3_key
+        item.ar_video_url = remaining_video.url
+    else:
+        item.ar_video_s3_key = None
+        item.ar_video_url = None
+    session.add(item)
+    session.commit()
+
+    captures = _load_ar_captures(session, item_id)
+    return ItemArCapturesResponse(
+        capture_mode=item.ar_capture_mode or AR_CAPTURE_MODE_PHOTO_SCAN,
+        captures=_serialize_ar_capture_assets(captures, request),
+    )
+
+
+@router.post("/{item_id}/ar/generate", response_model=ItemRead)
+def generate_ar_model(
+    item_id: uuid.UUID,
+    payload: GenerateArRequest,
+    request: Request,
+    session: Session = SessionDep,
+    user: dict = UserDep,
+):
+    if not kiri_enabled():
+        raise HTTPException(status_code=503, detail="KIRI AR generation is not configured")
+
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if item.ar_status in ("pending", "processing"):
+        raise HTTPException(status_code=400, detail="Cancel current AR processing before starting a new run.")
+
+    captures = _load_ar_captures(session, item_id)
+    if not captures:
+        raise HTTPException(status_code=400, detail="Upload AR captures before generating.")
+    try:
+        capture_mode = validate_capture_mode(payload.capture_mode)
+        select_generation_input(captures)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    queue_kiri_generation(
+        session=session,
+        item=item,
+        capture_mode=capture_mode,
+        detail="Queued from editor",
+    )
+    session.commit()
+    session.refresh(item)
+
+    _normalize_item_media_urls(item, request)
+    return ItemRead.model_validate(item)
+
 @router.post("/{item_id}/ar/video-upload-url", response_model=PresignedUrlResponse)
 def generate_ar_video_upload_url(
     item_id: uuid.UUID, req: PresignedUrlRequest, request: Request, session: Session = SessionDep, user: dict = UserDep
@@ -360,40 +594,9 @@ def generate_ar_video_upload_url(
     if not req.content_type.startswith("video/"):
         raise HTTPException(status_code=400, detail="Invalid content type; expected video/*")
 
-    bucket_name = os.getenv("S3_BUCKET_NAME")
     filename = os.path.basename(req.filename)
     key = f"items/ar/{item_id}/video/{uuid.uuid4()}-{filename}"
-    if not bucket_name:
-        if _local_uploads_enabled():
-            prefix = forwarded_prefix(request)
-            base = prefix or ""
-            return {
-                "upload_url": f"{base}/items/local-upload/{key}",
-                "s3_key": key,
-                "public_url": f"{base}/uploads/{key}",
-            }
-        raise HTTPException(status_code=500, detail="S3 configuration missing")
-
-    s3_client = boto3.client("s3")
-    try:
-        response = s3_client.generate_presigned_url(
-            "put_object",
-            Params={
-                "Bucket": bucket_name,
-                "Key": key,
-                "ContentType": req.content_type,
-            },
-            ExpiresIn=3600,
-        )
-    except ClientError as e:
-        print(e)
-        raise HTTPException(status_code=500, detail="Could not generate upload URL")
-
-    return {
-        "upload_url": response,
-        "s3_key": key,
-        "public_url": f"https://{bucket_name}.s3.amazonaws.com/{key}",
-    }
+    return create_upload_target(key=key, content_type=req.content_type, request=request)
 
 
 class AttachArVideoRequest(BaseModel):
@@ -409,6 +612,9 @@ def attach_ar_video(
     session: Session = SessionDep,
     user: dict = UserDep,
 ):
+    if not kiri_enabled():
+        raise HTTPException(status_code=503, detail="KIRI AR generation is not configured")
+
     item = session.get(Item, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
@@ -416,25 +622,29 @@ def attach_ar_video(
     if not perms.can_edit_items:
         raise HTTPException(status_code=403, detail="Not authorized")
 
+    for capture in _load_ar_captures(session, item_id):
+        _delete_storage_key_best_effort(capture.s3_key)
+        session.delete(capture)
+    session.flush()
+    session.add(
+        ArCaptureAsset(
+            item_id=item_id,
+            kind="video",
+            position=0,
+            s3_key=payload.s3_key,
+            url=payload.url,
+            metadata_json={"source": "video_route"},
+        )
+    )
+
     item.ar_video_s3_key = payload.s3_key
     item.ar_video_url = payload.url
-    item.ar_status = "pending"
-    item.ar_error_message = None
-    item.ar_luma_capture_id = None
-    item.ar_stage = "queued"
-    item.ar_stage_detail = None
-    item.ar_progress = 0.0
-    item.ar_job_id = None
-    item.ar_model_glb_s3_key = None
-    item.ar_model_glb_url = None
-    item.ar_model_usdz_s3_key = None
-    item.ar_model_usdz_url = None
-    item.ar_model_poster_s3_key = None
-    item.ar_model_poster_url = None
-    item.ar_created_at = datetime.utcnow()
-    item.ar_updated_at = datetime.utcnow()
-
-    session.add(item)
+    queue_kiri_generation(
+        session=session,
+        item=item,
+        capture_mode=AR_CAPTURE_MODE_PHOTO_SCAN,
+        detail="Queued from video upload",
+    )
     session.commit()
     session.refresh(item)
 
@@ -456,25 +666,26 @@ def retry_ar_generation(
     perms = _item_org_permissions(session, item, user)
     if not perms.can_edit_items:
         raise HTTPException(status_code=403, detail="Not authorized")
-    if not item.ar_video_s3_key:
-        raise HTTPException(status_code=400, detail="No AR video uploaded for this item")
+    if item.ar_provider == AR_PROVIDER_KIRI and item.ar_model_usdz_s3_key and item.ar_model_usdz_url and not item.ar_model_glb_s3_key:
+        try:
+            queue_conversion_from_existing_usdz(
+                session=session,
+                item=item,
+                detail="Retrying GLB conversion",
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+    else:
+        captures = _load_ar_captures(session, item_id)
+        if not captures:
+            raise HTTPException(status_code=400, detail="No AR captures uploaded for this item")
 
-    item.ar_status = "pending"
-    item.ar_error_message = None
-    item.ar_stage = "queued"
-    item.ar_stage_detail = None
-    item.ar_progress = 0.0
-    item.ar_job_id = None
-    item.ar_model_glb_s3_key = None
-    item.ar_model_glb_url = None
-    item.ar_model_usdz_s3_key = None
-    item.ar_model_usdz_url = None
-    item.ar_model_poster_s3_key = None
-    item.ar_model_poster_url = None
-    item.ar_created_at = datetime.utcnow()
-    item.ar_updated_at = datetime.utcnow()
-
-    session.add(item)
+        queue_kiri_generation(
+            session=session,
+            item=item,
+            capture_mode=item.ar_capture_mode or AR_CAPTURE_MODE_PHOTO_SCAN,
+            detail="Retried from editor",
+        )
     session.commit()
     session.refresh(item)
 
@@ -508,6 +719,7 @@ def cancel_ar_generation(
     item.ar_progress = None
     item.ar_job_id = None
     item.ar_updated_at = datetime.utcnow()
+    update_item_ar_metadata(item, canceled_at=datetime.utcnow().isoformat())
 
     session.add(item)
     session.commit()

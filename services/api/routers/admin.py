@@ -5,9 +5,18 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel import Session, select, func
 
+from ar_pipeline import (
+    AR_CAPTURE_MODE_PHOTO_SCAN,
+    AR_PROVIDER_KIRI,
+    kiri_enabled,
+    queue_conversion_from_existing_usdz,
+    queue_kiri_generation,
+    update_item_ar_metadata,
+)
 from database import get_session
 from dependencies import get_admin_user
 from models import (
+    ArCaptureAsset,
     Organization, Menu, Item, ImportJob, OrganizationMember,
     Category, ItemPhoto, ItemDietaryTagLink, ItemAllergenLink
 )
@@ -760,16 +769,29 @@ def retry_ar_job(item_id: uuid.UUID, session: Session = Depends(get_session)):
     item = session.get(Item, item_id)
     if not item or not item.ar_status:
         raise HTTPException(status_code=404, detail="AR job not found")
-        
-    item.ar_status = "pending"
-    item.ar_error_message = None
-    item.ar_stage = "pending"
-    item.ar_stage_detail = "Retried by admin"
-    item.ar_progress = 0.0
-    item.ar_job_id = None
-    item.ar_updated_at = datetime.utcnow()
-    
-    session.add(item)
+
+    if item.ar_provider == AR_PROVIDER_KIRI and item.ar_model_usdz_s3_key and item.ar_model_usdz_url and not item.ar_model_glb_s3_key:
+        queue_conversion_from_existing_usdz(
+            session=session,
+            item=item,
+            detail="Retried by admin",
+        )
+    else:
+        if not kiri_enabled():
+            raise HTTPException(status_code=503, detail="KIRI AR generation is not configured")
+
+        captures = session.exec(
+            select(ArCaptureAsset).where(ArCaptureAsset.item_id == item_id)
+        ).all()
+        if not captures:
+            raise HTTPException(status_code=400, detail="No AR captures available for retry")
+
+        queue_kiri_generation(
+            session=session,
+            item=item,
+            capture_mode=item.ar_capture_mode or AR_CAPTURE_MODE_PHOTO_SCAN,
+            detail="Retried by admin",
+        )
     session.commit()
     return {"ok": True}
 
@@ -789,8 +811,12 @@ def cancel_ar_job(item_id: uuid.UUID, session: Session = Depends(get_session)):
     item.ar_status = "failed"
     item.ar_error_message = "Canceled by admin"
     item.ar_stage = "canceled"
+    item.ar_stage_detail = "Canceled by admin"
+    item.ar_progress = None
+    item.ar_job_id = None
     item.ar_updated_at = datetime.utcnow()
-    
+    update_item_ar_metadata(item, canceled_at=datetime.utcnow().isoformat())
+
     session.add(item)
     session.commit()
     return {"ok": True}

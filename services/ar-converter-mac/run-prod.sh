@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+API_BASE="${MENUVIUM_API_BASE:-}"
+WORKER_TOKEN="${MENUVIUM_AR_CONVERTER_TOKEN:-}"
+POLL_SECONDS="${MENUVIUM_AR_CONVERTER_POLL_SECONDS:-5}"
+
+if [[ -z "${API_BASE}" ]]; then
+  echo "Missing MENUVIUM_API_BASE" >&2
+  exit 1
+fi
+
+if [[ -z "${WORKER_TOKEN}" ]]; then
+  echo "Missing MENUVIUM_AR_CONVERTER_TOKEN" >&2
+  exit 1
+fi
+
+if ! command -v npx >/dev/null 2>&1; then
+  echo "Missing required tool in PATH: npx" >&2
+  exit 1
+fi
+
+if ! command -v usdextract >/dev/null 2>&1; then
+  echo "Missing required tool in PATH: usdextract" >&2
+  exit 1
+fi
+
+if command -v caffeinate >/dev/null 2>&1; then
+  CAFFEINATE=(caffeinate -dimsu)
+else
+  CAFFEINATE=()
+fi
+
+cd "$(dirname "$0")"
+swift build -c release
+
+CMD=(
+  .build/release/menuvium-ar-converter
+  --api-base "${API_BASE}"
+  --token "${WORKER_TOKEN}"
+  --poll-seconds "${POLL_SECONDS}"
+)
+
+if [[ ${#CAFFEINATE[@]} -gt 0 ]]; then
+  exec "${CAFFEINATE[@]}" "${CMD[@]}"
+fi
+
+exec "${CMD[@]}"

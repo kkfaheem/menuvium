@@ -14,7 +14,7 @@ menuvium/
 │   └── web/               # Next.js 16 frontend (Vercel)
 ├── services/
 │   ├── api/               # FastAPI backend (Railway)
-│   └── ar-worker-mac/     # macOS AR worker (Swift)
+│   └── ar-converter-mac/  # macOS USDZ -> GLB converter worker (Swift)
 ├── infra/
 │   ├── cdk/               # AWS CDK stack (VPC, ECS, RDS, S3, CloudFront)
 │   └── scripts/           # Deploy & secrets helper scripts
@@ -36,7 +36,7 @@ menuvium/
 | **Auth** | AWS Cognito (Hosted UI, JWT), AWS Amplify (frontend SDK) |
 | **Storage** | AWS S3 (prod), local filesystem (dev) |
 | **AI / OCR** | OpenAI GPT-4o-mini, Tesseract (local), AWS Textract (prod) |
-| **AR** | macOS worker (Swift), Object Capture → USDZ + GLB |
+| **AR** | KIRI photogrammetry via API + macOS USDZ -> GLB converter |
 | **Infra** | AWS CDK (TypeScript), Docker Compose (local) |
 | **Hosting** | Vercel (web), Railway (API + Postgres) |
 | **UI libs** | Framer Motion, Lucide Icons, dnd-kit (drag & drop) |
@@ -71,9 +71,10 @@ menuvium/
 - **Team members** — Invite members by email with granular permission control.
 
 ### AR (Augmented Reality)
-- **Video upload** — Upload a turntable video of a dish.
-- **macOS worker** — A Swift-based worker picks up pending AR jobs, runs Object Capture, and produces USDZ + GLB models.
-- **Job queue** — Jobs persist in Postgres (`pending` → `processing` → `ready`); no jobs are lost if the worker is offline.
+- **Photo sets or video** — Upload multi-image capture sets or a dish video.
+- **KIRI processing** — The API submits captures to KIRI and stores the returned USDZ.
+- **macOS conversion worker** — A Swift-based worker converts USDZ into GLB for web/Android AR delivery.
+- **Job queue** — Jobs persist in Postgres (`queued` → `kiri_processing` → `conversion_queued` → `ready`).
 
 ### Menu Importer (Admin)
 - **Admin-only page** at `/admin/menu-importer` — restricted via `ADMIN_EMAILS` allowlist.
@@ -113,7 +114,7 @@ menuvium/
 - **Database:** Railway PostgreSQL
 - **Auth:** AWS Cognito (Hosted UI with JWT verification)
 - **Storage:** AWS S3 (menu photos, AR models, OCR uploads)
-- **AR Worker:** Optional macOS machine running `services/ar-worker-mac`
+- **AR Converter:** Optional macOS machine running `services/ar-converter-mac`
 
 ---
 
@@ -226,28 +227,29 @@ Service root: `services/api` (Dockerfile-based).
 | `OPENAI_API_KEY` | Required for AI menu import |
 | `OPENAI_MODEL` | Default: `gpt-4o-mini` |
 | `OCR_MODE` | `tesseract` (local) or `textract` (AWS) |
-| `AR_WORKER_TOKEN` | Required if running AR worker |
+| `KIRI_API_KEY` | Required for KIRI-backed AR generation |
+| `KIRI_WEBHOOK_SECRET` | Optional but recommended for KIRI webhook completion |
+| `AR_CONVERTER_TOKEN` | Required for the macOS USDZ → GLB converter worker |
 
 ---
 
-## AR Worker (macOS)
+## AR Conversion Worker (macOS)
 
-Uploading a dish rotation video queues a job in Postgres (`pending` → `processing` → `ready`). If the worker is not running, jobs are **not lost**; they remain `pending`.
+The normal AR path is now:
+
+1. The API uploads captures to KIRI and stores the returned USDZ.
+2. A separate macOS converter worker turns that USDZ into GLB for web/Android AR.
+
+If the converter is not running, items will remain in `conversion_queued` until it comes back online.
 
 ```bash
-cd services/ar-worker-mac
+cd services/ar-converter-mac
 export MENUVIUM_API_BASE="https://api.menuvium.com"
-export MENUVIUM_WORKER_TOKEN="PASTE_RAILWAY_AR_WORKER_TOKEN"
+export MENUVIUM_AR_CONVERTER_TOKEN="PASTE_RAILWAY_AR_CONVERTER_TOKEN"
 ./run-prod.sh
 ```
 
-If you see turntable/background geometry in the output, try cropping:
-```bash
-export MENUVIUM_AR_CROP="0.85"
-./run-prod.sh
-```
-
-See [`services/ar-worker-mac/README.md`](services/ar-worker-mac/README.md) for more details.
+See [`services/ar-converter-mac/README.md`](services/ar-converter-mac/README.md) for converter details.
 
 ---
 
