@@ -233,6 +233,7 @@ def _process_pending_item(item_id) -> None:
                     "source_height": extracted.probe.height,
                     "requested_frame_count": extracted.desired_frame_count,
                     "submitted_frame_count": len(extracted.frame_paths),
+                    "used_normalized_video": extracted.used_normalized_video,
                 }
 
             client = _kiri_client()

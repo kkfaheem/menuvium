@@ -24,6 +24,7 @@ class ExtractedVideoFrames:
     probe: VideoProbe
     desired_frame_count: int
     frame_paths: list[Path]
+    used_normalized_video: bool = False
 
 
 def _env_int(name: str, default: int) -> int:
@@ -53,6 +54,25 @@ def _require_binary(name: str) -> str:
     return binary_path
 
 
+def _format_process_failure(*, label: str, completed: subprocess.CompletedProcess[str]) -> RuntimeError:
+    output = (completed.stderr or completed.stdout or "").strip()
+    exit_detail = (
+        f"terminated by signal {abs(completed.returncode)}"
+        if completed.returncode < 0
+        else f"exit code {completed.returncode}"
+    )
+    if output:
+        return RuntimeError(f"{label} failed ({exit_detail}): {output}")
+    return RuntimeError(f"{label} failed ({exit_detail})")
+
+
+def _run_command(*, command: list[str], label: str) -> subprocess.CompletedProcess[str]:
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    if completed.returncode != 0:
+        raise _format_process_failure(label=label, completed=completed)
+    return completed
+
+
 def probe_video(*, video_path: Path, ffprobe_path: str | None = None) -> VideoProbe:
     ffprobe = ffprobe_path or _require_binary("ffprobe")
     command = [
@@ -65,10 +85,7 @@ def probe_video(*, video_path: Path, ffprobe_path: str | None = None) -> VideoPr
         "-show_format",
         str(video_path),
     ]
-    completed = subprocess.run(command, capture_output=True, text=True, check=False)
-    if completed.returncode != 0:
-        stderr = (completed.stderr or completed.stdout or "").strip()
-        raise RuntimeError(stderr or "ffprobe could not inspect the uploaded video")
+    completed = _run_command(command=command, label="ffprobe inspection")
 
     try:
         payload = json.loads(completed.stdout)
@@ -105,27 +122,31 @@ def probe_video(*, video_path: Path, ffprobe_path: str | None = None) -> VideoPr
     )
 
 
-def extract_video_frames_to_images(*, video_path: Path, output_dir: Path) -> ExtractedVideoFrames:
-    ffmpeg = _require_binary("ffmpeg")
-    ffprobe = _require_binary("ffprobe")
-
-    probe = probe_video(video_path=video_path, ffprobe_path=ffprobe)
-
+def _desired_frame_count(*, duration_seconds: float) -> int:
     target_fps = max(_env_float("AR_VIDEO_FRAME_EXTRACTION_FPS", 6.0), 1.0)
     min_frames = max(_env_int("AR_VIDEO_FRAME_MINIMUM_FRAMES", 48), MINIMUM_KIRI_IMAGE_COUNT)
     max_frames = max(_env_int("AR_VIDEO_FRAME_MAXIMUM_FRAMES", 120), min_frames)
-    jpeg_quality = min(max(_env_int("AR_VIDEO_FRAME_JPEG_QUALITY", 2), 1), 31)
-
-    desired_frame_count = min(
-        max(int(math.ceil(probe.duration_seconds * target_fps)), min_frames),
+    return min(
+        max(int(math.ceil(duration_seconds * target_fps)), min_frames),
         max_frames,
     )
-    effective_fps = desired_frame_count / probe.duration_seconds
+
+
+def _extract_frames_with_ffmpeg(
+    *,
+    ffmpeg_path: str,
+    video_path: Path,
+    output_dir: Path,
+    desired_frame_count: int,
+    duration_seconds: float,
+) -> list[Path]:
+    jpeg_quality = min(max(_env_int("AR_VIDEO_FRAME_JPEG_QUALITY", 2), 1), 31)
+    effective_fps = desired_frame_count / duration_seconds
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_pattern = output_dir / "frame-%04d.jpg"
     command = [
-        ffmpeg,
+        ffmpeg_path,
         "-hide_banner",
         "-loglevel",
         "error",
@@ -140,10 +161,7 @@ def extract_video_frames_to_images(*, video_path: Path, output_dir: Path) -> Ext
         str(jpeg_quality),
         str(output_pattern),
     ]
-    completed = subprocess.run(command, capture_output=True, text=True, check=False)
-    if completed.returncode != 0:
-        stderr = (completed.stderr or completed.stdout or "").strip()
-        raise RuntimeError(stderr or "ffmpeg could not extract frames from the uploaded video")
+    _run_command(command=command, label="ffmpeg frame extraction")
 
     frame_paths = sorted(output_dir.glob("frame-*.jpg"))
     if len(frame_paths) < MINIMUM_KIRI_IMAGE_COUNT:
@@ -151,9 +169,94 @@ def extract_video_frames_to_images(*, video_path: Path, output_dir: Path) -> Ext
             f"Only {len(frame_paths)} usable frames were extracted from the uploaded video; "
             f"at least {MINIMUM_KIRI_IMAGE_COUNT} are required"
         )
+    return frame_paths
+
+
+def _normalize_video_for_frame_extraction(
+    *,
+    ffmpeg_path: str,
+    source_video_path: Path,
+    normalized_video_path: Path,
+) -> Path:
+    normalized_video_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        ffmpeg_path,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(source_video_path),
+        "-map",
+        "0:v:0",
+        "-an",
+        "-sn",
+        "-dn",
+        "-vf",
+        "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+        "-pix_fmt",
+        "yuv420p",
+        "-r",
+        "30",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        os.getenv("AR_VIDEO_NORMALIZE_CRF", "18"),
+        "-movflags",
+        "+faststart",
+        str(normalized_video_path),
+    ]
+    _run_command(command=command, label="ffmpeg video normalization")
+    return normalized_video_path
+
+
+def extract_video_frames_to_images(*, video_path: Path, output_dir: Path) -> ExtractedVideoFrames:
+    ffmpeg = _require_binary("ffmpeg")
+    ffprobe = _require_binary("ffprobe")
+
+    probe = probe_video(video_path=video_path, ffprobe_path=ffprobe)
+    desired_frame_count = _desired_frame_count(duration_seconds=probe.duration_seconds)
+
+    try:
+        frame_paths = _extract_frames_with_ffmpeg(
+            ffmpeg_path=ffmpeg,
+            video_path=video_path,
+            output_dir=output_dir,
+            desired_frame_count=desired_frame_count,
+            duration_seconds=probe.duration_seconds,
+        )
+        used_normalized_video = False
+    except RuntimeError as direct_error:
+        normalized_video_path = output_dir.parent / "normalized-input.mp4"
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            normalized_video = _normalize_video_for_frame_extraction(
+                ffmpeg_path=ffmpeg,
+                source_video_path=video_path,
+                normalized_video_path=normalized_video_path,
+            )
+            frame_paths = _extract_frames_with_ffmpeg(
+                ffmpeg_path=ffmpeg,
+                video_path=normalized_video,
+                output_dir=output_dir,
+                desired_frame_count=desired_frame_count,
+                duration_seconds=probe.duration_seconds,
+            )
+            used_normalized_video = True
+        except RuntimeError as normalized_error:
+            raise RuntimeError(
+                "Video frame extraction failed. "
+                f"Direct extraction error: {direct_error}. "
+                f"Normalized retry error: {normalized_error}"
+            ) from normalized_error
 
     return ExtractedVideoFrames(
         probe=probe,
         desired_frame_count=desired_frame_count,
         frame_paths=frame_paths,
+        used_normalized_video=used_normalized_video,
     )

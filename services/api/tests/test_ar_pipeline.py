@@ -237,6 +237,7 @@ def test_process_pending_item_uses_plain_capture_values_after_commit(
             probe=SimpleNamespace(duration_seconds=8.0, width=1920, height=1080),
             desired_frame_count=48,
             frame_paths=[Path(f"/tmp/frame-{index:04d}.jpg") for index in range(1, 49)],
+            used_normalized_video=False,
         ),
     )
 
@@ -301,6 +302,7 @@ def test_process_pending_video_extracts_frames_and_submits_photo_images_at_max_q
             probe=SimpleNamespace(duration_seconds=12.5, width=3840, height=2160),
             desired_frame_count=75,
             frame_paths=extracted_paths,
+            used_normalized_video=False,
         ),
     )
 

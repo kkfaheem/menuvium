@@ -75,6 +75,18 @@ enum WorkerError: Error, CustomStringConvertible {
     }
 }
 
+let retryableStatusCodes = Set(500...599)
+let retryableUrlErrorCodes: Set<URLError.Code> = [
+    .timedOut,
+    .cannotFindHost,
+    .cannotConnectToHost,
+    .dnsLookupFailed,
+    .networkConnectionLost,
+    .notConnectedToInternet,
+    .resourceUnavailable,
+    .secureConnectionFailed,
+]
+
 @main
 enum ARConverterMain {
     static func main() async {
@@ -150,7 +162,11 @@ func runLoop(config: Config) async throws {
             do {
                 try await processJob(claim: claim, config: config)
             } catch {
-                try await failJob(jobId: claim.jobId, error: String(describing: error), config: config)
+                do {
+                    try await failJob(jobId: claim.jobId, error: String(describing: error), config: config)
+                } catch {
+                    fputs("menuvium-ar-converter warning: failed to report job failure: \(error)\n", stderr)
+                }
             }
         } else {
             try await Task.sleep(nanoseconds: config.pollSeconds * 1_000_000_000)
@@ -165,8 +181,7 @@ func claimJob(config: Config) async throws -> ConversionClaimResponse? {
     request.setValue(config.workerToken, forHTTPHeaderField: "X-Worker-Token")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-    let (data, response) = try await URLSession.shared.data(for: request)
-    guard let http = response as? HTTPURLResponse else { throw WorkerError.processing("Invalid response") }
+    let (data, http) = try await performRequest(request)
     if http.statusCode == 204 {
         return nil
     }
@@ -334,9 +349,93 @@ func absoluteUrl(_ maybeRelative: String, apiBase: String) -> URL {
     return URL(string: "\(apiBase)/\(trimmed)")!
 }
 
+func performRequest(_ request: URLRequest, retries: Int = 3) async throws -> (Data, HTTPURLResponse) {
+    var attempt = 0
+    while true {
+        attempt += 1
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw WorkerError.processing("Invalid response")
+            }
+            if retryableStatusCodes.contains(http.statusCode), attempt < retries {
+                fputs(
+                    "menuvium-ar-converter warning: transient HTTP \(http.statusCode) from \(request.url?.absoluteString ?? "unknown URL"); retrying\n",
+                    stderr
+                )
+                try await Task.sleep(nanoseconds: retryDelayNanoseconds(for: attempt))
+                continue
+            }
+            return (data, http)
+        } catch {
+            if isRetryable(error), attempt < retries {
+                fputs(
+                    "menuvium-ar-converter warning: transient network error from \(request.url?.absoluteString ?? "unknown URL"); retrying\n",
+                    stderr
+                )
+                try await Task.sleep(nanoseconds: retryDelayNanoseconds(for: attempt))
+                continue
+            }
+            throw error
+        }
+    }
+}
+
+func performDownload(_ url: URL, retries: Int = 3) async throws -> (Data, HTTPURLResponse) {
+    var attempt = 0
+    while true {
+        attempt += 1
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            guard let http = response as? HTTPURLResponse else {
+                throw WorkerError.processing("Invalid response")
+            }
+            if retryableStatusCodes.contains(http.statusCode), attempt < retries {
+                fputs(
+                    "menuvium-ar-converter warning: transient HTTP \(http.statusCode) while downloading \(url.absoluteString); retrying\n",
+                    stderr
+                )
+                try await Task.sleep(nanoseconds: retryDelayNanoseconds(for: attempt))
+                continue
+            }
+            return (data, http)
+        } catch {
+            if isRetryable(error), attempt < retries {
+                fputs(
+                    "menuvium-ar-converter warning: transient network error while downloading \(url.absoluteString); retrying\n",
+                    stderr
+                )
+                try await Task.sleep(nanoseconds: retryDelayNanoseconds(for: attempt))
+                continue
+            }
+            throw error
+        }
+    }
+}
+
+func retryDelayNanoseconds(for attempt: Int) -> UInt64 {
+    let seconds = UInt64(min(8, 1 << max(0, attempt - 1)))
+    return seconds * 1_000_000_000
+}
+
+func isRetryable(_ error: Error) -> Bool {
+    if let workerError = error as? WorkerError {
+        switch workerError {
+        case .httpError(let status, _):
+            return retryableStatusCodes.contains(status)
+        default:
+            return false
+        }
+    }
+    if let urlError = error as? URLError {
+        return retryableUrlErrorCodes.contains(urlError.code)
+    }
+    return false
+}
+
 func downloadFile(from url: URL, to destination: URL) async throws {
-    let (data, response) = try await URLSession.shared.data(from: url)
-    guard let http = response as? HTTPURLResponse, http.statusCode >= 200, http.statusCode < 300 else {
+    let (data, http) = try await performDownload(url)
+    guard http.statusCode >= 200, http.statusCode < 300 else {
         throw WorkerError.processing("Failed to download USDZ: \(url.absoluteString)")
     }
     try data.write(to: destination)
@@ -354,8 +453,7 @@ func getUploadUrl(itemId: String, kind: String, filename: String, contentType: S
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-    let (data, response) = try await URLSession.shared.data(for: request)
-    guard let http = response as? HTTPURLResponse else { throw WorkerError.processing("Invalid response") }
+    let (data, http) = try await performRequest(request)
     if http.statusCode < 200 || http.statusCode >= 300 {
         throw WorkerError.httpError(http.statusCode, String(data: data, encoding: .utf8) ?? "")
     }
@@ -371,8 +469,8 @@ func uploadFile(fileUrl: URL, uploadUrl: String, contentType: String) async thro
     request.httpBody = data
     request.setValue(contentType, forHTTPHeaderField: "Content-Type")
 
-    let (_, response) = try await URLSession.shared.data(for: request)
-    guard let http = response as? HTTPURLResponse, http.statusCode >= 200, http.statusCode < 300 else {
+    let (_, http) = try await performRequest(request)
+    guard http.statusCode >= 200, http.statusCode < 300 else {
         throw WorkerError.processing("Failed to upload \(fileUrl.lastPathComponent)")
     }
 }
@@ -387,8 +485,8 @@ func completeJob(jobId: String, payload: ConversionCompleteRequest, config: Conf
     request.setValue(config.workerToken, forHTTPHeaderField: "X-Worker-Token")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-    let (_, response) = try await URLSession.shared.data(for: request)
-    guard let http = response as? HTTPURLResponse, http.statusCode >= 200, http.statusCode < 300 else {
+    let (_, http) = try await performRequest(request)
+    guard http.statusCode >= 200, http.statusCode < 300 else {
         throw WorkerError.processing("Failed to mark conversion complete")
     }
 }
@@ -404,7 +502,7 @@ func failJob(jobId: String, error: String, config: Config) async throws {
     request.setValue(config.workerToken, forHTTPHeaderField: "X-Worker-Token")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-    _ = try await URLSession.shared.data(for: request)
+    _ = try await performRequest(request)
 }
 
 func updateProgress(jobId: String, payload: ConversionProgressRequest, config: Config) async throws {
@@ -417,8 +515,8 @@ func updateProgress(jobId: String, payload: ConversionProgressRequest, config: C
     request.setValue(config.workerToken, forHTTPHeaderField: "X-Worker-Token")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-    let (_, response) = try await URLSession.shared.data(for: request)
-    guard let http = response as? HTTPURLResponse, http.statusCode >= 200, http.statusCode < 300 else {
+    let (_, http) = try await performRequest(request)
+    guard http.statusCode >= 200, http.statusCode < 300 else {
         throw WorkerError.processing("Failed to update progress")
     }
 }
