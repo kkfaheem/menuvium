@@ -79,6 +79,24 @@ class ItemArCapturesResponse(BaseModel):
     captures: List[ArCaptureAssetRead]
 
 
+class ArDebugFrameRead(BaseModel):
+    index: int
+    filename: Optional[str] = None
+    s3_key: str
+    url: str
+
+
+class ItemArDebugFramesResponse(BaseModel):
+    storage_prefix: Optional[str] = None
+    source_duration_seconds: Optional[float] = None
+    source_width: Optional[int] = None
+    source_height: Optional[int] = None
+    requested_frame_count: Optional[int] = None
+    submitted_frame_count: Optional[int] = None
+    used_normalized_video: Optional[bool] = None
+    frames: List[ArDebugFrameRead]
+
+
 class AttachArCaptureRequest(BaseModel):
     s3_key: str
     url: str
@@ -347,6 +365,26 @@ def _serialize_ar_capture_assets(captures: list[ArCaptureAsset], request: Reques
         )
     return serialized
 
+
+def _serialize_debug_frames(raw_frames: list[dict], request: Request) -> list[ArDebugFrameRead]:
+    serialized: list[ArDebugFrameRead] = []
+    for index, frame in enumerate(raw_frames, start=1):
+        if not isinstance(frame, dict):
+            continue
+        s3_key = frame.get("s3_key")
+        url = frame.get("url")
+        if not isinstance(s3_key, str) or not isinstance(url, str):
+            continue
+        serialized.append(
+            ArDebugFrameRead(
+                index=int(frame.get("index") or index),
+                filename=frame.get("filename") if isinstance(frame.get("filename"), str) else None,
+                s3_key=s3_key,
+                url=normalize_upload_url(url, request) or url,
+            )
+        )
+    return serialized
+
 @router.get("/{item_id}", response_model=ItemRead)
 def get_item(item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep):
     item = _load_item_with_relations(session, item_id)
@@ -412,6 +450,50 @@ def list_ar_captures(
     return ItemArCapturesResponse(
         capture_mode=item.ar_capture_mode or AR_CAPTURE_MODE_PHOTO_SCAN,
         captures=_serialize_ar_capture_assets(captures, request),
+    )
+
+
+@router.get("/{item_id}/ar/debug-frames", response_model=ItemArDebugFramesResponse)
+def list_ar_debug_frames(
+    item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep
+):
+    item = session.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    perms = _item_org_permissions(session, item, user)
+    if not perms.can_edit_items:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    extraction = {}
+    if isinstance(item.ar_metadata_json, dict):
+        raw_extraction = item.ar_metadata_json.get("video_frame_extraction")
+        if isinstance(raw_extraction, dict):
+            extraction = raw_extraction
+
+    raw_frames = extraction.get("persisted_frames")
+    return ItemArDebugFramesResponse(
+        storage_prefix=extraction.get("storage_prefix")
+        if isinstance(extraction.get("storage_prefix"), str)
+        else None,
+        source_duration_seconds=extraction.get("source_duration_seconds")
+        if isinstance(extraction.get("source_duration_seconds"), (float, int))
+        else None,
+        source_width=extraction.get("source_width")
+        if isinstance(extraction.get("source_width"), int)
+        else None,
+        source_height=extraction.get("source_height")
+        if isinstance(extraction.get("source_height"), int)
+        else None,
+        requested_frame_count=extraction.get("requested_frame_count")
+        if isinstance(extraction.get("requested_frame_count"), int)
+        else None,
+        submitted_frame_count=extraction.get("submitted_frame_count")
+        if isinstance(extraction.get("submitted_frame_count"), int)
+        else None,
+        used_normalized_video=extraction.get("used_normalized_video")
+        if isinstance(extraction.get("used_normalized_video"), bool)
+        else None,
+        frames=_serialize_debug_frames(raw_frames if isinstance(raw_frames, list) else [], request),
     )
 
 

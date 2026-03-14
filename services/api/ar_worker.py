@@ -115,6 +115,36 @@ def _photo_scan_submission_options() -> dict[str, int]:
     }
 
 
+def _persist_extracted_frames(
+    *,
+    item_id,
+    run_id: str,
+    frame_paths: list[Path],
+) -> dict[str, object]:
+    storage_prefix = f"items/ar/{item_id}/debug_frames/{run_id}"
+    persisted_frames: list[dict[str, object]] = []
+    for index, frame_path in enumerate(frame_paths, start=1):
+        suffix = frame_path.suffix or ".jpg"
+        key = f"{storage_prefix}/frame-{index:04d}{suffix}"
+        url = store_file_from_path(
+            source_path=frame_path,
+            key=key,
+            content_type="image/jpeg",
+        )
+        persisted_frames.append(
+            {
+                "index": index,
+                "filename": frame_path.name,
+                "s3_key": key,
+                "url": url,
+            }
+        )
+    return {
+        "storage_prefix": storage_prefix,
+        "persisted_frames": persisted_frames,
+    }
+
+
 def _submit_next_pending_job() -> bool:
     engine = get_engine()
     with Session(engine) as session:
@@ -182,6 +212,7 @@ def _process_pending_item(item_id) -> None:
             return
         if item.ar_provider != AR_PROVIDER_KIRI or item.ar_status != "processing":
             return
+        job_run_id = str(item.ar_job_id or uuid.uuid4())
 
         captures = list(item.ar_capture_assets or [])
         try:
@@ -235,6 +266,13 @@ def _process_pending_item(item_id) -> None:
                     "submitted_frame_count": len(extracted.frame_paths),
                     "used_normalized_video": extracted.used_normalized_video,
                 }
+                frame_extraction_metadata.update(
+                    _persist_extracted_frames(
+                        item_id=item_id,
+                        run_id=job_run_id,
+                        frame_paths=extracted.frame_paths,
+                    )
+                )
 
             client = _kiri_client()
             photo_scan_options = _photo_scan_submission_options()
@@ -300,6 +338,12 @@ def _process_pending_item(item_id) -> None:
                             if capture_input_kind == "video"
                             else "Could not prepare capture files"
                         ),
+                    )
+                    update_item_ar_metadata(
+                        item,
+                        provider_message=str(exc),
+                        provider_input_kind=provider_input_kind,
+                        video_frame_extraction=frame_extraction_metadata,
                     )
                     session.commit()
             return

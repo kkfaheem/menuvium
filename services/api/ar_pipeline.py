@@ -138,9 +138,12 @@ def queue_kiri_generation(
         serialize=None,
         provider_status=None,
         provider_message=None,
+        provider_calculate_type=None,
+        provider_input_kind=None,
         conversion_job_id=None,
         conversion_status=None,
         capture_input_kind=None,
+        video_frame_extraction=None,
         canceled_at=None,
     )
     session.add(item)

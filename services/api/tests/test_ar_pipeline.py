@@ -211,6 +211,7 @@ def test_process_pending_item_uses_plain_capture_values_after_commit(
     test_item.ar_capture_mode = AR_CAPTURE_MODE_PHOTO_SCAN
     test_item.ar_status = "processing"
     test_item.ar_stage = "uploading_to_kiri"
+    test_item.ar_job_id = uuid.uuid4()
     session.add(test_item)
     session.commit()
 
@@ -240,6 +241,11 @@ def test_process_pending_item_uses_plain_capture_values_after_commit(
             used_normalized_video=False,
         ),
     )
+    monkeypatch.setattr(
+        ar_worker,
+        "store_file_from_path",
+        lambda *, source_path, key, content_type=None, base_url=None: f"https://example.com/{key}",
+    )
 
     ar_worker._process_pending_item(test_item.id)
 
@@ -249,6 +255,9 @@ def test_process_pending_item_uses_plain_capture_values_after_commit(
     assert refreshed.ar_status == "processing"
     assert refreshed.ar_stage == AR_STAGE_KIRI_PROCESSING
     assert refreshed.ar_metadata_json["serialize"] == "serialize-123"
+    persisted_frames = refreshed.ar_metadata_json["video_frame_extraction"]["persisted_frames"]
+    assert len(persisted_frames) == 48
+    assert persisted_frames[0]["s3_key"].endswith("/frame-0001.jpg")
 
 
 def test_process_pending_video_extracts_frames_and_submits_photo_images_at_max_quality(
@@ -269,6 +278,7 @@ def test_process_pending_video_extracts_frames_and_submits_photo_images_at_max_q
     test_item.ar_capture_mode = AR_CAPTURE_MODE_PHOTO_SCAN
     test_item.ar_status = "processing"
     test_item.ar_stage = "uploading_to_kiri"
+    test_item.ar_job_id = uuid.uuid4()
     session.add(test_item)
     session.commit()
 
@@ -305,6 +315,11 @@ def test_process_pending_video_extracts_frames_and_submits_photo_images_at_max_q
             used_normalized_video=False,
         ),
     )
+    monkeypatch.setattr(
+        ar_worker,
+        "store_file_from_path",
+        lambda *, source_path, key, content_type=None, base_url=None: f"https://example.com/{key}",
+    )
 
     ar_worker._process_pending_item(test_item.id)
 
@@ -316,12 +331,63 @@ def test_process_pending_video_extracts_frames_and_submits_photo_images_at_max_q
     assert refreshed.ar_metadata_json["serialize"] == "serialize-from-frames"
     assert refreshed.ar_metadata_json["provider_input_kind"] == "images"
     assert refreshed.ar_metadata_json["video_frame_extraction"]["submitted_frame_count"] == 60
+    assert refreshed.ar_metadata_json["video_frame_extraction"]["storage_prefix"].endswith(
+        f"items/ar/{test_item.id}/debug_frames/{refreshed.ar_job_id}"
+    )
+    assert len(refreshed.ar_metadata_json["video_frame_extraction"]["persisted_frames"]) == 60
     assert list(captured_kwargs["image_paths"]) == extracted_paths
     assert captured_kwargs["file_format"] == "usdz"
     assert captured_kwargs["model_quality"] == 3
     assert captured_kwargs["texture_quality"] == 3
     assert captured_kwargs["texture_smoothing"] == 1
     assert captured_kwargs["is_mask"] == 1
+
+
+def test_list_ar_debug_frames_returns_latest_persisted_frames(
+    client: TestClient,
+    session: Session,
+    test_item: Item,
+):
+    test_item.ar_metadata_json = {
+        "video_frame_extraction": {
+            "storage_prefix": f"items/ar/{test_item.id}/debug_frames/job-123",
+            "source_duration_seconds": 12.5,
+            "source_width": 1920,
+            "source_height": 1080,
+            "requested_frame_count": 75,
+            "submitted_frame_count": 60,
+            "used_normalized_video": True,
+            "persisted_frames": [
+                {
+                    "index": 1,
+                    "filename": "frame-0001.jpg",
+                    "s3_key": f"items/ar/{test_item.id}/debug_frames/job-123/frame-0001.jpg",
+                    "url": f"https://example.com/items/ar/{test_item.id}/debug_frames/job-123/frame-0001.jpg",
+                },
+                {
+                    "index": 2,
+                    "filename": "frame-0002.jpg",
+                    "s3_key": f"items/ar/{test_item.id}/debug_frames/job-123/frame-0002.jpg",
+                    "url": f"https://example.com/items/ar/{test_item.id}/debug_frames/job-123/frame-0002.jpg",
+                },
+            ],
+        }
+    }
+    session.add(test_item)
+    session.commit()
+
+    response = client.get(
+        f"/items/{test_item.id}/ar/debug-frames",
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["storage_prefix"].endswith(f"items/ar/{test_item.id}/debug_frames/job-123")
+    assert payload["submitted_frame_count"] == 60
+    assert payload["used_normalized_video"] is True
+    assert len(payload["frames"]) == 2
+    assert payload["frames"][0]["filename"] == "frame-0001.jpg"
 
 
 def test_format_kiri_submission_error_for_video_resolution_rejection():
