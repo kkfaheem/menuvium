@@ -240,7 +240,6 @@ export default function MenuDetailPage() {
   );
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [arVideoToUpload, setArVideoToUpload] = useState<File | null>(null);
-  const [arImageFilesToUpload, setArImageFilesToUpload] = useState<File[]>([]);
   const [arVideoPreviewUrl, setArVideoPreviewUrl] = useState<string | null>(
     null,
   );
@@ -250,7 +249,6 @@ export default function MenuDetailPage() {
   const [isDeletingArModel, setIsDeletingArModel] = useState(false);
   const [arVideoError, setArVideoError] = useState<string | null>(null);
   const [arCaptures, setArCaptures] = useState<ArCaptureAsset[]>([]);
-  const [arCaptureMode, setArCaptureMode] = useState<"photo_scan" | "featureless">("photo_scan");
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [editingItem, setEditingItem] = useState<
@@ -288,7 +286,6 @@ export default function MenuDetailPage() {
   } | null>(null);
   const contentShellRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const arImageInputRef = useRef<HTMLInputElement | null>(null);
   const arVideoInputRef = useRef<HTMLInputElement | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [isPhotoPreviewOpen, setIsPhotoPreviewOpen] = useState(false);
@@ -298,11 +295,9 @@ export default function MenuDetailPage() {
   const editingItemDisplayPhotoUrl =
     filePreviewUrl || existingEditingItemPhotoUrl;
   const editingItemArStatus = editingItem?.ar_status ?? "none";
-  const imageCaptureCount = arCaptures.filter((capture) => capture.kind === "image").length;
   const videoCaptureCount = arCaptures.filter((capture) => capture.kind === "video").length;
-  const hasArCaptures = arCaptures.length > 0;
-  const hasLocalArCaptureSelection =
-    Boolean(arVideoToUpload) || arImageFilesToUpload.length > 0;
+  const hasArCaptures = videoCaptureCount > 0;
+  const hasLocalArCaptureSelection = Boolean(arVideoToUpload);
   const hasGeneratedArModel = Boolean(
     editingItem?.ar_model_glb_url ||
       editingItem?.ar_model_usdz_url ||
@@ -312,18 +307,15 @@ export default function MenuDetailPage() {
     hasArCaptures &&
     editingItemArStatus !== "pending" &&
     editingItemArStatus !== "processing";
-  const firstArImageCaptureUrl =
-    arCaptures.find((capture) => capture.kind === "image")?.url || null;
   const firstArVideoCaptureUrl =
     arCaptures.find((capture) => capture.kind === "video")?.url || null;
   const arPreviewImageUrl =
-    firstArImageCaptureUrl ||
     editingItem?.ar_model_poster_url ||
     editingItem?.photo_url ||
     (editingItem ? (editingItem as any).photos?.[0]?.url : null) ||
     null;
   const arPreviewVideoUrl =
-    arVideoPreviewUrl || (!firstArImageCaptureUrl ? firstArVideoCaptureUrl : null);
+    arVideoPreviewUrl || firstArVideoCaptureUrl;
   const editingItemArStage = editingItem?.ar_stage || null;
   const editingItemArStageDetail = editingItem?.ar_stage_detail || null;
   const editingItemArProgress =
@@ -386,12 +378,9 @@ export default function MenuDetailPage() {
 
   useEffect(() => {
     setArVideoToUpload(null);
-    setArImageFilesToUpload([]);
     setArVideoPreviewUrl(null);
     setArVideoError(null);
     setArCaptures([]);
-    setArCaptureMode("photo_scan");
-    if (arImageInputRef.current) arImageInputRef.current.value = "";
     if (arVideoInputRef.current) arVideoInputRef.current.value = "";
   }, [editingItem?.id]);
 
@@ -993,17 +982,12 @@ export default function MenuDetailPage() {
       });
       if (!res.ok) {
         setArCaptures([]);
-        setArCaptureMode("photo_scan");
         return;
       }
       const data = (await res.json()) as ItemArCapturesResponse;
-      setArCaptures(data.captures || []);
-      setArCaptureMode(
-        data.capture_mode === "featureless" ? "featureless" : "photo_scan",
-      );
+      setArCaptures((data.captures || []).filter((capture) => capture.kind === "video"));
     } catch {
       setArCaptures([]);
-      setArCaptureMode("photo_scan");
     }
   };
 
@@ -1066,7 +1050,7 @@ export default function MenuDetailPage() {
       toast({
         variant: "warning",
         title: "Save the item first",
-        description: "Create the item before uploading AR captures.",
+        description: "Create the item before uploading an AR video.",
       });
       return;
     }
@@ -1090,8 +1074,8 @@ export default function MenuDetailPage() {
     if (!hasLocalArCaptureSelection) {
       toast({
         variant: "warning",
-        title: "Select captures",
-        description: "Choose images and/or a video before uploading.",
+        title: "Select a video",
+        description: "Choose a video before uploading.",
       });
       return;
     }
@@ -1099,49 +1083,36 @@ export default function MenuDetailPage() {
     setIsUploadingArVideo(true);
     setArVideoError(null);
     try {
-      if (arVideoToUpload && !arVideoToUpload.type.startsWith("video/")) {
+      if (!arVideoToUpload || !arVideoToUpload.type.startsWith("video/")) {
         throw new Error("Invalid file type. Please upload a video.");
       }
 
-      if (arVideoToUpload) {
-        const duration = await getVideoDurationSeconds(arVideoToUpload);
-        if (duration > 20) {
-          throw new Error("Please keep the rotation video under 20 seconds.");
-        }
+      const duration = await getVideoDurationSeconds(arVideoToUpload);
+      if (duration > 20) {
+        throw new Error("Please keep the rotation video under 20 seconds.");
       }
 
-      const files = [...arImageFilesToUpload, ...(arVideoToUpload ? [arVideoToUpload] : [])];
-      if (files.some((file) => !(file.type.startsWith("image/") || file.type.startsWith("video/")))) {
-        throw new Error("AR captures must be images or a video.");
-      }
-      if (
-        arImageFilesToUpload.length > 0 &&
-        !arVideoToUpload &&
-        arImageFilesToUpload.length < 20
-      ) {
-        throw new Error("Please upload at least 20 images for photo-based AR.");
+      for (const capture of arCaptures) {
+        await handleDeleteArCapture(capture.id, { silent: true });
       }
 
-      let latestCaptureState: ItemArCapturesResponse | null = null;
-      for (const file of files) {
-        latestCaptureState = await uploadArCaptureFile(editingItem.id, file);
-      }
+      const latestCaptureState = await uploadArCaptureFile(editingItem.id, arVideoToUpload);
       if (latestCaptureState) {
-        setArCaptures(latestCaptureState.captures || []);
+        setArCaptures(
+          (latestCaptureState.captures || []).filter((capture) => capture.kind === "video"),
+        );
       } else {
         await loadArCaptures(editingItem.id);
       }
 
-      setArImageFilesToUpload([]);
       setArVideoToUpload(null);
       setArVideoPreviewUrl(null);
-      if (arImageInputRef.current) arImageInputRef.current.value = "";
       if (arVideoInputRef.current) arVideoInputRef.current.value = "";
       setPageDirty(true);
       toast({
         variant: "success",
-        title: "AR captures uploaded",
-        description: "Choose a mode, then generate the model.",
+        title: "AR video uploaded",
+        description: "Generate the model when you are ready.",
       });
     } catch (e) {
       console.error(e);
@@ -1167,8 +1138,8 @@ export default function MenuDetailPage() {
     if (!hasArCaptures) {
       toast({
         variant: "warning",
-        title: "Upload captures first",
-        description: "Upload images and/or a video before generating AR.",
+        title: "Upload a video first",
+        description: "Upload a video before generating AR.",
       });
       return;
     }
@@ -1183,7 +1154,7 @@ export default function MenuDetailPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ capture_mode: arCaptureMode }),
+        body: JSON.stringify({ capture_mode: "photo_scan" }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -1211,7 +1182,10 @@ export default function MenuDetailPage() {
     }
   };
 
-  const handleDeleteArCapture = async (captureId: string) => {
+  const handleDeleteArCapture = async (
+    captureId: string,
+    options?: { silent?: boolean },
+  ) => {
     if (!editingItem?.id) return;
     const canEditItems = Boolean(orgPermissions?.can_edit_items);
     if (!canEditItems) return;
@@ -1231,11 +1205,14 @@ export default function MenuDetailPage() {
         throw new Error(err.detail || res.statusText || "Unknown error");
       }
       const payload = (await res.json()) as ItemArCapturesResponse;
-      setArCaptures(payload.captures || []);
-      setArCaptureMode(
-        payload.capture_mode === "featureless" ? "featureless" : "photo_scan",
-      );
+      setArCaptures((payload.captures || []).filter((capture) => capture.kind === "video"));
       setPageDirty(true);
+      if (!options?.silent) {
+        toast({
+          variant: "success",
+          title: "AR video removed",
+        });
+      }
     } catch (e) {
       console.error(e);
       setArVideoError(
@@ -3281,11 +3258,10 @@ export default function MenuDetailPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 space-y-1">
                             <div className="text-sm font-semibold text-[var(--cms-text)]">
-                              KIRI capture workflow
+                              KIRI video workflow
                             </div>
                             <div className="text-xs text-[var(--cms-muted)]">
-                              Upload image sets or a video, choose a scan mode, then
-                              generate the AR model.
+                              Upload one turntable video, then generate the AR model.
                             </div>
                           </div>
                           <div
@@ -3296,102 +3272,18 @@ export default function MenuDetailPage() {
                         </div>
 
                         <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-3.5 space-y-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                                Capture mode
-                              </div>
-                              <div className="mt-1 text-xs text-[var(--cms-muted)]">
-                                {imageCaptureCount} image
-                                {imageCaptureCount === 1 ? "" : "s"} uploaded
-                                {" • "}
-                                {videoCaptureCount} video
-                                {videoCaptureCount === 1 ? "" : "s"} uploaded
-                              </div>
-                            </div>
-                            <div className="text-[11px] text-[var(--cms-muted)]">
-                              Images take priority when 20+ are uploaded.
-                            </div>
-                          </div>
-
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!canEditItems) return;
-                                setArCaptureMode("photo_scan");
-                              }}
-                              disabled={!canEditItems}
-                              className={`rounded-2xl border px-4 py-3 text-left transition-colors duration-150 motion-reduce:transition-none disabled:opacity-60 ${
-                                arCaptureMode === "photo_scan"
-                                  ? "border-[var(--cms-text)] bg-[var(--cms-panel)] text-[var(--cms-text)]"
-                                  : "border-[var(--cms-border)] bg-[var(--cms-panel)] text-[var(--cms-muted)] hover:bg-[var(--cms-pill)]"
-                              }`}
-                            >
-                              <div className="text-sm font-semibold">Photo Scan</div>
-                              <div className="mt-1 text-xs">
-                                Best for turntable image sets and most plated dishes.
-                              </div>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!canEditItems) return;
-                                setArCaptureMode("featureless");
-                              }}
-                              disabled={!canEditItems}
-                              className={`rounded-2xl border px-4 py-3 text-left transition-colors duration-150 motion-reduce:transition-none disabled:opacity-60 ${
-                                arCaptureMode === "featureless"
-                                  ? "border-[var(--cms-text)] bg-[var(--cms-panel)] text-[var(--cms-text)]"
-                                  : "border-[var(--cms-border)] bg-[var(--cms-panel)] text-[var(--cms-muted)] hover:bg-[var(--cms-pill)]"
-                              }`}
-                            >
-                              <div className="text-sm font-semibold">Featureless</div>
-                              <div className="mt-1 text-xs">
-                                Use for glossy, reflective, or low-texture dishes.
-                              </div>
-                            </button>
-                          </div>
-
                           <div className="rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-3">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
-                              {arCaptureMode === "photo_scan"
-                                ? "Photo Scan guidance"
-                                : "Featureless guidance"}
+                              Video guidance
                             </div>
                             <ul className="mt-2 space-y-1 pl-4 list-disc text-xs text-[var(--cms-muted)]">
-                              {arCaptureMode === "photo_scan" ? (
-                                <>
-                                  <li>
-                                    Turntable capture works well. Aim for 3 orbit
-                                    heights with strong overlap.
-                                  </li>
-                                  <li>
-                                    Detail shots are fine. Keep lighting even and the
-                                    background lightly textured.
-                                  </li>
-                                  <li>
-                                    Upload at least 20 images for photo-first capture,
-                                    or a single video under 20 seconds.
-                                  </li>
-                                </>
-                              ) : (
-                                <>
-                                  <li>
-                                    Keep the object stationary. Do not use a
-                                    turntable for this mode.
-                                  </li>
-                                  <li>
-                                    Keep the full dish in frame and preserve
-                                    background context.
-                                  </li>
-                                  <li>
-                                    Avoid close-up detail shots. Use broader coverage
-                                    around the object instead.
-                                  </li>
-                                </>
-                              )}
+                              <li>Use one turntable video under 20 seconds.</li>
+                              <li>Keep the dish centered and fully in frame.</li>
+                              <li>Avoid motion blur, sudden exposure changes, and hands entering the shot.</li>
                             </ul>
+                          </div>
+                          <div className="text-xs text-[var(--cms-muted)]">
+                            Uploaded video: {videoCaptureCount > 0 ? "1 saved" : "none yet"}
                           </div>
                         </div>
 
@@ -3451,23 +3343,6 @@ export default function MenuDetailPage() {
                         )}
 
                         <input
-                          ref={arImageInputRef}
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          className="hidden"
-                          onClick={(e) => {
-                            (e.currentTarget as HTMLInputElement).value = "";
-                          }}
-                          onChange={(e) => {
-                            if (!canEditItems) return;
-                            const files = Array.from(e.target.files || []);
-                            setArImageFilesToUpload(files);
-                            setPageDirty(true);
-                          }}
-                          disabled={!canEditItems}
-                        />
-                        <input
                           ref={arVideoInputRef}
                           type="file"
                           accept="video/*"
@@ -3485,15 +3360,6 @@ export default function MenuDetailPage() {
                         />
 
                         <div className="grid gap-2 sm:grid-cols-2">
-                          <button
-                            type="button"
-                            onClick={() => arImageInputRef.current?.click()}
-                            disabled={!canEditItems}
-                            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-4 text-sm font-semibold text-[var(--cms-text)] transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)] disabled:opacity-60"
-                          >
-                            <ImageIcon className="h-4 w-4" />
-                            Choose images
-                          </button>
                           <button
                             type="button"
                             onClick={() => arVideoInputRef.current?.click()}
@@ -3514,9 +3380,9 @@ export default function MenuDetailPage() {
                               editingItemArStatus === "pending" ||
                               editingItemArStatus === "processing"
                             }
-                            className="h-11 w-full sm:col-span-2 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-4 text-sm font-semibold text-[var(--cms-text)] transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)] disabled:opacity-60"
+                            className="h-11 w-full rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-4 text-sm font-semibold text-[var(--cms-text)] transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)] disabled:opacity-60"
                           >
-                            {isUploadingArVideo ? "Uploading captures…" : "Upload captures"}
+                            {isUploadingArVideo ? "Uploading…" : "Upload video"}
                           </button>
                           <button
                             type="button"
@@ -3533,7 +3399,7 @@ export default function MenuDetailPage() {
                             }
                             className="h-11 w-full sm:col-span-2 rounded-2xl bg-[var(--cms-accent)] hover:bg-[var(--cms-accent-strong)] px-4 text-sm font-semibold text-white transition-all duration-150 motion-reduce:transition-none disabled:opacity-60"
                           >
-                            {isUploadingArVideo ? "Uploading…" : "Generate AR model"}
+                            {isUploadingArVideo ? "Working…" : "Generate AR model"}
                           </button>
                           {canRetryFromExistingVideo && (
                             <button
@@ -3597,17 +3463,11 @@ export default function MenuDetailPage() {
                             )}
                         </div>
 
-                        {(arImageFilesToUpload.length > 0 || arVideoToUpload) && (
+                        {arVideoToUpload && (
                           <div className="rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 py-3 space-y-2">
                             <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--cms-muted)]">
                               Pending upload
                             </div>
-                            {arImageFilesToUpload.length > 0 && (
-                              <div className="text-xs text-[var(--cms-muted)]">
-                                {arImageFilesToUpload.length} image
-                                {arImageFilesToUpload.length === 1 ? "" : "s"} selected
-                              </div>
-                            )}
                             {arVideoToUpload && (
                               <div className="text-xs text-[var(--cms-muted)] truncate">
                                 Video: {arVideoToUpload.name}
@@ -3615,86 +3475,6 @@ export default function MenuDetailPage() {
                             )}
                           </div>
                         )}
-
-                        <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-3.5 space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-sm font-semibold text-[var(--cms-text)]">
-                              Uploaded captures
-                            </div>
-                            <div className="text-xs text-[var(--cms-muted)]">
-                              {hasArCaptures ? `${arCaptures.length} saved` : "None yet"}
-                            </div>
-                          </div>
-                          {hasArCaptures ? (
-                            <div className="space-y-2">
-                              {arCaptures.map((capture) => (
-                                <div
-                                  key={capture.id}
-                                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-3 py-2"
-                                >
-                                  <div className="min-w-0">
-                                    <div className="text-xs font-semibold text-[var(--cms-text)]">
-                                      {capture.kind === "image" ? "Image" : "Video"} capture
-                                    </div>
-                                    <div className="truncate text-[11px] text-[var(--cms-muted)]">
-                                      {(capture.metadata_json?.filename as string | undefined) ||
-                                        capture.url}
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteArCapture(capture.id)}
-                                    disabled={
-                                      !canEditItems ||
-                                      isUploadingArVideo ||
-                                      editingItemArStatus === "pending" ||
-                                      editingItemArStatus === "processing"
-                                    }
-                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-500/20 bg-red-500/5 text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-60"
-                                    aria-label={`Delete ${capture.kind} capture`}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-[var(--cms-muted)]">
-                              Upload captures first. For photo scan, aim for at
-                              least 20 images. For video, keep one steady clip under
-                              20 seconds.
-                            </div>
-                          )}
-                        </div>
-
-                        {editingItemArStatus === "ready" &&
-                          (editingItem.ar_model_glb_url ||
-                            editingItem.ar_model_usdz_url) && (
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              {editingItem.ar_model_glb_url && (
-                                <a
-                                  href={editingItem.ar_model_glb_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-4 text-sm font-semibold text-[var(--cms-text)] transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)]"
-                                >
-                                  <Download className="h-4 w-4" />
-                                  Download GLB
-                                </a>
-                              )}
-                              {editingItem.ar_model_usdz_url && (
-                                <a
-                                  href={editingItem.ar_model_usdz_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel)] px-4 text-sm font-semibold text-[var(--cms-text)] transition-colors duration-150 motion-reduce:transition-none hover:bg-[var(--cms-pill)]"
-                                >
-                                  <Download className="h-4 w-4" />
-                                  Download USDZ
-                                </a>
-                              )}
-                            </div>
-                          )}
 
                         {arVideoError && (
                           <div className="text-xs text-red-300">{arVideoError}</div>

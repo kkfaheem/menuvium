@@ -41,6 +41,7 @@ def _require_kiri_webhook_secret(
     request: Request,
     token: Optional[str] = Query(default=None),
     authorization: Optional[str] = Header(default=None),
+    x_signature: Optional[str] = Header(default=None, alias="X-Signature"),
     x_kiri_signature: Optional[str] = Header(default=None),
     x_kiri_secret: Optional[str] = Header(default=None),
     x_signing_secret: Optional[str] = Header(default=None),
@@ -52,6 +53,7 @@ def _require_kiri_webhook_secret(
 
     candidates = [
         token,
+        x_signature,
         x_kiri_signature,
         x_kiri_secret,
         x_signing_secret,
