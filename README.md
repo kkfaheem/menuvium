@@ -243,8 +243,10 @@ Service root: `services/api` (Dockerfile-based).
 
 The normal AR path is now:
 
-1. The API normalizes oversized dish videos to a bounded H.264 file, extracts a high-quality image set from that video, then submits those frames to KIRI and stores the returned USDZ.
-2. A separate macOS converter worker turns that USDZ into GLB for web/Android AR.
+1. The API queues the AR job and tracks progress.
+2. The macOS AR worker downloads the original video, runs video quality checks, extracts/scoring frames, keeps the best set, submits the scan, and persists the generated frame set.
+3. The API tracks provider completion and stores the returned USDZ.
+4. The same macOS worker turns that USDZ into GLB for web/Android AR.
 
 If the converter is not running, items will remain in `conversion_queued` until it comes back online.
 
@@ -252,6 +254,7 @@ If the converter is not running, items will remain in `conversion_queued` until 
 cd services/ar-converter-mac
 export MENUVIUM_API_BASE="https://api.menuvium.com"
 export MENUVIUM_AR_CONVERTER_TOKEN="PASTE_RAILWAY_AR_CONVERTER_TOKEN"
+export KIRI_API_KEY="PASTE_YOUR_KIRI_API_KEY"
 ./run-prod.sh
 ```
 

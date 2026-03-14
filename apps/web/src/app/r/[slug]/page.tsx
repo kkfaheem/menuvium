@@ -18,6 +18,31 @@ import type {
   Allergen,
 } from "@/types";
 
+const formatArStageLabel = (stage?: string | null): string => {
+  switch (stage) {
+    case "queued":
+      return "Queued";
+    case "uploading_to_kiri":
+      return "Preparing upload";
+    case "kiri_processing":
+      return "Generating model";
+    case "downloading_usdz":
+      return "Downloading model";
+    case "conversion_queued":
+      return "Queued for Android conversion";
+    case "converting_glb":
+      return "Converting for Android";
+    case "ready":
+      return "Ready";
+    case "failed":
+      return "Failed";
+    case "canceled":
+      return "Canceled";
+    default:
+      return stage ? stage.replaceAll("_", " ") : "processing";
+  }
+};
+
 export default function PublicMenuPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -1758,7 +1783,7 @@ export default function PublicMenuPage() {
                         style={{ color: palette.muted }}
                       >
                         {selectedItem.ar_stage
-                          ? `Stage: ${selectedItem.ar_stage}`
+                          ? `Stage: ${formatArStageLabel(selectedItem.ar_stage)}`
                           : "Stage: processing"}
                       </div>
                       {selectedItem.ar_stage_detail && (

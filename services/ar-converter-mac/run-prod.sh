@@ -3,6 +3,7 @@ set -euo pipefail
 
 API_BASE="${MENUVIUM_API_BASE:-}"
 WORKER_TOKEN="${MENUVIUM_AR_CONVERTER_TOKEN:-}"
+KIRI_API_KEY_VALUE="${KIRI_API_KEY:-}"
 POLL_SECONDS="${MENUVIUM_AR_CONVERTER_POLL_SECONDS:-5}"
 
 if [[ -z "${API_BASE}" ]]; then
@@ -12,6 +13,11 @@ fi
 
 if [[ -z "${WORKER_TOKEN}" ]]; then
   echo "Missing MENUVIUM_AR_CONVERTER_TOKEN" >&2
+  exit 1
+fi
+
+if [[ -z "${KIRI_API_KEY_VALUE}" ]]; then
+  echo "Missing KIRI_API_KEY" >&2
   exit 1
 fi
 
@@ -38,6 +44,7 @@ CMD=(
   .build/release/menuvium-ar-converter
   --api-base "${API_BASE}"
   --token "${WORKER_TOKEN}"
+  --kiri-api-key "${KIRI_API_KEY_VALUE}"
   --poll-seconds "${POLL_SECONDS}"
 )
 

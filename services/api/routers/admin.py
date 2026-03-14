@@ -778,7 +778,7 @@ def retry_ar_job(item_id: uuid.UUID, session: Session = Depends(get_session)):
         )
     else:
         if not kiri_enabled():
-            raise HTTPException(status_code=503, detail="KIRI AR generation is not configured")
+            raise HTTPException(status_code=503, detail="AR generation is not configured")
 
         captures = session.exec(
             select(ArCaptureAsset).where(ArCaptureAsset.item_id == item_id)

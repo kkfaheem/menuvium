@@ -84,6 +84,11 @@ class ArDebugFrameRead(BaseModel):
     filename: Optional[str] = None
     s3_key: str
     url: str
+    timestamp_seconds: Optional[float] = None
+    sharpness_score: Optional[float] = None
+    selected_for_submission: Optional[bool] = None
+    rejection_reason: Optional[str] = None
+    hash_distance_from_previous_kept: Optional[int] = None
 
 
 class ItemArDebugFramesResponse(BaseModel):
@@ -381,6 +386,21 @@ def _serialize_debug_frames(raw_frames: list[dict], request: Request) -> list[Ar
                 filename=frame.get("filename") if isinstance(frame.get("filename"), str) else None,
                 s3_key=s3_key,
                 url=normalize_upload_url(url, request) or url,
+                timestamp_seconds=float(frame.get("timestamp_seconds"))
+                if isinstance(frame.get("timestamp_seconds"), (float, int))
+                else None,
+                sharpness_score=float(frame.get("sharpness_score"))
+                if isinstance(frame.get("sharpness_score"), (float, int))
+                else None,
+                selected_for_submission=frame.get("selected_for_submission")
+                if isinstance(frame.get("selected_for_submission"), bool)
+                else None,
+                rejection_reason=frame.get("rejection_reason")
+                if isinstance(frame.get("rejection_reason"), str)
+                else None,
+                hash_distance_from_previous_kept=frame.get("hash_distance_from_previous_kept")
+                if isinstance(frame.get("hash_distance_from_previous_kept"), int)
+                else None,
             )
         )
     return serialized
@@ -631,7 +651,7 @@ def generate_ar_model(
     user: dict = UserDep,
 ):
     if not kiri_enabled():
-        raise HTTPException(status_code=503, detail="KIRI AR generation is not configured")
+        raise HTTPException(status_code=503, detail="AR generation is not configured")
 
     item = session.get(Item, item_id)
     if not item:
@@ -695,7 +715,7 @@ def attach_ar_video(
     user: dict = UserDep,
 ):
     if not kiri_enabled():
-        raise HTTPException(status_code=503, detail="KIRI AR generation is not configured")
+        raise HTTPException(status_code=503, detail="AR generation is not configured")
 
     item = session.get(Item, item_id)
     if not item:

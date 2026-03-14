@@ -52,19 +52,17 @@ def start_worker():
         print("[ar-worker] Disabled by MENUVIUM_DISABLE_AR_WORKER=1")
         return None
     if not kiri_enabled():
-        print("[ar-worker] KIRI_API_KEY not configured; KIRI worker not started")
+        print("[ar-worker] Provider API key not configured; AR status worker not started")
         return None
     thread = threading.Thread(target=_worker_loop, daemon=True, name="kiri-ar-worker")
     thread.start()
-    print("[ar-worker] Background KIRI worker started")
+    print("[ar-worker] Background AR status worker started")
     return thread
 
 
 def _worker_loop():
     while True:
         try:
-            if _submit_next_pending_job():
-                continue
             if _poll_next_processing_job():
                 continue
             time.sleep(POLL_INTERVAL_SECONDS)
@@ -85,16 +83,26 @@ def _format_kiri_submission_error(exc: KiriApiError, *, capture_input_kind: str)
     if capture_input_kind == "video":
         if exc.code == 2009:
             return (
-                "KIRI submission failed: KIRI rejected the video. "
-                "KIRI video uploads must be 1920x1080 or smaller. "
+                "AR generation upload failed: the video was rejected. "
+                "Provider video uploads must be 1920x1080 or smaller. "
                 "Re-export the clip at 1080p or lower and retry."
             )
         if exc.code == 2010:
             return (
-                "KIRI submission failed: KIRI rejected the video file format. "
+                "AR generation upload failed: the video file format was rejected. "
                 "Re-export the clip in a standard video format and retry."
             )
-    return f"KIRI submission failed: {exc}"
+    return f"AR generation upload failed: {_sanitize_provider_error_text(exc)}"
+
+
+def _sanitize_provider_error_text(exc: Exception) -> str:
+    return (
+        str(exc)
+        .replace("KIRI", "provider")
+        .replace("kiri", "provider")
+        .replace("Provider provider", "Provider")
+        .replace("provider provider", "provider")
+    )
 
 
 def _photo_scan_submission_options() -> dict[str, int]:
@@ -159,7 +167,7 @@ def _submit_next_pending_job() -> bool:
             return False
         item.ar_status = "processing"
         item.ar_stage = AR_STAGE_UPLOADING_TO_KIRI
-        item.ar_stage_detail = "Preparing captures for KIRI"
+        item.ar_stage_detail = "Preparing scan upload"
         item.ar_progress = 0.05
         item.ar_updated_at = datetime.utcnow()
         session.add(item)
@@ -233,7 +241,7 @@ def _process_pending_item(item_id) -> None:
 
         update_item_ar_metadata(item, capture_input_kind=capture_input_kind)
         item.ar_stage = AR_STAGE_UPLOADING_TO_KIRI
-        item.ar_stage_detail = "Uploading captures to KIRI"
+        item.ar_stage_detail = "Uploading scan data"
         item.ar_progress = 0.12
         item.ar_updated_at = datetime.utcnow()
         session.add(item)
@@ -311,7 +319,7 @@ def _process_pending_item(item_id) -> None:
                             exc,
                             capture_input_kind=capture_input_kind,
                         ),
-                        detail="KIRI rejected the capture upload",
+                        detail="The scan upload was rejected",
                     )
                     update_item_ar_metadata(
                         item,
@@ -329,9 +337,9 @@ def _process_pending_item(item_id) -> None:
                         session=session,
                         item=item,
                         error_message=(
-                            f"Failed to prepare KIRI video frames: {exc}"
+                            f"Failed to prepare scan video frames: {exc}"
                             if capture_input_kind == "video"
-                            else f"Failed to prepare KIRI job: {exc}"
+                            else f"Failed to prepare scan job: {exc}"
                         ),
                         detail=(
                             "Could not extract submission frames from the uploaded video"
@@ -354,7 +362,7 @@ def _process_pending_item(item_id) -> None:
             return
         item.ar_status = "processing"
         item.ar_stage = AR_STAGE_KIRI_PROCESSING
-        item.ar_stage_detail = "Waiting for KIRI to finish processing"
+        item.ar_stage_detail = "Waiting for the model to finish processing"
         item.ar_progress = 0.2
         item.ar_updated_at = datetime.utcnow()
         update_item_ar_metadata(
@@ -413,11 +421,11 @@ def handle_kiri_status_update(*, serialize: str, provider_status: int, source: s
 
         if provider_status == KIRI_STATUS_UPLOADING:
             item.ar_stage = AR_STAGE_UPLOADING_TO_KIRI
-            item.ar_stage_detail = f"KIRI is uploading captures ({source})"
+            item.ar_stage_detail = f"Uploading scan data ({source})"
             item.ar_progress = max(float(item.ar_progress or 0.0), 0.15)
         elif provider_status in {KIRI_STATUS_QUEUING, KIRI_STATUS_PROCESSING}:
             item.ar_stage = AR_STAGE_KIRI_PROCESSING
-            item.ar_stage_detail = "KIRI is processing the model"
+            item.ar_stage_detail = "Processing the 3D model"
             item.ar_progress = max(float(item.ar_progress or 0.0), 0.45 if provider_status == KIRI_STATUS_QUEUING else 0.65)
         elif provider_status == KIRI_STATUS_SUCCESS:
             session.add(item)
@@ -428,15 +436,15 @@ def handle_kiri_status_update(*, serialize: str, provider_status: int, source: s
             fail_item_ar(
                 session=session,
                 item=item,
-                error_message="KIRI failed to generate this model.",
-                detail="KIRI returned failed status",
+                error_message="AR generation failed to produce a model.",
+                detail="The model provider returned a failed status",
             )
         elif provider_status == KIRI_STATUS_EXPIRED:
             fail_item_ar(
                 session=session,
                 item=item,
-                error_message="KIRI model expired before Menuvium could download it.",
-                detail="KIRI returned expired status",
+                error_message="The generated model expired before Menuvium could download it.",
+                detail="The model provider returned an expired status",
             )
         else:
             update_item_ar_metadata(item, provider_message=f"Unhandled KIRI status {provider_status}")
@@ -453,7 +461,7 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
         if not item or not is_item_ar_active(item):
             return
         item.ar_stage = AR_STAGE_DOWNLOADING_USDZ
-        item.ar_stage_detail = f"Downloading USDZ from KIRI ({source})"
+        item.ar_stage_detail = f"Downloading the generated model ({source})"
         item.ar_progress = max(float(item.ar_progress or 0.0), 0.72)
         item.ar_updated_at = datetime.utcnow()
         session.add(item)
@@ -468,8 +476,11 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
                 fail_item_ar(
                     session=session,
                     item=item,
-                    error_message=f"Failed to retrieve KIRI model download link: {exc}",
-                    detail="KIRI did not return a model zip URL",
+                    error_message=(
+                        "Failed to retrieve the generated model download link: "
+                        f"{_sanitize_provider_error_text(exc)}"
+                    ),
+                    detail="The model provider did not return a model zip URL",
                 )
                 session.commit()
         return
@@ -491,7 +502,7 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
 
             usdz_candidates = sorted(extract_dir.rglob("*.usdz"))
             if not usdz_candidates:
-                raise RuntimeError("KIRI returned a model zip without a USDZ file")
+                raise RuntimeError("The model provider returned a model zip without a USDZ file")
 
             usdz_path = usdz_candidates[0]
             usdz_key = f"items/ar/{item_id}/model_usdz/{uuid.uuid4()}-{usdz_path.name}"
@@ -507,8 +518,11 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
                 fail_item_ar(
                     session=session,
                     item=item,
-                    error_message=f"Failed to download/store the KIRI USDZ model: {exc}",
-                    detail="KIRI model download failed",
+                    error_message=(
+                        "Failed to download/store the generated USDZ model: "
+                        f"{_sanitize_provider_error_text(exc)}"
+                    ),
+                    detail="Model download failed",
                 )
                 session.commit()
         return

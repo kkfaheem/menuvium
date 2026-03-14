@@ -183,6 +183,31 @@ const createDefaultItemOption = (position: number): ItemOption =>
     position,
   );
 
+const formatArStageLabel = (stage?: string | null): string => {
+  switch (stage) {
+    case "queued":
+      return "Queued";
+    case "uploading_to_kiri":
+      return "Preparing upload";
+    case "kiri_processing":
+      return "Generating model";
+    case "downloading_usdz":
+      return "Downloading model";
+    case "conversion_queued":
+      return "Queued for Android conversion";
+    case "converting_glb":
+      return "Converting for Android";
+    case "ready":
+      return "Ready";
+    case "failed":
+      return "Failed";
+    case "canceled":
+      return "Canceled";
+    default:
+      return stage ? stage.replaceAll("_", " ") : "processing";
+  }
+};
+
 const normalizeItemOptionGroup = (
   group?: Partial<ItemOptionGroup> | null,
   fallbackPosition: number = 0,
@@ -338,7 +363,7 @@ export default function MenuDetailPage() {
             : "Not set";
   const arStatusSummary =
     editingItemArStatus === "ready"
-      ? "Set: KIRI AR"
+      ? "Set: AR model"
       : editingItemArStatus === "processing" ||
         editingItemArStatus === "pending"
         ? "Processing"
@@ -1173,7 +1198,7 @@ export default function MenuDetailPage() {
       toast({
         variant: "success",
         title: "AR generation queued",
-        description: "KIRI processing has started.",
+        description: "AR processing has started.",
       });
     } catch (e) {
       console.error(e);
@@ -3261,7 +3286,7 @@ export default function MenuDetailPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 space-y-1">
                             <div className="text-sm font-semibold text-[var(--cms-text)]">
-                              KIRI video workflow
+                              Video workflow
                             </div>
                             <div className="text-xs text-[var(--cms-muted)]">
                               Upload one turntable video, then generate the AR model.
@@ -3282,7 +3307,7 @@ export default function MenuDetailPage() {
                             <ul className="mt-2 space-y-1 pl-4 list-disc text-xs text-[var(--cms-muted)]">
                               <li>Use one turntable video under 20 seconds.</li>
                               <li>Keep the dish centered and fully in frame.</li>
-                              <li>Original phone resolution is fine. Menuvium extracts high-quality frames before sending to KIRI.</li>
+                              <li>Original phone resolution is fine. Menuvium extracts and scores high-quality frames before generation.</li>
                               <li>Avoid motion blur, sudden exposure changes, and hands entering the shot.</li>
                             </ul>
                           </div>
@@ -3296,7 +3321,7 @@ export default function MenuDetailPage() {
                           <div className="space-y-2">
                             <div className="text-xs text-[var(--cms-muted)]">
                               {editingItemArStage
-                                ? `Stage: ${editingItemArStage}`
+                                ? `Stage: ${formatArStageLabel(editingItemArStage)}`
                                 : "Stage: processing"}
                               {editingItemArProgressPercent !== null
                                 ? ` • ${editingItemArProgressPercent}%`

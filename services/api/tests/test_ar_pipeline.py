@@ -14,6 +14,7 @@ from ar_pipeline import (
     AR_STAGE_CONVERSION_QUEUED,
     AR_STAGE_KIRI_PROCESSING,
     AR_STAGE_QUEUED,
+    AR_STAGE_UPLOADING_TO_KIRI,
     CONVERSION_STATUS_QUEUED,
 )
 from database import get_session
@@ -92,6 +93,10 @@ def test_item_fixture(session: Session):
 
 def _auth_headers() -> dict[str, str]:
     return {"Authorization": "Bearer test-token"}
+
+
+def _worker_headers() -> dict[str, str]:
+    return {"X-Worker-Token": "worker-secret"}
 
 
 def test_generate_ar_model_queues_kiri_from_images(
@@ -191,6 +196,123 @@ def test_retry_requeues_conversion_when_usdz_exists(
     ).first()
     assert conversion_job is not None
     assert conversion_job.status == CONVERSION_STATUS_QUEUED
+
+
+def test_generation_worker_claims_pending_item_and_returns_capture_downloads(
+    client: TestClient,
+    session: Session,
+    test_item: Item,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("LOCAL_UPLOADS", "1")
+    monkeypatch.setenv("AR_CONVERTER_TOKEN", "worker-secret")
+
+    session.add(
+        ArCaptureAsset(
+            item_id=test_item.id,
+            kind="video",
+            position=0,
+            s3_key=f"items/ar/{test_item.id}/capture/dish.mp4",
+            url="https://example.com/dish.mp4",
+        )
+    )
+    test_item.ar_provider = AR_PROVIDER_KIRI
+    test_item.ar_capture_mode = AR_CAPTURE_MODE_PHOTO_SCAN
+    test_item.ar_status = "pending"
+    test_item.ar_stage = AR_STAGE_QUEUED
+    test_item.ar_job_id = uuid.uuid4()
+    session.add(test_item)
+    session.commit()
+
+    response = client.post("/ar-jobs/generations/claim", headers=_worker_headers())
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["job_id"] == str(test_item.ar_job_id)
+    assert payload["capture_input_kind"] == "video"
+    assert len(payload["captures"]) == 1
+    assert payload["photo_scan_options"]["model_quality"] == 3
+
+    session.expire_all()
+    refreshed = session.get(Item, test_item.id)
+    assert refreshed is not None
+    assert refreshed.ar_status == "processing"
+    assert refreshed.ar_stage == AR_STAGE_UPLOADING_TO_KIRI
+
+
+def test_generation_submitted_route_records_serialize_and_frame_metadata(
+    client: TestClient,
+    session: Session,
+    test_item: Item,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("AR_CONVERTER_TOKEN", "worker-secret")
+
+    test_item.ar_provider = AR_PROVIDER_KIRI
+    test_item.ar_capture_mode = AR_CAPTURE_MODE_PHOTO_SCAN
+    test_item.ar_status = "processing"
+    test_item.ar_stage = AR_STAGE_UPLOADING_TO_KIRI
+    test_item.ar_job_id = uuid.uuid4()
+    session.add(test_item)
+    session.commit()
+
+    response = client.post(
+        f"/ar-jobs/generations/{test_item.ar_job_id}/submitted",
+        headers=_worker_headers(),
+        json={
+            "serialize": "serialize-xyz",
+            "provider_calculate_type": 1,
+            "provider_input_kind": "images",
+            "video_frame_extraction": {
+                "submitted_frame_count": 132,
+                "persisted_frames": [],
+            },
+        },
+    )
+
+    assert response.status_code == 204, response.text
+
+    session.expire_all()
+    refreshed = session.get(Item, test_item.id)
+    assert refreshed is not None
+    assert refreshed.ar_stage == AR_STAGE_KIRI_PROCESSING
+    assert refreshed.ar_metadata_json["serialize"] == "serialize-xyz"
+    assert refreshed.ar_metadata_json["video_frame_extraction"]["submitted_frame_count"] == 132
+
+
+def test_generation_fail_route_marks_item_failed_without_vendor_copy(
+    client: TestClient,
+    session: Session,
+    test_item: Item,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("AR_CONVERTER_TOKEN", "worker-secret")
+
+    test_item.ar_provider = AR_PROVIDER_KIRI
+    test_item.ar_capture_mode = AR_CAPTURE_MODE_PHOTO_SCAN
+    test_item.ar_status = "processing"
+    test_item.ar_stage = AR_STAGE_UPLOADING_TO_KIRI
+    test_item.ar_job_id = uuid.uuid4()
+    session.add(test_item)
+    session.commit()
+
+    response = client.post(
+        f"/ar-jobs/generations/{test_item.ar_job_id}/fail",
+        headers=_worker_headers(),
+        json={
+            "error": "The uploaded video is too blurry for AR generation.",
+            "detail": "Video quality checks failed",
+        },
+    )
+
+    assert response.status_code == 204, response.text
+
+    session.expire_all()
+    refreshed = session.get(Item, test_item.id)
+    assert refreshed is not None
+    assert refreshed.ar_status == "failed"
+    assert refreshed.ar_error_message == "The uploaded video is too blurry for AR generation."
+    assert "KIRI" not in (refreshed.ar_error_message or "")
 
 
 def test_process_pending_item_uses_plain_capture_values_after_commit(
