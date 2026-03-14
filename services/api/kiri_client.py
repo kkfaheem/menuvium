@@ -146,22 +146,62 @@ class KiriClient:
         response = self.session.get(f"{self.base_url}{path}", params=params, timeout=self.timeout)
         return self._parse_response(response)
 
+    @staticmethod
+    def _normalize_code(value) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped == "":
+                return None
+            try:
+                return int(stripped)
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _normalize_ok(value) -> bool | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            stripped = value.strip().lower()
+            if stripped in {"true", "1", "yes"}:
+                return True
+            if stripped in {"false", "0", "no"}:
+                return False
+        return None
+
     def _parse_response(self, response: requests.Response) -> dict:
         try:
             payload = response.json()
         except ValueError as exc:
             raise KiriApiError(f"KIRI returned non-JSON response ({response.status_code})") from exc
 
+        if not isinstance(payload, dict):
+            raise KiriApiError(f"KIRI returned an unexpected response shape ({response.status_code})")
+
+        code = self._normalize_code(payload.get("code"))
+        ok = self._normalize_ok(payload.get("ok"))
+
         if response.status_code >= 400:
             raise KiriApiError(
                 payload.get("msg") or response.text or f"HTTP {response.status_code}",
-                code=payload.get("code"),
+                code=code,
             )
 
-        if not payload.get("ok", False) or payload.get("code") not in (0, None):
-            raise KiriApiError(payload.get("msg") or "KIRI request failed", code=payload.get("code"))
+        if ok is False or code not in (0, None):
+            raise KiriApiError(payload.get("msg") or "KIRI request failed", code=code)
 
         data = payload.get("data")
         if not isinstance(data, dict):
-            raise KiriApiError("KIRI response missing data object", code=payload.get("code"))
+            raise KiriApiError("KIRI response missing data object", code=code)
         return data
