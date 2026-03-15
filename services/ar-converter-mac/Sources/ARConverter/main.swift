@@ -3,6 +3,7 @@ import AVFoundation
 import CoreImage
 import ImageIO
 import ModelIO
+import SceneKit
 import UniformTypeIdentifiers
 
 struct Config {
@@ -102,6 +103,8 @@ struct ConversionProgressRequest: Encodable {
 struct ConversionCompleteRequest: Encodable {
     let glb_s3_key: String
     let glb_url: String
+    let usdz_s3_key: String?
+    let usdz_url: String?
 }
 
 struct ConversionFailRequest: Encodable {
@@ -207,6 +210,12 @@ struct PersistedFrameMetadata: Encodable {
 struct SubmittedModelJob {
     let serialize: String
     let calculateType: Int
+}
+
+struct OrientationNormalizationResult {
+    let usdzUrl: URL
+    let updatedUsdzUpload: PresignedUrlResponse?
+    let appliedRotationDescription: String?
 }
 
 enum WorkerError: Error, CustomStringConvertible {
@@ -620,12 +629,29 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
     await tryUpdateProgress(
         jobId: claim.jobId,
         stage: "converting_glb",
+        detail: "Normalizing orientation",
+        progress: 0.915,
+        config: config
+    )
+    let normalized = try await normalizeUsdzOrientationIfNeeded(
+        itemId: claim.itemId,
+        inputUsdz: modelUsdz,
+        tempDir: tempDir,
+        config: config
+    )
+    if let appliedRotationDescription = normalized.appliedRotationDescription {
+        print("menuvium-ar-converter conversion \(claim.jobId): \(appliedRotationDescription)")
+    }
+
+    await tryUpdateProgress(
+        jobId: claim.jobId,
+        stage: "converting_glb",
         detail: "Exporting USDZ to OBJ",
         progress: 0.93,
         config: config
     )
     let modelObj = convertDir.appendingPathComponent("model.obj")
-    try exportUsdzToObj(usdzUrl: modelUsdz, objUrl: modelObj)
+    try exportUsdzToObj(usdzUrl: normalized.usdzUrl, objUrl: modelObj)
 
     await tryUpdateProgress(
         jobId: claim.jobId,
@@ -634,7 +660,7 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
         progress: 0.95,
         config: config
     )
-    _ = try runProcess("usdextract", args: ["-o", convertDir.path, modelUsdz.path])
+    _ = try runProcess("usdextract", args: ["-o", convertDir.path, normalized.usdzUrl.path])
     try prepareMtlForObj2Gltf(mtlUrl: convertDir.appendingPathComponent("model.mtl"))
 
     await tryUpdateProgress(
@@ -670,9 +696,118 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
     try await uploadFile(fileUrl: modelGlb, uploadUrl: upload.uploadUrl, contentType: "model/gltf-binary")
     try await completeJob(
         jobId: claim.jobId,
-        payload: ConversionCompleteRequest(glb_s3_key: upload.s3Key, glb_url: upload.publicUrl),
+        payload: ConversionCompleteRequest(
+            glb_s3_key: upload.s3Key,
+            glb_url: upload.publicUrl,
+            usdz_s3_key: normalized.updatedUsdzUpload?.s3Key,
+            usdz_url: normalized.updatedUsdzUpload?.publicUrl
+        ),
         config: config
     )
+}
+
+func normalizeUsdzOrientationIfNeeded(
+    itemId: String,
+    inputUsdz: URL,
+    tempDir: URL,
+    config: Config
+) async throws -> OrientationNormalizationResult {
+    let scene = try SCNScene(url: inputUsdz, options: nil)
+    let analysis = analyzeOrientation(scene: scene)
+    guard let rotation = analysis.rotationEulerRadians else {
+        return OrientationNormalizationResult(
+            usdzUrl: inputUsdz,
+            updatedUsdzUpload: nil,
+            appliedRotationDescription: nil
+        )
+    }
+
+    let normalizedScene = SCNScene()
+    let wrapper = SCNNode()
+    wrapper.eulerAngles = rotation
+
+    for child in scene.rootNode.childNodes {
+        child.removeFromParentNode()
+        wrapper.addChildNode(child)
+    }
+    normalizedScene.rootNode.addChildNode(wrapper)
+
+    let normalizedUsdz = tempDir.appendingPathComponent("normalized-model.usdz")
+    normalizedScene.write(to: normalizedUsdz, options: nil, delegate: nil, progressHandler: nil)
+
+    let upload = try await getUploadUrl(
+        itemId: itemId,
+        kind: "model_usdz",
+        filename: "model.usdz",
+        contentType: "model/vnd.usdz+zip",
+        config: config
+    )
+    try await uploadFile(
+        fileUrl: normalizedUsdz,
+        uploadUrl: upload.uploadUrl,
+        contentType: "model/vnd.usdz+zip"
+    )
+
+    return OrientationNormalizationResult(
+        usdzUrl: normalizedUsdz,
+        updatedUsdzUpload: upload,
+        appliedRotationDescription: analysis.description
+    )
+}
+
+struct OrientationAnalysis {
+    let rotationEulerRadians: SCNVector3?
+    let description: String?
+}
+
+func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
+    let probe = SCNNode()
+    for child in scene.rootNode.childNodes {
+        probe.addChildNode(child.clone())
+    }
+    let (minimum, maximum) = probe.boundingBox
+    let xExtent = Double(maximum.x - minimum.x)
+    let yExtent = Double(maximum.y - minimum.y)
+    let zExtent = Double(maximum.z - minimum.z)
+    let axes = [("x", xExtent), ("y", yExtent), ("z", zExtent)].sorted { $0.1 < $1.1 }
+
+    guard axes.count == 3 else {
+        return OrientationAnalysis(rotationEulerRadians: nil, description: nil)
+    }
+
+    let smallest = axes[0]
+    let middle = axes[1]
+    let flatnessThreshold = envDouble("MENUVIUM_AR_FLATNESS_RATIO_THRESHOLD", defaultValue: 0.6)
+    guard middle.1 > 0, smallest.1 / middle.1 <= flatnessThreshold else {
+        return OrientationAnalysis(rotationEulerRadians: nil, description: nil)
+    }
+
+    switch smallest.0 {
+    case "y":
+        return OrientationAnalysis(rotationEulerRadians: nil, description: nil)
+    case "z":
+        return OrientationAnalysis(
+            rotationEulerRadians: SCNVector3(-Float.pi / 2, 0, 0),
+            description: String(
+                format: "rotated existing USDZ by -90deg around X to make Y the up axis (extents x=%.4f y=%.4f z=%.4f)",
+                xExtent,
+                yExtent,
+                zExtent
+            )
+        )
+    case "x":
+        return OrientationAnalysis(
+            rotationEulerRadians: SCNVector3(0, 0, Float.pi / 2),
+            description: String(
+                format: "rotated existing USDZ by +90deg around Z to make Y the up axis (extents x=%.4f y=%.4f z=%.4f)",
+                xExtent,
+                yExtent,
+                zExtent
+            )
+        )
+    default:
+        return OrientationAnalysis(rotationEulerRadians: nil, description: nil)
+    }
 }
 
 func reportGenerationSubmitted(

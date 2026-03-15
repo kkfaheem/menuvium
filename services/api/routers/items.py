@@ -768,12 +768,12 @@ def retry_ar_generation(
     perms = _item_org_permissions(session, item, user)
     if not perms.can_edit_items:
         raise HTTPException(status_code=403, detail="Not authorized")
-    if item.ar_provider == AR_PROVIDER_KIRI and item.ar_model_usdz_s3_key and item.ar_model_usdz_url and not item.ar_model_glb_s3_key:
+    if item.ar_provider == AR_PROVIDER_KIRI and item.ar_model_usdz_s3_key and item.ar_model_usdz_url:
         try:
             queue_conversion_from_existing_usdz(
                 session=session,
                 item=item,
-                detail="Retrying GLB conversion",
+                detail="Rebuilding AR assets from the existing USDZ model",
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc))

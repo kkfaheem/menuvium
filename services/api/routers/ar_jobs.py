@@ -470,6 +470,8 @@ def update_conversion_progress(job_id: uuid.UUID, payload: ConversionProgressReq
 class ConversionCompleteRequest(BaseModel):
     glb_s3_key: str
     glb_url: str
+    usdz_s3_key: Optional[str] = None
+    usdz_url: Optional[str] = None
 
 
 @router.post("/conversions/{job_id}/complete", response_model=ItemRead, dependencies=[Depends(_require_worker_token)])
@@ -491,6 +493,15 @@ def complete_conversion(
     job.glb_url = payload.glb_url
     job.updated_at = datetime.utcnow()
 
+    if payload.usdz_s3_key:
+        job.usdz_s3_key = payload.usdz_s3_key
+    if payload.usdz_url:
+        job.usdz_url = payload.usdz_url
+
+    if payload.usdz_s3_key:
+        item.ar_model_usdz_s3_key = payload.usdz_s3_key
+    if payload.usdz_url:
+        item.ar_model_usdz_url = payload.usdz_url
     item.ar_model_glb_s3_key = payload.glb_s3_key
     item.ar_model_glb_url = payload.glb_url
     item.ar_status = "ready"

@@ -198,6 +198,39 @@ def test_retry_requeues_conversion_when_usdz_exists(
     assert conversion_job.status == CONVERSION_STATUS_QUEUED
 
 
+def test_retry_rebuilds_from_existing_usdz_even_when_glb_exists(
+    client: TestClient,
+    session: Session,
+    test_item: Item,
+):
+    test_item.ar_provider = AR_PROVIDER_KIRI
+    test_item.ar_capture_mode = AR_CAPTURE_MODE_PHOTO_SCAN
+    test_item.ar_status = "ready"
+    test_item.ar_stage = "ready"
+    test_item.ar_model_usdz_s3_key = f"items/ar/{test_item.id}/model_usdz/model.usdz"
+    test_item.ar_model_usdz_url = "https://example.com/model.usdz"
+    test_item.ar_model_glb_s3_key = f"items/ar/{test_item.id}/model_glb/model.glb"
+    test_item.ar_model_glb_url = "https://example.com/model.glb"
+    session.add(test_item)
+    session.commit()
+
+    response = client.post(
+        f"/items/{test_item.id}/ar/retry",
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["ar_status"] == "processing"
+    assert payload["ar_stage"] == AR_STAGE_CONVERSION_QUEUED
+
+    jobs = session.exec(
+        select(ArConversionJob).where(ArConversionJob.item_id == test_item.id)
+    ).all()
+    assert len(jobs) == 1
+    assert jobs[0].status == CONVERSION_STATUS_QUEUED
+
+
 def test_generation_worker_claims_pending_item_and_returns_capture_downloads(
     client: TestClient,
     session: Session,

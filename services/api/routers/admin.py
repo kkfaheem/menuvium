@@ -770,11 +770,11 @@ def retry_ar_job(item_id: uuid.UUID, session: Session = Depends(get_session)):
     if not item or not item.ar_status:
         raise HTTPException(status_code=404, detail="AR job not found")
 
-    if item.ar_provider == AR_PROVIDER_KIRI and item.ar_model_usdz_s3_key and item.ar_model_usdz_url and not item.ar_model_glb_s3_key:
+    if item.ar_provider == AR_PROVIDER_KIRI and item.ar_model_usdz_s3_key and item.ar_model_usdz_url:
         queue_conversion_from_existing_usdz(
             session=session,
             item=item,
-            detail="Retried by admin",
+            detail="Rebuilding AR assets from the existing USDZ model",
         )
     else:
         if not kiri_enabled():
