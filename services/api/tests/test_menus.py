@@ -4,9 +4,12 @@ from sqlmodel import Session, SQLModel, create_engine
 from sqlmodel.pool import StaticPool
 import uuid
 
+import routers.menus as menu_routes
 from main import app
 from database import get_session
+from dependencies import get_current_user
 from models import Menu, Category, Item, Organization
+from storage_keys import menu_qr_current_key
 
 
 @pytest.fixture(name="session")
@@ -28,7 +31,11 @@ def client_fixture(session: Session):
     def get_session_override():
         return session
 
+    def mock_get_current_user():
+        return {"sub": "test-user-sub", "email": "owner@example.com"}
+
     app.dependency_overrides[get_session] = get_session_override
+    app.dependency_overrides[get_current_user] = mock_get_current_user
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
@@ -205,3 +212,71 @@ class TestCategoryEndpoints:
         assert categories[0].name == "Third"
         assert categories[1].name == "First"
         assert categories[2].name == "Second"
+
+
+class TestMenuQrEndpoints:
+    def test_get_menu_qr_ignores_legacy_logo_variant(
+        self,
+        client: TestClient,
+        test_menu: Menu,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr(
+            menu_routes,
+            "_render_standard_qr_png",
+            lambda public_url, size_px=1000: f"plain:{size_px}".encode("utf-8"),
+        )
+
+        response = client.get(
+            f"/menus/{test_menu.id}/qr",
+            params={"variant": "logo", "format": "png", "size": 640},
+        )
+
+        assert response.status_code == 200
+        assert response.content == b"plain:640"
+        assert response.headers["content-type"] == "image/png"
+        assert response.headers["content-disposition"].endswith('Lunch Menu-qr.png"')
+
+    def test_regenerate_menu_qr_persists_plain_qr_assets(
+        self,
+        client: TestClient,
+        session: Session,
+        test_menu: Menu,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        monkeypatch.setattr(
+            menu_routes,
+            "_render_standard_qr_png",
+            lambda public_url, size_px=1000: b"plain-qr",
+        )
+
+        stored_keys: list[str] = []
+
+        def fake_store_bytes(*, data, key, content_type, base_url=None, cache_control=None):
+            stored_keys.append(key)
+            return f"https://cdn.example.com/{key}"
+
+        monkeypatch.setattr(menu_routes, "store_bytes", fake_store_bytes)
+
+        response = client.post(
+            f"/menus/{test_menu.id}/regenerate-qr",
+            headers={"Authorization": "Bearer mocktoken"},
+        )
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["qr_url"].startswith("https://cdn.example.com/")
+        assert payload["current_qr_url"] == (
+            f"https://cdn.example.com/{menu_qr_current_key(test_menu.org_id, test_menu.id)}"
+        )
+        assert len(stored_keys) == 2
+        assert stored_keys[0].startswith(
+            f"orgs/{test_menu.org_id}/menus/{test_menu.id}/qr/versions/"
+        )
+        assert stored_keys[0].endswith("/qr-1000.png")
+        assert stored_keys[1] == menu_qr_current_key(test_menu.org_id, test_menu.id)
+
+        refreshed_menu = session.get(Menu, test_menu.id)
+        assert refreshed_menu is not None
+        assert refreshed_menu.logo_qr_url == payload["qr_url"]
+        assert refreshed_menu.logo_qr_generated_at is not None

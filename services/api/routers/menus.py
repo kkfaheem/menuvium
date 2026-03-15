@@ -2,15 +2,14 @@ import uuid
 import json
 import os
 import io
-import base64
 from datetime import datetime
-from typing import List, Optional
+from typing import List, NamedTuple, Optional
 from urllib.parse import urlparse
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Query, Response
 from pydantic import BaseModel
 from sqlmodel import Session, select, delete
 from sqlalchemy.orm import selectinload
-from PIL import Image, ImageOps, ImageDraw
+from PIL import Image
 from zoneinfo import ZoneInfo
 from database import get_session
 from models import (
@@ -177,19 +176,6 @@ def _public_web_origin(request: Request) -> str:
     raise HTTPException(status_code=500, detail="Unable to resolve public web origin")
 
 
-def _decode_data_url(data_url: str) -> tuple[bytes, str]:
-    if "," not in data_url:
-        raise HTTPException(status_code=400, detail="Invalid logo data URL")
-    meta, payload = data_url.split(",", 1)
-    content_type = "image/png"
-    if meta.startswith("data:") and ";base64" in meta:
-        content_type = meta[5:].split(";", 1)[0] or content_type
-    try:
-        return base64.b64decode(payload), content_type
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid logo image payload")
-
-
 def _resolve_menu_timezone(menu: Menu) -> ZoneInfo:
     timezone_name = (menu.timezone or "UTC").strip() or "UTC"
     try:
@@ -231,76 +217,6 @@ def _is_visible_with_rules(rules: List[VisibilityRule], now_local: datetime) -> 
     return any(_visibility_rule_matches(rule, now_local) for rule in include_rules)
 
 
-def _rgb_from_hex(hex_color: str, default: tuple[int, int, int] = (17, 24, 39)) -> tuple[int, int, int]:
-    clean = (hex_color or "").strip().lstrip("#")
-    if len(clean) != 6:
-        return default
-    try:
-        return tuple(int(clean[i:i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
-    except Exception:
-        return default
-
-
-def _analyze_logo_qr_style(logo_data_url: str) -> dict:
-    """
-    Ask OpenAI for brand-aware sizing/color hints for the centered logo block.
-    """
-    defaults = {
-        "logo_scale": 0.2,
-        "frame_color": "#111827",
-        "ai_used": False,
-    }
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        return defaults
-
-    try:
-        from openai import OpenAI
-
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            temperature=0.1,
-            max_tokens=180,
-            response_format={"type": "json_object"},
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Return strict JSON only.",
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": (
-                                "You are styling a QR code with this logo in the center. "
-                                "Return JSON: {\"logo_scale\": number, \"frame_color\": \"#RRGGBB\"}. "
-                                "Constraints: logo_scale must be between 0.16 and 0.26. "
-                                "frame_color should be a dark brand-compatible accent that still keeps high contrast."
-                            ),
-                        },
-                        {"type": "image_url", "image_url": {"url": logo_data_url}},
-                    ],
-                },
-            ],
-        )
-        content = response.choices[0].message.content or "{}"
-        parsed = json.loads(content)
-        logo_scale = float(parsed.get("logo_scale", defaults["logo_scale"]))
-        logo_scale = max(0.16, min(0.26, logo_scale))
-        frame_color = str(parsed.get("frame_color", defaults["frame_color"]))
-        if not frame_color.startswith("#") or len(frame_color) != 7:
-            frame_color = defaults["frame_color"]
-        return {
-            "logo_scale": logo_scale,
-            "frame_color": frame_color,
-            "ai_used": True,
-        }
-    except Exception:
-        return defaults
-
-
 def _fetch_qr_png(public_url: str, size_px: int = 1000) -> bytes:
     from urllib.parse import quote
     import httpx
@@ -336,46 +252,6 @@ def _png_to_pdf_bytes(png_bytes: bytes) -> bytes:
     return output.getvalue()
 
 
-def _compose_logo_qr_png(qr_png: bytes, logo_data_url: str, style: dict) -> bytes:
-    logo_bytes, _ = _decode_data_url(logo_data_url)
-
-    qr_img = Image.open(io.BytesIO(qr_png)).convert("RGBA")
-    logo_img = Image.open(io.BytesIO(logo_bytes)).convert("RGBA")
-
-    canvas_size = min(qr_img.width, qr_img.height)
-    logo_scale = float(style.get("logo_scale", 0.2))
-    logo_size = int(canvas_size * logo_scale)
-    logo_size = max(int(canvas_size * 0.16), min(int(canvas_size * 0.26), logo_size))
-
-    pad = max(10, int(logo_size * 0.22))
-    frame_size = logo_size + (pad * 2)
-    corner_radius = max(10, int(frame_size * 0.2))
-
-    frame = Image.new("RGBA", (frame_size, frame_size), (255, 255, 255, 0))
-    frame_draw = ImageDraw.Draw(frame)
-    frame_draw.rounded_rectangle(
-        (0, 0, frame_size - 1, frame_size - 1),
-        radius=corner_radius,
-        fill=(255, 255, 255, 245),
-        outline=(*_rgb_from_hex(str(style.get("frame_color", "#111827"))), 255),
-        width=max(2, canvas_size // 220),
-    )
-
-    fitted_logo = ImageOps.contain(logo_img, (logo_size, logo_size))
-    logo_x = (frame_size - fitted_logo.width) // 2
-    logo_y = (frame_size - fitted_logo.height) // 2
-    frame.alpha_composite(fitted_logo, (logo_x, logo_y))
-
-    frame_x = (qr_img.width - frame_size) // 2
-    frame_y = (qr_img.height - frame_size) // 2
-    qr_img.alpha_composite(frame, (frame_x, frame_y))
-
-    final_qr = _trim_qr_whitespace(qr_img.convert("RGB"))
-    output = io.BytesIO()
-    final_qr.save(output, format="PNG", optimize=True)
-    return output.getvalue()
-
-
 def _render_standard_qr_png(public_url: str, size_px: int = 1000) -> bytes:
     qr_img = Image.open(io.BytesIO(_fetch_qr_png(public_url, size_px=size_px))).convert("RGB")
     trimmed = _trim_qr_whitespace(qr_img)
@@ -384,18 +260,18 @@ def _render_standard_qr_png(public_url: str, size_px: int = 1000) -> bytes:
     return output.getvalue()
 
 
-def _render_logo_qr_png(menu: Menu, public_url: str, size_px: int = 1000) -> bytes:
-    if not menu.logo_url:
-        raise HTTPException(status_code=400, detail="Logo must be uploaded first")
-
-    logo_data_url = _data_url_from_logo_url(menu.logo_url)
-    # Keep export deterministic and cost-free (no per-request OpenAI call).
-    style = {"logo_scale": 0.2, "frame_color": "#111827"}
-    qr_png = _fetch_qr_png(public_url, size_px=size_px)
-    return _compose_logo_qr_png(qr_png, logo_data_url, style)
+class _StoredQrAssets(NamedTuple):
+    version_url: str
+    current_url: str
 
 
-def _store_generated_qr(menu: Menu, png_bytes: bytes, request: Request, *, size_px: int = 1000) -> str:
+def _store_generated_qr(
+    menu: Menu,
+    png_bytes: bytes,
+    request: Request,
+    *,
+    size_px: int = 1000,
+) -> _StoredQrAssets:
     render_id = uuid.uuid4()
     base_url = forwarded_prefix(request) or None
     version_key = menu_qr_version_key(menu.org_id, menu.id, render_id, size_px=size_px)
@@ -408,14 +284,14 @@ def _store_generated_qr(menu: Menu, png_bytes: bytes, request: Request, *, size_
         base_url=base_url,
         cache_control="public, max-age=31536000, immutable",
     )
-    store_bytes(
+    current_url = store_bytes(
         data=png_bytes,
         key=current_key,
         content_type="image/png",
         base_url=base_url,
         cache_control="no-store",
     )
-    return version_url
+    return _StoredQrAssets(version_url=version_url, current_url=current_url)
 
 @router.post("/", response_model=Menu)
 def create_menu(menu: Menu, session: Session = SessionDep, user: dict = UserDep):
@@ -446,9 +322,40 @@ class GenerateTitleDesignRequest(BaseModel):
     hint: Optional[str] = None
 
 
-class GenerateLogoQrResponse(BaseModel):
-    logo_qr_url: str
-    ai_used: bool
+class RegenerateMenuQrResponse(BaseModel):
+    qr_url: str
+    current_qr_url: str
+    generated_at: datetime
+
+
+def _regenerate_plain_menu_qr(
+    menu: Menu,
+    request: Request,
+    session: Session,
+    *,
+    size_px: int = 1000,
+) -> RegenerateMenuQrResponse:
+    public_url = f"{_public_web_origin(request)}/r/{menu.id}"
+    qr_png = _render_standard_qr_png(public_url, size_px=size_px)
+    stored_assets = _store_generated_qr(menu, qr_png, request, size_px=size_px)
+    generated_at = datetime.utcnow()
+
+    # Persist into the existing menu QR columns until the schema is cleaned up.
+    menu.logo_qr_url = stored_assets.version_url
+    menu.logo_qr_generated_at = generated_at
+    session.add(menu)
+    session.commit()
+    session.refresh(menu)
+
+    normalized_qr_url = normalize_upload_url(menu.logo_qr_url, request) or stored_assets.version_url
+    normalized_current_qr_url = (
+        normalize_upload_url(stored_assets.current_url, request) or stored_assets.current_url
+    )
+    return RegenerateMenuQrResponse(
+        qr_url=normalized_qr_url,
+        current_qr_url=normalized_current_qr_url,
+        generated_at=generated_at,
+    )
 
 
 @router.post("/generate-title-design/{menu_id}")
@@ -587,8 +494,8 @@ def generate_title_design(
         )
 
 
-@router.post("/{menu_id}/generate-logo-qr", response_model=GenerateLogoQrResponse)
-def generate_logo_qr(
+@router.post("/{menu_id}/regenerate-qr", response_model=RegenerateMenuQrResponse)
+def regenerate_menu_qr(
     menu_id: uuid.UUID,
     request: Request,
     session: Session = SessionDep,
@@ -602,41 +509,20 @@ def generate_logo_qr(
     if not perms.can_manage_menus:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    if not menu.logo_url:
-        raise HTTPException(status_code=400, detail="Logo must be uploaded first")
-
     try:
-        public_url = f"{_public_web_origin(request)}/r/{menu.id}"
-        logo_data_url = _data_url_from_logo_url(menu.logo_url)
-        style = _analyze_logo_qr_style(logo_data_url)
-        qr_png = _fetch_qr_png(public_url)
-        branded_qr_png = _compose_logo_qr_png(qr_png, logo_data_url, style)
-        stored_url = _store_generated_qr(menu, branded_qr_png, request)
-
-        menu.logo_qr_url = stored_url
-        menu.logo_qr_generated_at = datetime.utcnow()
-        session.add(menu)
-        session.commit()
-        session.refresh(menu)
-
-        return {
-            "logo_qr_url": normalize_upload_url(menu.logo_qr_url, request) or stored_url,
-            "ai_used": bool(style.get("ai_used")),
-        }
+        return _regenerate_plain_menu_qr(menu, request, session)
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to generate branded QR code: {str(e)}",
+            detail=f"Failed to regenerate QR code: {str(e)}",
         )
-
 
 @router.get("/{menu_id}/qr")
 def get_menu_qr_asset(
     menu_id: uuid.UUID,
     request: Request,
-    variant: str = Query(default="standard", description="standard or logo"),
     fmt: str = Query(default="png", alias="format", description="png or pdf"),
     size: int = Query(default=1000, ge=256, le=1000, description="PNG render size in px"),
     session: Session = SessionDep,
@@ -645,19 +531,12 @@ def get_menu_qr_asset(
     if not menu:
         raise HTTPException(status_code=404, detail="Menu not found")
 
-    variant_key = variant.strip().lower()
-    if variant_key not in {"standard", "logo"}:
-        raise HTTPException(status_code=400, detail="Invalid variant")
-
     format_key = fmt.strip().lower()
     if format_key not in {"png", "pdf"}:
         raise HTTPException(status_code=400, detail="Invalid format")
 
     public_url = f"{_public_web_origin(request)}/r/{menu.id}"
-    if variant_key == "logo":
-        png_bytes = _render_logo_qr_png(menu, public_url, size_px=size)
-    else:
-        png_bytes = _render_standard_qr_png(public_url, size_px=size)
+    png_bytes = _render_standard_qr_png(public_url, size_px=size)
 
     safe_name = (menu.name or "menu").strip().replace("/", "-")
     if format_key == "pdf":
@@ -666,7 +545,7 @@ def get_menu_qr_asset(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f'attachment; filename="{safe_name}-{variant_key}-qr.pdf"',
+                "Content-Disposition": f'attachment; filename="{safe_name}-qr.pdf"',
                 "Cache-Control": "no-store",
             },
         )
@@ -675,7 +554,7 @@ def get_menu_qr_asset(
         content=png_bytes,
         media_type="image/png",
         headers={
-            "Content-Disposition": f'inline; filename="{safe_name}-{variant_key}-qr.png"',
+            "Content-Disposition": f'inline; filename="{safe_name}-qr.png"',
             "Cache-Control": "no-store",
         },
     )
@@ -728,13 +607,8 @@ def update_menu(menu_id: uuid.UUID, menu_update: MenuUpdate, session: Session = 
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid timezone")
         menu_data["timezone"] = timezone_name
-    previous_logo_url = db_menu.logo_url
     for key, value in menu_data.items():
         setattr(db_menu, key, value)
-    if "logo_url" in menu_data and menu_data.get("logo_url") != previous_logo_url:
-        # Invalidate branded QR whenever the source logo changes.
-        db_menu.logo_qr_url = None
-        db_menu.logo_qr_generated_at = None
 
     session.add(db_menu)
     session.commit()
