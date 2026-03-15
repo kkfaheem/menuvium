@@ -251,6 +251,25 @@ let retryableUrlErrorCodes: Set<URLError.Code> = [
     .secureConnectionFailed,
 ]
 
+func logInfo(_ message: String) {
+    print("menuvium-ar-converter info: \(message)")
+}
+
+func logWarning(_ message: String) {
+    fputs("menuvium-ar-converter warning: \(message)\n", stderr)
+}
+
+func formatNumber(_ value: Double, decimals: Int = 2) -> String {
+    String(format: "%.\(decimals)f", value)
+}
+
+func describeRotation(_ rotation: SCNVector3) -> String {
+    let xDegrees = Double(rotation.x) * 180.0 / .pi
+    let yDegrees = Double(rotation.y) * 180.0 / .pi
+    let zDegrees = Double(rotation.z) * 180.0 / .pi
+    return "x=\(formatNumber(xDegrees, decimals: 1))deg, y=\(formatNumber(yDegrees, decimals: 1))deg, z=\(formatNumber(zDegrees, decimals: 1))deg"
+}
+
 @main
 enum ARConverterMain {
     static func main() async {
@@ -259,6 +278,7 @@ enum ARConverterMain {
             try ensureToolExists("curl")
             try ensureToolExists("npx")
             try ensureToolExists("usdextract")
+            logInfo("starting worker apiBase=\(config.apiBase) pollSeconds=\(config.pollSeconds)")
             try await runLoop(config: config)
         } catch {
             fputs("menuvium-ar-converter error: \(error)\n", stderr)
@@ -335,10 +355,12 @@ func ensureToolExists(_ tool: String) throws {
 func runLoop(config: Config) async throws {
     while true {
         if let generation = try await claimGenerationJob(config: config) {
+            logInfo("claimed generation job \(generation.jobId) for item \(generation.itemId) with \(generation.captures.count) capture(s), mode=\(generation.captureMode), input=\(generation.captureInputKind)")
             do {
                 try await processGenerationJob(claim: generation, config: config)
             } catch {
                 do {
+                    logWarning("generation job \(generation.jobId) failed before submission: \(error)")
                     try await failGenerationJob(
                         jobId: generation.jobId,
                         error: String(describing: error),
@@ -348,19 +370,21 @@ func runLoop(config: Config) async throws {
                         config: config
                     )
                 } catch {
-                    fputs("menuvium-ar-converter warning: failed to report generation failure: \(error)\n", stderr)
+                    logWarning("failed to report generation failure for job \(generation.jobId): \(error)")
                 }
             }
             continue
         }
         if let claim = try await claimJob(config: config) {
+            logInfo("claimed conversion job \(claim.jobId) for item \(claim.itemId)")
             do {
                 try await processJob(claim: claim, config: config)
             } catch {
                 do {
+                    logWarning("conversion job \(claim.jobId) failed: \(error)")
                     try await failJob(jobId: claim.jobId, error: String(describing: error), config: config)
                 } catch {
-                    fputs("menuvium-ar-converter warning: failed to report job failure: \(error)\n", stderr)
+                    logWarning("failed to report conversion failure for job \(claim.jobId): \(error)")
                 }
             }
         } else {
@@ -426,6 +450,7 @@ func processGenerationJob(claim: GenerationClaimResponse, config: Config) async 
     )
 
     let downloadedCaptures = try await downloadGenerationCaptures(claim: claim, to: tempDir, config: config)
+    logInfo("generation \(claim.jobId): downloaded \(downloadedCaptures.count) capture file(s)")
 
     if claim.captureInputKind == "video" {
         guard let videoCapture = downloadedCaptures.first else {
@@ -437,9 +462,13 @@ func processGenerationJob(claim: GenerationClaimResponse, config: Config) async 
             tempDir: tempDir,
             config: config
         )
-        print(
-            "menuvium-ar-converter generation \(claim.jobId): extracted \(frameSelection.metadata.candidate_frame_count) candidate frames, submitted \(frameSelection.selectedFrameUrls.count) frames, rejected \(frameSelection.metadata.dropped_blurry_count) blurry and \(frameSelection.metadata.dropped_duplicate_count) near-duplicate frames"
+        logInfo(
+            "generation \(claim.jobId): extracted \(frameSelection.metadata.candidate_frame_count) candidate frame(s), submitted \(frameSelection.selectedFrameUrls.count), rejected blurry=\(frameSelection.metadata.dropped_blurry_count), nearDuplicate=\(frameSelection.metadata.dropped_duplicate_count)"
         )
+        logInfo(
+            "generation \(claim.jobId): provider submission mode=\(claim.captureMode) input=images modelQuality=\(claim.photoScanOptions.modelQuality) textureQuality=\(claim.photoScanOptions.textureQuality) textureSmoothing=\(claim.photoScanOptions.textureSmoothing) isMask=\(claim.photoScanOptions.isMask)"
+        )
+        logInfo("generation \(claim.jobId): submitting \(frameSelection.selectedFrameUrls.count) selected frame(s) to provider")
 
         await tryUpdateGenerationProgress(
             jobId: claim.jobId,
@@ -465,9 +494,14 @@ func processGenerationJob(claim: GenerationClaimResponse, config: Config) async 
             ),
             config: config
         )
+        logInfo("generation \(claim.jobId): provider accepted submission serialize=\(submitted.serialize)")
         return
     }
 
+    logInfo(
+        "generation \(claim.jobId): provider submission mode=\(claim.captureMode) input=images modelQuality=\(claim.photoScanOptions.modelQuality) textureQuality=\(claim.photoScanOptions.textureQuality) textureSmoothing=\(claim.photoScanOptions.textureSmoothing) isMask=\(claim.photoScanOptions.isMask)"
+    )
+    logInfo("generation \(claim.jobId): submitting \(downloadedCaptures.count) image capture(s) to provider")
     let submitted = try submitImagesToKiri(
         imageUrls: downloadedCaptures,
         captureMode: claim.captureMode,
@@ -485,6 +519,7 @@ func processGenerationJob(claim: GenerationClaimResponse, config: Config) async 
         ),
         config: config
     )
+    logInfo("generation \(claim.jobId): provider accepted submission serialize=\(submitted.serialize)")
 }
 
 func downloadGenerationCaptures(claim: GenerationClaimResponse, to tempDir: URL, config: Config) async throws -> [URL] {
@@ -499,6 +534,7 @@ func downloadGenerationCaptures(claim: GenerationClaimResponse, to tempDir: URL,
             from: absoluteUrl(capture.downloadUrl, apiBase: config.apiBase),
             to: destination
         )
+        logInfo("generation \(claim.jobId): downloaded capture position=\(capture.position) kind=\(capture.kind) to \(destination.lastPathComponent)")
         results.append(destination)
     }
     return results
@@ -524,6 +560,10 @@ func prepareVideoFrames(
     )
     let summary = try inspectVideo(url: videoUrl)
     try validateVideoQuality(summary: summary)
+    let requestedFrameCount = requestedCandidateFrameCount(for: summary.durationSeconds)
+    logInfo(
+        "generation \(claim.jobId): video summary duration=\(formatNumber(summary.durationSeconds))s resolution=\(summary.width)x\(summary.height) requestedCandidates=\(requestedFrameCount) minSelected=\(minimumSubmittedFrameCount()) targetSelected=\(targetSelectedFrameCount())"
+    )
 
     await tryUpdateGenerationProgress(
         jobId: claim.jobId,
@@ -539,6 +579,7 @@ func prepareVideoFrames(
         outputDir: analysisDir,
         summary: summary
     )
+    logInfo("generation \(claim.jobId): extracted \(candidates.count) candidate frame(s)")
 
     await tryUpdateGenerationProgress(
         jobId: claim.jobId,
@@ -549,6 +590,15 @@ func prepareVideoFrames(
     )
     let selection = selectBestFrames(from: candidates)
     candidates = selection.annotatedCandidates
+    let selectedRangeDescription: String
+    if let first = selection.selectedFrames.first, let last = selection.selectedFrames.last {
+        selectedRangeDescription = "firstSelected=\(formatNumber(first.timestampSeconds))s lastSelected=\(formatNumber(last.timestampSeconds))s"
+    } else {
+        selectedRangeDescription = "no selected frames"
+    }
+    logInfo(
+        "generation \(claim.jobId): frame selection sharpCandidates=\(selection.sharpFrameCount) selected=\(selection.selectedFrames.count) medianSharpness=\(formatNumber(selection.medianSharpness, decimals: 4)) blurThreshold=\(formatNumber(selection.blurThreshold, decimals: 4)) rejectedBlurry=\(selection.blurryRejectedCount) rejectedDuplicate=\(selection.duplicateRejectedCount) \(selectedRangeDescription)"
+    )
     if selection.selectedFrames.count < minimumSubmittedFrameCount() {
         if selection.sharpFrameCount < minimumSubmittedFrameCount() {
             throw WorkerError.processing(
@@ -567,7 +617,8 @@ func prepareVideoFrames(
         progress: 0.28,
         config: config
     )
-        let uploadedFrames = try await uploadDebugFrames(jobId: claim.jobId, frameCandidates: candidates, config: config)
+    let uploadedFrames = try await uploadDebugFrames(jobId: claim.jobId, frameCandidates: candidates, config: config)
+    logInfo("generation \(claim.jobId): uploaded \(uploadedFrames.count) debug frame(s) to items/ar/\(claim.itemId)/debug_frames/\(claim.jobId)")
     let uploadedByFilename = Dictionary(uniqueKeysWithValues: uploadedFrames.map { ($0.filename, $0) })
     let persistedFrames = candidates.map { frame -> PersistedFrameMetadata in
         let uploaded = uploadedByFilename[frame.fileUrl.lastPathComponent]
@@ -588,7 +639,7 @@ func prepareVideoFrames(
         source_duration_seconds: summary.durationSeconds,
         source_width: summary.width,
         source_height: summary.height,
-        requested_frame_count: requestedCandidateFrameCount(for: summary.durationSeconds),
+        requested_frame_count: requestedFrameCount,
         extracted_frame_count: candidates.count,
         submitted_frame_count: selection.selectedFrames.count,
         candidate_frame_count: candidates.count,
@@ -626,6 +677,7 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
         config: config
     )
     try await downloadFile(from: absoluteUrl(claim.usdzDownloadUrl, apiBase: config.apiBase), to: modelUsdz)
+    logInfo("conversion \(claim.jobId): downloaded USDZ from \(claim.usdzS3Key)")
 
     await tryUpdateProgress(
         jobId: claim.jobId,
@@ -635,13 +687,19 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
         config: config
     )
     let normalized = try await normalizeUsdzOrientationIfNeeded(
+        jobId: claim.jobId,
         itemId: claim.itemId,
         inputUsdz: modelUsdz,
         tempDir: tempDir,
         config: config
     )
     if let appliedRotationDescription = normalized.appliedRotationDescription {
-        print("menuvium-ar-converter conversion \(claim.jobId): \(appliedRotationDescription)")
+        logInfo("conversion \(claim.jobId): \(appliedRotationDescription)")
+    }
+    if let updatedUsdzUpload = normalized.updatedUsdzUpload {
+        logInfo("conversion \(claim.jobId): uploaded corrected USDZ to \(updatedUsdzUpload.s3Key)")
+    } else {
+        logInfo("conversion \(claim.jobId): kept original USDZ without uploading a replacement")
     }
 
     await tryUpdateProgress(
@@ -655,6 +713,7 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
     try exportUsdzToObj(usdzUrl: normalized.usdzUrl, objUrl: modelObj)
     if let rotation = normalized.appliedRotationEulerRadians {
         try applyRotationToObj(objUrl: modelObj, rotation: rotation)
+        logInfo("conversion \(claim.jobId): baked rotation \(describeRotation(rotation)) into OBJ vertices and normals")
     }
 
     await tryUpdateProgress(
@@ -698,6 +757,7 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
         config: config
     )
     try await uploadFile(fileUrl: modelGlb, uploadUrl: upload.uploadUrl, contentType: "model/gltf-binary")
+    logInfo("conversion \(claim.jobId): uploaded GLB to \(upload.s3Key)")
     try await completeJob(
         jobId: claim.jobId,
         payload: ConversionCompleteRequest(
@@ -708,9 +768,11 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
         ),
         config: config
     )
+    logInfo("conversion \(claim.jobId): marked conversion complete")
 }
 
 func normalizeUsdzOrientationIfNeeded(
+    jobId: String,
     itemId: String,
     inputUsdz: URL,
     tempDir: URL,
@@ -718,7 +780,11 @@ func normalizeUsdzOrientationIfNeeded(
 ) async throws -> OrientationNormalizationResult {
     let scene = try SCNScene(url: inputUsdz, options: nil)
     let analysis = analyzeOrientation(scene: scene)
+    logInfo(
+        "conversion \(jobId): orientation analysis extents x=\(formatNumber(analysis.xExtent, decimals: 4)) y=\(formatNumber(analysis.yExtent, decimals: 4)) z=\(formatNumber(analysis.zExtent, decimals: 4)) smallest=\(analysis.smallestAxis) middle=\(analysis.middleAxis) largest=\(analysis.largestAxis) flatnessRatio=\(formatNumber(analysis.flatnessRatio, decimals: 4)) threshold=\(formatNumber(analysis.flatnessThreshold, decimals: 4)) decision=\(analysis.description ?? "none")"
+    )
     guard let rotation = analysis.rotationEulerRadians else {
+        logInfo("conversion \(jobId): no orientation rotation applied")
         return OrientationNormalizationResult(
             usdzUrl: inputUsdz,
             updatedUsdzUpload: nil,
@@ -739,6 +805,7 @@ func normalizeUsdzOrientationIfNeeded(
 
     let normalizedUsdz = tempDir.appendingPathComponent("normalized-model.usdz")
     normalizedScene.write(to: normalizedUsdz, options: nil, delegate: nil, progressHandler: nil)
+    logInfo("conversion \(jobId): wrote normalized USDZ to \(normalizedUsdz.lastPathComponent)")
 
     let upload = try await getUploadUrl(
         itemId: itemId,
@@ -762,6 +829,14 @@ func normalizeUsdzOrientationIfNeeded(
 }
 
 struct OrientationAnalysis {
+    let xExtent: Double
+    let yExtent: Double
+    let zExtent: Double
+    let smallestAxis: String
+    let middleAxis: String
+    let largestAxis: String
+    let flatnessRatio: Double
+    let flatnessThreshold: Double
     let rotationEulerRadians: SCNVector3?
     let description: String?
 }
@@ -776,23 +851,80 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
     let yExtent = Double(maximum.y - minimum.y)
     let zExtent = Double(maximum.z - minimum.z)
     let axes = [("x", xExtent), ("y", yExtent), ("z", zExtent)].sorted { $0.1 < $1.1 }
+    let flatnessThreshold = envDouble("MENUVIUM_AR_FLATNESS_RATIO_THRESHOLD", defaultValue: 0.6)
 
     guard axes.count == 3 else {
-        return OrientationAnalysis(rotationEulerRadians: nil, description: nil)
+        return OrientationAnalysis(
+            xExtent: xExtent,
+            yExtent: yExtent,
+            zExtent: zExtent,
+            smallestAxis: "unknown",
+            middleAxis: "unknown",
+            largestAxis: "unknown",
+            flatnessRatio: Double.infinity,
+            flatnessThreshold: flatnessThreshold,
+            rotationEulerRadians: nil,
+            description: "Could not determine axis extents; skipped auto-rotation"
+        )
     }
 
     let smallest = axes[0]
     let middle = axes[1]
-    let flatnessThreshold = envDouble("MENUVIUM_AR_FLATNESS_RATIO_THRESHOLD", defaultValue: 0.6)
-    guard middle.1 > 0, smallest.1 / middle.1 <= flatnessThreshold else {
-        return OrientationAnalysis(rotationEulerRadians: nil, description: nil)
+    let largest = axes[2]
+    let flatnessRatio = middle.1 > 0 ? smallest.1 / middle.1 : Double.infinity
+    guard middle.1 > 0 else {
+        return OrientationAnalysis(
+            xExtent: xExtent,
+            yExtent: yExtent,
+            zExtent: zExtent,
+            smallestAxis: smallest.0,
+            middleAxis: middle.0,
+            largestAxis: largest.0,
+            flatnessRatio: flatnessRatio,
+            flatnessThreshold: flatnessThreshold,
+            rotationEulerRadians: nil,
+            description: "Bounding box is degenerate; skipped auto-rotation"
+        )
+    }
+    guard flatnessRatio <= flatnessThreshold else {
+        return OrientationAnalysis(
+            xExtent: xExtent,
+            yExtent: yExtent,
+            zExtent: zExtent,
+            smallestAxis: smallest.0,
+            middleAxis: middle.0,
+            largestAxis: largest.0,
+            flatnessRatio: flatnessRatio,
+            flatnessThreshold: flatnessThreshold,
+            rotationEulerRadians: nil,
+            description: "Flatness ratio exceeded threshold; skipped auto-rotation"
+        )
     }
 
     switch smallest.0 {
     case "y":
-        return OrientationAnalysis(rotationEulerRadians: nil, description: nil)
+        return OrientationAnalysis(
+            xExtent: xExtent,
+            yExtent: yExtent,
+            zExtent: zExtent,
+            smallestAxis: smallest.0,
+            middleAxis: middle.0,
+            largestAxis: largest.0,
+            flatnessRatio: flatnessRatio,
+            flatnessThreshold: flatnessThreshold,
+            rotationEulerRadians: nil,
+            description: "Smallest axis is already Y; no auto-rotation needed"
+        )
     case "z":
         return OrientationAnalysis(
+            xExtent: xExtent,
+            yExtent: yExtent,
+            zExtent: zExtent,
+            smallestAxis: smallest.0,
+            middleAxis: middle.0,
+            largestAxis: largest.0,
+            flatnessRatio: flatnessRatio,
+            flatnessThreshold: flatnessThreshold,
             rotationEulerRadians: SCNVector3(-Float.pi / 2, 0, 0),
             description: String(
                 format: "rotated existing USDZ by -90deg around X to make Y the up axis (extents x=%.4f y=%.4f z=%.4f)",
@@ -803,6 +935,14 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
         )
     case "x":
         return OrientationAnalysis(
+            xExtent: xExtent,
+            yExtent: yExtent,
+            zExtent: zExtent,
+            smallestAxis: smallest.0,
+            middleAxis: middle.0,
+            largestAxis: largest.0,
+            flatnessRatio: flatnessRatio,
+            flatnessThreshold: flatnessThreshold,
             rotationEulerRadians: SCNVector3(0, 0, Float.pi / 2),
             description: String(
                 format: "rotated existing USDZ by +90deg around Z to make Y the up axis (extents x=%.4f y=%.4f z=%.4f)",
@@ -812,7 +952,18 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
             )
         )
     default:
-        return OrientationAnalysis(rotationEulerRadians: nil, description: nil)
+        return OrientationAnalysis(
+            xExtent: xExtent,
+            yExtent: yExtent,
+            zExtent: zExtent,
+            smallestAxis: smallest.0,
+            middleAxis: middle.0,
+            largestAxis: largest.0,
+            flatnessRatio: flatnessRatio,
+            flatnessThreshold: flatnessThreshold,
+            rotationEulerRadians: nil,
+            description: "No auto-rotation rule matched"
+        )
     }
 }
 
@@ -962,7 +1113,7 @@ func tryUpdateGenerationProgress(
             config: config
         )
     } catch {
-        // Best-effort only.
+        logWarning("failed to update generation progress for job \(jobId): \(error)")
     }
 }
 
@@ -993,6 +1144,7 @@ func requestDebugFrameUploadUrls(
 func uploadDebugFrames(jobId: String, frameCandidates: [FrameCandidate], config: Config) async throws -> [DebugFrameUploadUrl] {
     let filenames = frameCandidates.map { $0.fileUrl.lastPathComponent }
     let response = try await requestDebugFrameUploadUrls(jobId: jobId, filenames: filenames, config: config)
+    logInfo("generation \(jobId): received \(response.uploads.count) debug frame upload target(s)")
     let uploadsByFilename = Dictionary(uniqueKeysWithValues: response.uploads.map { ($0.filename, $0) })
     var uploaded: [DebugFrameUploadUrl] = []
     for candidate in frameCandidates {
@@ -1656,7 +1808,7 @@ func tryUpdateProgress(
             config: config
         )
     } catch {
-        // Best-effort only.
+        logWarning("failed to update conversion progress for job \(jobId): \(error)")
     }
 }
 

@@ -47,16 +47,20 @@ from video_frame_extractor import extract_video_frames_to_images
 POLL_INTERVAL_SECONDS = 5
 
 
+def _log(message: str) -> None:
+    print(f"[ar-worker] {message}")
+
+
 def start_worker():
     if os.getenv("MENUVIUM_DISABLE_AR_WORKER") == "1":
-        print("[ar-worker] Disabled by MENUVIUM_DISABLE_AR_WORKER=1")
+        _log("Disabled by MENUVIUM_DISABLE_AR_WORKER=1")
         return None
     if not kiri_enabled():
-        print("[ar-worker] Provider API key not configured; AR status worker not started")
+        _log("Provider API key not configured; AR status worker not started")
         return None
     thread = threading.Thread(target=_worker_loop, daemon=True, name="kiri-ar-worker")
     thread.start()
-    print("[ar-worker] Background AR status worker started")
+    _log(f"Background AR status worker started with poll interval {POLL_INTERVAL_SECONDS}s")
     return thread
 
 
@@ -67,7 +71,7 @@ def _worker_loop():
                 continue
             time.sleep(POLL_INTERVAL_SECONDS)
         except Exception as exc:
-            print(f"[ar-worker] Worker error: {exc}")
+            _log(f"Worker error: {exc}")
             traceback.print_exc()
             time.sleep(POLL_INTERVAL_SECONDS)
 
@@ -196,6 +200,9 @@ def _poll_next_processing_job() -> bool:
             serialize = metadata.get("serialize")
             if serialize:
                 item_id = item.id
+                _log(
+                    f"Polling item {item.id} serialize={serialize} stage={item.ar_stage} provider_status={metadata.get('provider_status')}"
+                )
                 break
         else:
             return False
@@ -391,6 +398,7 @@ def _poll_item_status(item_id) -> None:
 
     try:
         status = _kiri_client().get_status(serialize=serialize)
+        _log(f"Polled serialize={serialize} -> provider_status={status.status}")
     except KiriApiError as exc:
         with Session(engine) as session:
             item = session.get(Item, item_id)
@@ -419,6 +427,9 @@ def handle_kiri_status_update(*, serialize: str, provider_status: int, source: s
             session.commit()
             return True
 
+        _log(
+            f"Status update for item {item.id} serialize={serialize}: provider_status={provider_status} source={source} stage_before={item.ar_stage}"
+        )
         if provider_status == KIRI_STATUS_UPLOADING:
             item.ar_stage = AR_STAGE_UPLOADING_TO_KIRI
             item.ar_stage_detail = f"Uploading scan data ({source})"
@@ -469,6 +480,7 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
 
     try:
         model_zip = _kiri_client().get_model_zip(serialize=serialize)
+        _log(f"Retrieved model zip URL for item {item_id} serialize={serialize}")
     except KiriApiError as exc:
         with Session(engine) as session:
             item = session.get(Item, item_id)
@@ -496,6 +508,7 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
                 response.raise_for_status()
                 with zip_path.open("wb") as handle:
                     shutil.copyfileobj(response.raw, handle)
+            _log(f"Downloaded model zip for item {item_id} serialize={serialize}")
 
             with zipfile.ZipFile(zip_path) as archive:
                 archive.extractall(extract_dir)
@@ -511,6 +524,7 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
                 key=usdz_key,
                 content_type="model/vnd.usdz+zip",
             )
+            _log(f"Stored USDZ for item {item_id} at {usdz_key}")
     except Exception as exc:
         with Session(engine) as session:
             item = session.get(Item, item_id)
@@ -539,6 +553,7 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
         item.ar_updated_at = datetime.utcnow()
         update_item_ar_metadata(item, provider_message="model downloaded")
         queue_conversion_from_existing_usdz(session=session, item=item, detail="USDZ ready for GLB conversion")
+        _log(f"Queued GLB conversion for item {item_id} using USDZ {usdz_key}")
         session.commit()
 
 
