@@ -139,8 +139,6 @@ export interface Menu {
   show_item_images?: boolean;
   banner_url?: string | null;
   logo_url?: string | null;
-  logo_qr_url?: string | null;
-  logo_qr_generated_at?: string | null;
   title_design_config?: TitleDesignConfig | null;
   currency?: string;
   org_id?: string;
@@ -212,7 +210,5 @@ export interface MenuFormData {
   show_item_images?: boolean;
   banner_url?: string | null;
   logo_url?: string | null;
-  logo_qr_url?: string | null;
-  logo_qr_generated_at?: string | null;
   title_design_config?: TitleDesignConfig | null;
 }

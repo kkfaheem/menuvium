@@ -12,12 +12,16 @@ import {
     Loader2,
     Palette,
     QrCode,
+    RefreshCw,
     UtensilsCrossed,
 } from "lucide-react";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
+import { buildMenuQrUrls, regenerateMenuQr } from "@/lib/menuQr";
 import { Badge } from "@/components/ui/Badge";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 
 interface ItemPhoto {
     url: string;
@@ -50,12 +54,17 @@ export default function MenuPublishPage() {
     const params = useParams();
     const router = useRouter();
     const { user } = useAuthenticator((context) => [context.user]);
+    const confirm = useConfirm();
+    const { toast } = useToast();
     const [menu, setMenu] = useState<Menu | null>(null);
     const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [permissionError, setPermissionError] = useState<string | null>(null);
     const [baseOrigin, setBaseOrigin] = useState("https://menuvium.com");
     const [copied, setCopied] = useState(false);
+    const [canManageMenus, setCanManageMenus] = useState(false);
+    const [isRegeneratingQr, setIsRegeneratingQr] = useState(false);
+    const [qrRevision, setQrRevision] = useState(0);
     const apiBase = getApiBase();
 
     const menuId = params.id as string;
@@ -96,6 +105,7 @@ export default function MenuPublishPage() {
                 return;
             }
 
+            setCanManageMenus(Boolean(perms.can_manage_menus));
             setMenu(menuData);
             if (catRes.ok) {
                 setCategories(await catRes.json());
@@ -108,10 +118,7 @@ export default function MenuPublishPage() {
     };
 
     const publicUrl = `${baseOrigin}/r/${menu?.id || menuId}`;
-    const qrBaseUrl = `${apiBase}/menus/${menu?.id || menuId}/qr`;
-    const qrPreviewUrl = `${qrBaseUrl}?variant=standard&format=png&size=640`;
-    const qrOpenUrl = `${qrBaseUrl}?variant=standard&format=png&size=1000`;
-    const qrPdfUrl = `${qrBaseUrl}?variant=standard&format=pdf&size=1000`;
+    const qrUrls = buildMenuQrUrls(apiBase, menu?.id || menuId, qrRevision);
 
     const sampleItems = useMemo(() => {
         return categories.flatMap((category) =>
@@ -152,6 +159,43 @@ export default function MenuPublishPage() {
             success: true,
         },
     ];
+
+    const handleRegenerateQr = async () => {
+        if (!menu || isRegeneratingQr || !canManageMenus) return;
+
+        const confirmed = await confirm({
+            title: "Regenerate QR?",
+            description:
+                "This will create a fresh plain QR code for the current public menu link.",
+            confirmLabel: "Regenerate QR",
+            requireTextMatch: "regenerate qr",
+            requireTextLabel: 'Type "regenerate qr" to confirm.',
+            requireTextPlaceholder: "regenerate qr",
+        });
+        if (!confirmed) return;
+
+        setIsRegeneratingQr(true);
+        try {
+            const token = await getAuthToken();
+            await regenerateMenuQr(apiBase, menu.id, token);
+            setQrRevision((current) => current + 1);
+            toast({
+                variant: "success",
+                title: "QR regenerated",
+                description: "The menu QR code has been refreshed.",
+            });
+        } catch (error) {
+            console.error(error);
+            toast({
+                variant: "error",
+                title: "Failed to regenerate QR",
+                description:
+                    error instanceof Error ? error.message : "Please try again in a moment.",
+            });
+        } finally {
+            setIsRegeneratingQr(false);
+        }
+    };
 
     const copyPublicUrl = async () => {
         try {
@@ -219,7 +263,7 @@ export default function MenuPublishPage() {
 
                         <div className="rounded-2xl border border-border bg-panelStrong p-5 flex items-center justify-center">
                             <img
-                                src={qrPreviewUrl}
+                                src={qrUrls.previewUrl}
                                 alt={`QR code for ${menu.name}`}
                                 className="h-64 w-64 max-w-full rounded-xl bg-white p-2"
                             />
@@ -248,18 +292,33 @@ export default function MenuPublishPage() {
                                 <ExternalLink className="w-3 h-3" /> Open guest page
                             </Link>
                             <Link
-                                href={qrOpenUrl}
+                                href={qrUrls.openUrl}
                                 target="_blank"
                                 className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-border bg-panelStrong px-4 text-xs font-semibold text-foreground transition-colors hover:bg-pill"
                             >
                                 <QrCode className="w-3 h-3" /> Open QR image
                             </Link>
                             <Link
-                                href={qrPdfUrl}
+                                href={qrUrls.pdfUrl}
                                 className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-border bg-panelStrong px-4 text-xs font-semibold text-foreground transition-colors hover:bg-pill"
                             >
                                 <QrCode className="w-3 h-3" /> Download QR PDF
                             </Link>
+                            {canManageMenus ? (
+                                <button
+                                    type="button"
+                                    onClick={handleRegenerateQr}
+                                    disabled={isRegeneratingQr}
+                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-border bg-panelStrong px-4 text-xs font-semibold text-foreground transition-colors hover:bg-pill disabled:opacity-60"
+                                >
+                                    {isRegeneratingQr ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                        <RefreshCw className="h-3 w-3" />
+                                    )}
+                                    Regenerate QR
+                                </button>
+                            ) : null}
                         </div>
                     </div>
                 </section>

@@ -24,6 +24,7 @@ import {
   PencilLine,
   Box,
   QrCode,
+  RefreshCw,
   Copy,
   ExternalLink,
 } from "lucide-react";
@@ -53,6 +54,7 @@ import {
 } from "@/lib/menuTagPresets";
 import { getApiBase } from "@/lib/apiBase";
 import { getAuthToken } from "@/lib/authToken";
+import { buildMenuQrUrls, regenerateMenuQr } from "@/lib/menuQr";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import type {
   Menu,
@@ -300,7 +302,8 @@ export default function MenuDetailPage() {
   );
   const [baseOrigin, setBaseOrigin] = useState("https://menuvium.com");
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const [qrVariant, setQrVariant] = useState<"standard" | "logo">("standard");
+  const [isRegeneratingQr, setIsRegeneratingQr] = useState(false);
+  const [qrRevision, setQrRevision] = useState(0);
   const [copiedPublicUrl, setCopiedPublicUrl] = useState(false);
   const [modalPortalTarget, setModalPortalTarget] = useState<HTMLElement | null>(
     null,
@@ -2175,28 +2178,7 @@ export default function MenuDetailPage() {
   );
   const canOpenItemModal = canEditItems || canManageAvailability;
   const publicMenuUrl = `${baseOrigin}/r/${menu.id}`;
-  const qrBaseUrl = `${apiBase}/menus/${menu.id}/qr`;
-  const standardQrPreviewUrl = `${qrBaseUrl}?variant=standard&format=png&size=640`;
-  const standardQrOpenUrl = `${qrBaseUrl}?variant=standard&format=png&size=1000`;
-  const standardQrPdfUrl = `${qrBaseUrl}?variant=standard&format=pdf&size=1000`;
-  const hasLogoQrVariant = Boolean(menu.logo_url);
-  const logoQrPreviewUrl = hasLogoQrVariant
-    ? `${qrBaseUrl}?variant=logo&format=png&size=640`
-    : null;
-  const logoQrOpenUrl = hasLogoQrVariant
-    ? `${qrBaseUrl}?variant=logo&format=png&size=1000`
-    : null;
-  const logoQrPdfUrl = hasLogoQrVariant
-    ? `${qrBaseUrl}?variant=logo&format=pdf&size=1000`
-    : null;
-  const activeQrVariant =
-    qrVariant === "logo" && hasLogoQrVariant ? "logo" : "standard";
-  const activeQrPreviewUrl =
-    activeQrVariant === "logo" ? logoQrPreviewUrl! : standardQrPreviewUrl;
-  const activeQrOpenUrl =
-    activeQrVariant === "logo" ? logoQrOpenUrl! : standardQrOpenUrl;
-  const activeQrPdfUrl =
-    activeQrVariant === "logo" ? logoQrPdfUrl! : standardQrPdfUrl;
+  const qrUrls = buildMenuQrUrls(apiBase, menu.id, qrRevision);
   const timezoneOptions = TIMEZONE_ABBREVIATION_OPTIONS;
   const editingDisplayOptionsDraft = editingItem ? getEditingDisplayOptions() : [];
   const editingItemVisibilityRulesDraft = editingItem
@@ -2213,7 +2195,6 @@ export default function MenuDetailPage() {
 
   const openQrModal = () => {
     setCopiedPublicUrl(false);
-    setQrVariant("standard");
     setIsQrModalOpen(true);
   };
 
@@ -2229,6 +2210,43 @@ export default function MenuDetailPage() {
       setTimeout(() => setCopiedPublicUrl(false), 1800);
     } catch {
       setCopiedPublicUrl(false);
+    }
+  };
+
+  const handleRegenerateQr = async () => {
+    if (!menu || isRegeneratingQr) return;
+
+    const confirmed = await confirm({
+      title: "Regenerate QR?",
+      description:
+        "This will create a fresh plain QR code for the current public menu link.",
+      confirmLabel: "Regenerate QR",
+      requireTextMatch: "regenerate qr",
+      requireTextLabel: 'Type "regenerate qr" to confirm.',
+      requireTextPlaceholder: "regenerate qr",
+    });
+    if (!confirmed) return;
+
+    setIsRegeneratingQr(true);
+    try {
+      const token = await getAuthToken();
+      await regenerateMenuQr(apiBase, menu.id, token);
+      setQrRevision((current) => current + 1);
+      toast({
+        variant: "success",
+        title: "QR regenerated",
+        description: "The menu QR code has been refreshed.",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "error",
+        title: "Failed to regenerate QR",
+        description:
+          error instanceof Error ? error.message : "Please try again in a moment.",
+      });
+    } finally {
+      setIsRegeneratingQr(false);
     }
   };
 
@@ -2832,41 +2850,11 @@ export default function MenuDetailPage() {
                   </div>
 
                   <div className="p-6 pt-5 space-y-5 overflow-y-auto">
-                    <div className="inline-flex w-full rounded-xl border border-border bg-panelStrong p-1">
-                      <button
-                        type="button"
-                        onClick={() => setQrVariant("standard")}
-                        className={`h-9 flex-1 rounded-lg text-xs font-semibold transition-colors ${activeQrVariant === "standard"
-                            ? "bg-[var(--cms-accent)] text-white"
-                            : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
-                          }`}
-                      >
-                        Standard QR
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setQrVariant("logo")}
-                        disabled={!hasLogoQrVariant}
-                        className={`h-9 flex-1 rounded-lg text-xs font-semibold transition-colors ${activeQrVariant === "logo"
-                            ? "bg-[var(--cms-accent)] text-white"
-                            : "text-[var(--cms-muted)] hover:bg-[var(--cms-pill)] hover:text-[var(--cms-text)]"
-                          } ${!hasLogoQrVariant ? "cursor-not-allowed opacity-45" : ""}`}
-                      >
-                        Logo QR
-                      </button>
-                    </div>
-                    {!hasLogoQrVariant ? (
-                      <p className="text-xs text-[var(--cms-muted)]">
-                        Upload a logo in Design Studio to generate a branded QR
-                        option.
-                      </p>
-                    ) : null}
-
                     <div className="rounded-2xl border border-border bg-panelStrong p-5 flex items-center justify-center">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={activeQrPreviewUrl}
-                        alt={`${activeQrVariant === "logo" ? "Branded" : "Standard"} QR code for ${menu.name}`}
+                        src={qrUrls.previewUrl}
+                        alt={`Menu QR code for ${menu.name}`}
                         className="h-64 w-64 max-w-full rounded-xl bg-white p-2"
                       />
                     </div>
@@ -2903,7 +2891,7 @@ export default function MenuDetailPage() {
                       Open Menu
                     </a>
                     <a
-                      href={activeQrOpenUrl}
+                      href={qrUrls.openUrl}
                       target="_blank"
                       rel="noreferrer"
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]"
@@ -2912,13 +2900,28 @@ export default function MenuDetailPage() {
                       Open QR Image
                     </a>
                     <a
-                      href={activeQrPdfUrl}
+                      href={qrUrls.pdfUrl}
                       rel="noreferrer"
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill"
                     >
                       <Download className="h-4 w-4" />
                       Download QR PDF
                     </a>
+                    {canManageMenus ? (
+                      <button
+                        type="button"
+                        onClick={handleRegenerateQr}
+                        disabled={isRegeneratingQr}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill disabled:opacity-60"
+                      >
+                        {isRegeneratingQr ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        Regenerate QR
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               </div>

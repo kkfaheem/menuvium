@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   Check,
   Copy,
-  Info,
   Download,
   ExternalLink,
   Image,
@@ -18,6 +17,7 @@ import {
   Pencil,
   Plus,
   QrCode,
+  RefreshCw,
   Search,
   Trash2,
   X,
@@ -27,9 +27,11 @@ import { MENU_THEME_BY_ID, MENU_THEMES, MenuThemeId } from "@/lib/menuThemes";
 import { getApiBase } from "@/lib/apiBase";
 import { fetchOrgPermissions } from "@/lib/orgPermissions";
 import { getAuthToken } from "@/lib/authToken";
+import { buildMenuQrUrls, regenerateMenuQr } from "@/lib/menuQr";
 import { ImageCropperModal } from "@/components/menus/ImageCropperModal";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Badge } from "@/components/ui/Badge";
+import { useConfirm } from "@/components/ui/ConfirmProvider";
 
 interface Menu {
   id: string;
@@ -38,7 +40,6 @@ interface Menu {
   show_item_images?: boolean;
   banner_url?: string | null;
   logo_url?: string | null;
-  logo_qr_url?: string | null;
   title_design_config?: TitleDesignConfig | null;
   org_id: string;
 }
@@ -49,6 +50,7 @@ export default function MenuThemesPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuthenticator((context) => [context.user]);
+  const confirm = useConfirm();
   const { toast } = useToast();
   const [menu, setMenu] = useState<Menu | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,17 +67,17 @@ export default function MenuThemesPage() {
   const [logoPlacement, setLogoPlacement] = useState<LogoPlacement>("replace");
   const [logoScale, setLogoScale] = useState(1.0);
   const [titleFontSize, setTitleFontSize] = useState(20);
-  const [logoQrGenerating, setLogoQrGenerating] = useState(false);
+  const [isRegeneratingQr, setIsRegeneratingQr] = useState(false);
   const [activeTab, setActiveTab] = useState<"theme" | "branding">("theme");
   const [bannerCropFile, setBannerCropFile] = useState<File | null>(null);
   const bannerPreviewBlobUrlRef = useRef<string | null>(null);
   const [selectedThemeId, setSelectedThemeId] = useState<MenuThemeId>("noir");
   const [selectedShowItemImages, setSelectedShowItemImages] = useState(true);
   const [previewRevision, setPreviewRevision] = useState(0);
+  const [qrRevision, setQrRevision] = useState(0);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const previewScrollTopRef = useRef(0);
   const previewSignatureRef = useRef<string | null>(null);
-  const [qrVariant, setQrVariant] = useState<"standard" | "logo">("standard");
   const [copiedPublicUrl, setCopiedPublicUrl] = useState(false);
   const [brandingDirty, setBrandingDirty] = useState(false);
 
@@ -424,40 +426,6 @@ export default function MenuThemesPage() {
       setSelectedLogoIndex(newIndex);
 
       await persistLogoConfig(newLogos, newIndex, logoPlacement);
-
-      // Generate branded QR when a logo is selected
-      if (newIndex === slotIndex) {
-        setLogoQrGenerating(true);
-        try {
-          const qrRes = await fetch(
-            `${apiBase}/menus/${menu.id}/generate-logo-qr`,
-            { method: "POST", headers: { Authorization: `Bearer ${token}` } },
-          );
-          if (qrRes.ok) {
-            const qrData = await qrRes.json();
-            setMenu((prev) =>
-              prev
-                ? {
-                  ...prev,
-                  logo_qr_url:
-                    typeof qrData.logo_qr_url === "string"
-                      ? qrData.logo_qr_url
-                      : prev.logo_qr_url,
-                }
-                : prev,
-            );
-          }
-        } catch (e) {
-          console.error(e);
-          toast({
-            variant: "warning",
-            title: "Logo uploaded",
-            description: "Could not generate branded QR right now.",
-          });
-        } finally {
-          setLogoQrGenerating(false);
-        }
-      }
     } catch (e) {
       console.error(e);
       toast({ variant: "error", title: "Error uploading logo" });
@@ -500,11 +468,6 @@ export default function MenuThemesPage() {
     } catch (e) {
       console.error(e);
     }
-  };
-
-  const handleLogoPlacement = (placement: LogoPlacement) => {
-    setLogoPlacement(placement);
-    setBrandingDirty(true);
   };
 
   /** Unified handler for the 4 layout option buttons */
@@ -621,6 +584,43 @@ export default function MenuThemesPage() {
     frameWindow.requestAnimationFrame(() => {
       frameWindow.scrollTo(0, scrollTarget);
     });
+  };
+
+  const handleRegenerateQr = async () => {
+    if (!menu || isRegeneratingQr) return;
+
+    const confirmed = await confirm({
+      title: "Regenerate QR?",
+      description:
+        "This will create a fresh plain QR code for the current public menu link.",
+      confirmLabel: "Regenerate QR",
+      requireTextMatch: "regenerate qr",
+      requireTextLabel: 'Type "regenerate qr" to confirm.',
+      requireTextPlaceholder: "regenerate qr",
+    });
+    if (!confirmed) return;
+
+    setIsRegeneratingQr(true);
+    try {
+      const token = await getAuthToken();
+      await regenerateMenuQr(apiBase, menu.id, token);
+      setQrRevision((current) => current + 1);
+      toast({
+        variant: "success",
+        title: "QR regenerated",
+        description: "The menu QR code has been refreshed.",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "error",
+        title: "Failed to regenerate QR",
+        description:
+          error instanceof Error ? error.message : "Please try again in a moment.",
+      });
+    } finally {
+      setIsRegeneratingQr(false);
+    }
   };
 
   if (loading) {
@@ -1040,10 +1040,6 @@ export default function MenuThemesPage() {
                     </div>
                   </div>
                 )}
-
-                {logoQrGenerating && (
-                  <p className="text-[10px] text-[var(--cms-muted)]">Generating branded QR…</p>
-                )}
               </section>
 
               {/* ─── Banner Section ─── */}
@@ -1191,18 +1187,7 @@ export default function MenuThemesPage() {
 
           {/* ─── QR Code Section ─── */}
           {menu && (() => {
-            const qrBaseUrl = `${apiBase}/menus/${menu.id}/qr`;
-            const standardQrPreview = `${qrBaseUrl}?variant=standard&format=png&size=640`;
-            const standardQrOpen = `${qrBaseUrl}?variant=standard&format=png&size=1000`;
-            const standardQrPdf = `${qrBaseUrl}?variant=standard&format=pdf&size=1000`;
-            const hasLogoQr = Boolean(menu.logo_url);
-            const logoQrPreview = hasLogoQr ? `${qrBaseUrl}?variant=logo&format=png&size=640` : null;
-            const logoQrOpen = hasLogoQr ? `${qrBaseUrl}?variant=logo&format=png&size=1000` : null;
-            const logoQrPdf = hasLogoQr ? `${qrBaseUrl}?variant=logo&format=pdf&size=1000` : null;
-            const activeVariant = qrVariant === "logo" && hasLogoQr ? "logo" : "standard";
-            const activePreview = activeVariant === "logo" ? logoQrPreview! : standardQrPreview;
-            const activeOpen = activeVariant === "logo" ? logoQrOpen! : standardQrOpen;
-            const activePdf = activeVariant === "logo" ? logoQrPdf! : standardQrPdf;
+            const qrUrls = buildMenuQrUrls(apiBase, menu.id, qrRevision);
             const publicUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/r/${menu.id}`;
             const copyUrl = async () => {
               try { await navigator.clipboard.writeText(publicUrl); setCopiedPublicUrl(true); setTimeout(() => setCopiedPublicUrl(false), 1800); } catch { /* no-op */ }
@@ -1214,26 +1199,14 @@ export default function MenuThemesPage() {
                     Publish
                   </h2>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--cms-muted)]">
-                    Menu QR Code
+                    Menu QR
                   </p>
-                </div>
-
-                {/* Variant toggle */}
-                <div className="inline-flex w-full rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-1">
-                  <button type="button" onClick={() => setQrVariant("standard")}
-                    className={`h-8 flex-1 rounded-lg text-[10px] font-semibold transition-colors ${activeVariant === "standard" ? "bg-[var(--cms-accent)] text-white" : "text-[var(--cms-muted)] hover:text-[var(--cms-text)]"}`}>
-                    Standard
-                  </button>
-                  <button type="button" onClick={() => setQrVariant("logo")} disabled={!hasLogoQr}
-                    className={`h-8 flex-1 rounded-lg text-[10px] font-semibold transition-colors ${activeVariant === "logo" ? "bg-[var(--cms-accent)] text-white" : "text-[var(--cms-muted)] hover:text-[var(--cms-text)]"} ${!hasLogoQr ? "opacity-40 cursor-not-allowed" : ""}`}>
-                    Logo QR
-                  </button>
                 </div>
 
                 {/* QR preview */}
                 <div className="rounded-2xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] p-4 flex items-center justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={activePreview} alt={`${activeVariant === "logo" ? "Branded" : "Standard"} QR code`}
+                  <img src={qrUrls.previewUrl} alt="Menu QR code"
                     className="h-44 w-44 max-w-full rounded-xl bg-white p-2" />
                 </div>
 
@@ -1252,14 +1225,27 @@ export default function MenuThemesPage() {
 
                 {/* Actions */}
                 <div className="flex flex-wrap gap-2">
-                  <a href={activeOpen} target="_blank" rel="noreferrer"
+                  <a href={qrUrls.openUrl} target="_blank" rel="noreferrer"
                     className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--cms-accent)] px-3 text-[10px] font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]">
                     <QrCode className="h-3 w-3" /> Open QR
                   </a>
-                  <a href={activePdf} rel="noreferrer"
+                  <a href={qrUrls.pdfUrl} rel="noreferrer"
                     className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 text-[10px] font-semibold text-[var(--cms-text)] transition-colors hover:bg-[var(--cms-pill)]">
                     <Download className="h-3 w-3" /> PDF
                   </a>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateQr}
+                    disabled={isRegeneratingQr}
+                    className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-xl border border-[var(--cms-border)] bg-[var(--cms-panel-strong)] px-3 text-[10px] font-semibold text-[var(--cms-text)] transition-colors hover:bg-[var(--cms-pill)] disabled:opacity-60"
+                  >
+                    {isRegeneratingQr ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3 w-3" />
+                    )}
+                    Regenerate QR
+                  </button>
                 </div>
               </section>
             );
