@@ -216,6 +216,7 @@ struct OrientationNormalizationResult {
     let usdzUrl: URL
     let updatedUsdzUpload: PresignedUrlResponse?
     let appliedRotationDescription: String?
+    let appliedRotationEulerRadians: SCNVector3?
 }
 
 enum WorkerError: Error, CustomStringConvertible {
@@ -652,6 +653,9 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
     )
     let modelObj = convertDir.appendingPathComponent("model.obj")
     try exportUsdzToObj(usdzUrl: normalized.usdzUrl, objUrl: modelObj)
+    if let rotation = normalized.appliedRotationEulerRadians {
+        try applyRotationToObj(objUrl: modelObj, rotation: rotation)
+    }
 
     await tryUpdateProgress(
         jobId: claim.jobId,
@@ -718,7 +722,8 @@ func normalizeUsdzOrientationIfNeeded(
         return OrientationNormalizationResult(
             usdzUrl: inputUsdz,
             updatedUsdzUpload: nil,
-            appliedRotationDescription: nil
+            appliedRotationDescription: nil,
+            appliedRotationEulerRadians: nil
         )
     }
 
@@ -751,7 +756,8 @@ func normalizeUsdzOrientationIfNeeded(
     return OrientationNormalizationResult(
         usdzUrl: normalizedUsdz,
         updatedUsdzUpload: upload,
-        appliedRotationDescription: analysis.description
+        appliedRotationDescription: analysis.description,
+        appliedRotationEulerRadians: rotation
     )
 }
 
@@ -808,6 +814,72 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
     default:
         return OrientationAnalysis(rotationEulerRadians: nil, description: nil)
     }
+}
+
+func applyRotationToObj(objUrl: URL, rotation: SCNVector3) throws {
+    let contents = try String(contentsOf: objUrl, encoding: .utf8)
+    var outputLines: [String] = []
+    outputLines.reserveCapacity(contents.split(whereSeparator: \.isNewline).count)
+
+    for rawLine in contents.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
+        let line = String(rawLine)
+        if line.hasPrefix("v ") || line.hasPrefix("vn ") {
+            let prefix = line.hasPrefix("vn ") ? "vn" : "v"
+            let components = line.split(separator: " ", omittingEmptySubsequences: true)
+            guard components.count >= 4,
+                  let x = Double(components[1]),
+                  let y = Double(components[2]),
+                  let z = Double(components[3]) else {
+                outputLines.append(line)
+                continue
+            }
+            let rotated = rotateVector(SCNVector3(Float(x), Float(y), Float(z)), by: rotation)
+            let formatted = String(
+                format: "%@ %.8f %.8f %.8f",
+                prefix,
+                Double(rotated.x),
+                Double(rotated.y),
+                Double(rotated.z)
+            )
+            outputLines.append(formatted)
+        } else {
+            outputLines.append(line)
+        }
+    }
+
+    try outputLines.joined(separator: "\n").appending("\n").write(to: objUrl, atomically: true, encoding: .utf8)
+}
+
+func rotateVector(_ vector: SCNVector3, by rotation: SCNVector3) -> SCNVector3 {
+    var result = vector
+    if rotation.x != 0 {
+        let cosine = cos(rotation.x)
+        let sine = sin(rotation.x)
+        result = SCNVector3(
+            result.x,
+            (result.y * cosine) - (result.z * sine),
+            (result.y * sine) + (result.z * cosine)
+        )
+    }
+    if rotation.y != 0 {
+        let cosine = cos(rotation.y)
+        let sine = sin(rotation.y)
+        result = SCNVector3(
+            (result.x * cosine) + (result.z * sine),
+            result.y,
+            (-result.x * sine) + (result.z * cosine)
+        )
+    }
+    if rotation.z != 0 {
+        let cosine = cos(rotation.z)
+        let sine = sin(rotation.z)
+        result = SCNVector3(
+            (result.x * cosine) - (result.y * sine),
+            (result.x * sine) + (result.y * cosine),
+            result.z
+        )
+    }
+    return result
 }
 
 func reportGenerationSubmitted(
