@@ -233,9 +233,8 @@ Service root: `services/api` (Dockerfile-based).
 | `AR_CONVERTER_TOKEN` | Required for the macOS USDZ → GLB converter worker |
 | `KIRI_PHOTO_MODEL_QUALITY` | Optional, defaults to `3` (KIRI Ultra mesh quality) |
 | `KIRI_PHOTO_TEXTURE_QUALITY` | Optional, defaults to `3` (KIRI 8K texture quality) |
-| `AR_VIDEO_FRAME_EXTRACTION_FPS` | Optional, defaults to `6` extracted frames per second before KIRI submission |
-| `AR_VIDEO_FFMPEG_THREADS` | Optional, defaults to `1` to keep Railway ffmpeg memory usage bounded |
-| `AR_VIDEO_NORMALIZE_MAX_DIMENSION` | Optional, defaults to `1920`; oversized uploads are normalized to fit before frame extraction |
+| `KIRI_PHOTO_TEXTURE_SMOOTHING` | Optional, defaults to `1` |
+| `KIRI_PHOTO_IS_MASK` | Optional, defaults to `1` |
 
 ---
 
@@ -252,9 +251,8 @@ If the converter is not running, items will remain in `conversion_queued` until 
 
 ```bash
 cd services/ar-converter-mac
-export MENUVIUM_API_BASE="https://api.menuvium.com"
-export MENUVIUM_AR_CONVERTER_TOKEN="PASTE_RAILWAY_AR_CONVERTER_TOKEN"
-export KIRI_API_KEY="PASTE_YOUR_KIRI_API_KEY"
+# copy services/ar-converter-mac/.env.example to services/ar-converter-mac/.env
+# then edit the values below once; run-prod.sh auto-loads .env and .env.local
 ./run-prod.sh
 ```
 

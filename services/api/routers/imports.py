@@ -17,6 +17,13 @@ from database import get_session
 from dependencies import get_current_user
 from models import Category, Item, Menu, Organization
 from permissions import get_org_permissions
+from storage_keys import (
+    item_photo_original_key,
+    menu_branding_banner_key,
+    menu_branding_logo_key,
+    menu_branding_title_logo_key,
+)
+from storage_utils import store_bytes
 from url_utils import forwarded_prefix
 
 router = APIRouter(prefix="/imports", tags=["imports"])
@@ -389,7 +396,7 @@ def _local_upload_dir() -> Path:
 
 def _upload_image_to_storage(
     image_data: bytes,
-    filename: str,
+    key: str,
     content_type: str = "image/jpeg",
     public_prefix: str = ""
 ) -> tuple[str, str]:
@@ -397,30 +404,13 @@ def _upload_image_to_storage(
     Upload image to S3 or local storage.
     Returns (s3_key, public_url).
     """
-    key = f"items/{uuid.uuid4()}-{filename}"
-    
-    bucket_name = os.getenv("S3_BUCKET_NAME")
-    if bucket_name:
-        s3 = boto3.client("s3")
-        s3.put_object(
-            Bucket=bucket_name,
-            Key=key,
-            Body=image_data,
-            ContentType=content_type
-        )
-        public_url = f"https://{bucket_name}.s3.amazonaws.com/{key}"
-        return key, public_url
-    elif _local_uploads_enabled():
-        upload_dir = _local_upload_dir()
-        target = upload_dir / key
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("wb") as f:
-            f.write(image_data)
-        prefix = public_prefix.rstrip("/")
-        public_url = f"{prefix}/uploads/{key}" if prefix else f"/uploads/{key}"
-        return key, public_url
-    else:
-        raise HTTPException(status_code=500, detail="No storage configured for uploads")
+    public_url = store_bytes(
+        data=image_data,
+        key=key,
+        content_type=content_type,
+        base_url=public_prefix or None,
+    )
+    return key, public_url
 
 
 class ZipImportResult(BaseModel):
@@ -494,9 +484,13 @@ def import_menu_from_zip_bytes(
                 "gif": "image/gif", "webp": "image/webp"
             }
             content_type = content_type_map.get(ext, "image/jpeg")
-            _s3_key, public_url = _upload_image_to_storage(
-                image_data, f"banner_{uuid.uuid4()}.{ext}", content_type, public_prefix
+            key = menu_branding_banner_key(
+                menu.org_id,
+                menu.id,
+                f"banner.{ext}",
+                content_type=content_type,
             )
+            _s3_key, public_url = _upload_image_to_storage(image_data, key, content_type, public_prefix)
             menu.banner_url = public_url
         except Exception as e:
             print(f"Warning: Failed to import banner: {e}")
@@ -513,9 +507,13 @@ def import_menu_from_zip_bytes(
                 "gif": "image/gif", "webp": "image/webp"
             }
             content_type = content_type_map.get(ext, "image/jpeg")
-            _s3_key, public_url = _upload_image_to_storage(
-                image_data, f"logo_{uuid.uuid4()}.{ext}", content_type, public_prefix
+            key = menu_branding_logo_key(
+                menu.org_id,
+                menu.id,
+                f"logo.{ext}",
+                content_type=content_type,
             )
+            _s3_key, public_url = _upload_image_to_storage(image_data, key, content_type, public_prefix)
             menu.logo_url = public_url
         except Exception as e:
             print(f"Warning: Failed to import logo: {e}")
@@ -537,9 +535,13 @@ def import_menu_from_zip_bytes(
                         "gif": "image/gif", "webp": "image/webp"
                     }
                     content_type = content_type_map.get(ext, "image/jpeg")
-                    _s3_key, public_url = _upload_image_to_storage(
-                        image_data, f"config_logo_{uuid.uuid4()}.{ext}", content_type, public_prefix
+                    key = menu_branding_title_logo_key(
+                        menu.org_id,
+                        menu.id,
+                        f"config-logo.{ext}",
+                        content_type=content_type,
                     )
+                    _s3_key, public_url = _upload_image_to_storage(image_data, key, content_type, public_prefix)
                     new_logos_urls.append(public_url)
                 except Exception as e:
                     print(f"Warning: Failed to import config logo: {e}")
@@ -653,7 +655,15 @@ def import_menu_from_zip_bytes(
 
                     # Upload to storage
                     s3_key, public_url = _upload_image_to_storage(
-                        image_data, image_filename, content_type, public_prefix
+                        image_data,
+                        item_photo_original_key(
+                            menu.org_id,
+                            new_item.id,
+                            image_filename,
+                            content_type=content_type,
+                        ),
+                        content_type,
+                        public_prefix,
                     )
 
                     # Create photo record

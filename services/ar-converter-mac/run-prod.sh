@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cd "$(dirname "$0")"
+
+load_env_file() {
+  local env_file="$1"
+  if [[ -f "${env_file}" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "${env_file}"
+    set +a
+  fi
+}
+
+load_env_file ".env"
+load_env_file ".env.local"
+
 API_BASE="${MENUVIUM_API_BASE:-}"
 WORKER_TOKEN="${MENUVIUM_AR_CONVERTER_TOKEN:-}"
 KIRI_API_KEY_VALUE="${KIRI_API_KEY:-}"
@@ -37,7 +52,6 @@ else
   CAFFEINATE=()
 fi
 
-cd "$(dirname "$0")"
 swift build -c release
 
 CMD=(

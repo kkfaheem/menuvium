@@ -6,7 +6,7 @@ from database import get_session
 from models import Category, Menu, CategoryRead, Item, ItemOptionGroup, ItemOption
 from dependencies import get_current_user
 from permissions import get_org_permissions
-from url_utils import normalize_upload_url
+from url_utils import append_version_query, normalize_upload_url
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 SessionDep = Depends(get_session)
@@ -54,6 +54,18 @@ def list_categories(menu_id: uuid.UUID, request: Request, session: Session = Ses
     ).all()
     for category in categories:
         for item in category.items or []:
+            version = (
+                str(int(item.ar_updated_at.timestamp()))
+                if item.ar_updated_at and item.ar_status in {"processing", "ready", "failed"}
+                else None
+            )
+
+            def _versioned_ar_url(url: str | None) -> str | None:
+                normalized = normalize_upload_url(url, request)
+                if normalized and "/ar/current/" in normalized:
+                    return append_version_query(normalized, version)
+                return normalized
+
             item.option_groups = sorted(item.option_groups or [], key=lambda g: g.position)
             for group in item.option_groups or []:
                 group.options = sorted(group.options or [], key=lambda o: o.position)
@@ -62,9 +74,9 @@ def list_categories(menu_id: uuid.UUID, request: Request, session: Session = Ses
             for photo in item.photos or []:
                 photo.url = normalize_upload_url(photo.url, request)
             item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
-            item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
-            item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
-            item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+            item.ar_model_glb_url = _versioned_ar_url(item.ar_model_glb_url)
+            item.ar_model_usdz_url = _versioned_ar_url(item.ar_model_usdz_url)
+            item.ar_model_poster_url = _versioned_ar_url(item.ar_model_poster_url)
     return categories
 
 @router.patch("/{category_id}", response_model=Category)

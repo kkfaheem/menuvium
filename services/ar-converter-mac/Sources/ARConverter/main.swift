@@ -229,6 +229,7 @@ struct GltfNodeTransform {
 
 struct UsdStageMetadata {
     let upAxis: String?
+    let rootTransform: GltfNodeTransform?
 }
 
 enum WorkerError: Error, CustomStringConvertible {
@@ -809,8 +810,14 @@ func normalizeUsdzOrientationIfNeeded(
     logInfo("conversion \(jobId): SceneKit loaded USD scene")
     let upAxisTransform = gltfTransformForUsdUpAxis(stageMetadata.upAxis)
     var sourceTransforms: [GltfNodeTransform] = []
-    if let providerTransform = extractProviderRootTransform(from: scene) {
-        sourceTransforms.append(providerTransform)
+    if let providerTransform = stageMetadata.rootTransform {
+        logInfo(
+            "conversion \(jobId): detected provider USD root xform but not applying it to GLB because the USDZ -> OBJ export path typically bakes node transforms already: \(providerTransform.description)"
+        )
+    } else if let providerTransform = extractProviderRootTransform(from: scene) {
+        logInfo(
+            "conversion \(jobId): detected SceneKit root xform but not applying it to GLB because the USDZ -> OBJ export path typically bakes node transforms already: \(providerTransform.description)"
+        )
     }
     if let upAxisTransform {
         sourceTransforms.append(upAxisTransform)
@@ -1137,19 +1144,28 @@ func extractProviderRootTransform(from scene: SCNScene) -> GltfNodeTransform? {
 
 func inspectUsdStageMetadata(from usdzUrl: URL) -> UsdStageMetadata {
     do {
-        let output = try runProcess("usdcat", args: [usdzUrl.path])
+        let output = try runProcess(
+            "sh",
+            args: [
+                "-c",
+                #"usdcat "$1" | awk '/^[[:space:]]*def Mesh /{exit} {print}'"#,
+                "_",
+                usdzUrl.path,
+            ]
+        )
         let upAxis = parseUsdMetadataValue(named: "upAxis", in: output)
-        return UsdStageMetadata(upAxis: upAxis)
+        let rootTransform = parseUsdRootTransform(in: output)
+        return UsdStageMetadata(upAxis: upAxis, rootTransform: rootTransform)
     } catch {
         logInfo("provider transform: failed to inspect USD stage metadata via usdcat: \(error)")
-        return UsdStageMetadata(upAxis: nil)
+        return UsdStageMetadata(upAxis: nil, rootTransform: nil)
     }
 }
 
 func parseUsdMetadataValue(named key: String, in text: String) -> String? {
-    let pattern = #"(?m)\b\#(key)\s*=\s*"([^"]+)""#
-    let resolvedPattern = pattern.replacingOccurrences(of: "#(key)", with: NSRegularExpression.escapedPattern(for: key))
-    guard let regex = try? NSRegularExpression(pattern: resolvedPattern) else {
+    let escapedKey = NSRegularExpression.escapedPattern(for: key)
+    let pattern = #"(?m)\b\#(escapedKey)\s*=\s*"([^"]+)""#
+    guard let regex = try? NSRegularExpression(pattern: pattern) else {
         return nil
     }
     let nsText = text as NSString
@@ -1159,6 +1175,60 @@ func parseUsdMetadataValue(named key: String, in text: String) -> String? {
         return nil
     }
     return nsText.substring(with: match.range(at: 1))
+}
+
+func parseUsdRootTransform(in text: String) -> GltfNodeTransform? {
+    let headerText: String
+    if let meshRange = text.range(of: "\ndef Mesh") {
+        headerText = String(text[..<meshRange.lowerBound])
+    } else {
+        headerText = text
+    }
+
+    let translation = parseUsdFloat3(named: "xformOp:translate", in: headerText) ?? SIMD3<Double>(0, 0, 0)
+    let scale = parseUsdFloat3(named: "xformOp:scale", in: headerText) ?? SIMD3<Double>(1, 1, 1)
+    let rotationDegrees = parseUsdFloat3(named: "xformOp:rotateXYZ", in: headerText)
+    let rotationRadians = rotationDegrees.map {
+        SCNVector3(
+            Float($0.x * Double.pi / 180.0),
+            Float($0.y * Double.pi / 180.0),
+            Float($0.z * Double.pi / 180.0)
+        )
+    } ?? SCNVector3Zero
+
+    let transform = GltfNodeTransform(
+        translation: translation,
+        rotationQuaternion: {
+            let quaternion = quaternionFromEuler(rotationRadians)
+            return SIMD4<Double>(
+                Double(quaternion.vector.x),
+                Double(quaternion.vector.y),
+                Double(quaternion.vector.z),
+                Double(quaternion.vector.w)
+            )
+        }(),
+        scale: scale,
+        description: "USD root xform translation=\(describeVector(translation)) rotationDegrees=\(describeVector(rotationDegrees ?? SIMD3<Double>(0, 0, 0))) scale=\(describeVector(scale))"
+    )
+    return isIdentityTransform(transform) ? nil : transform
+}
+
+func parseUsdFloat3(named key: String, in text: String) -> SIMD3<Double>? {
+    let escapedKey = NSRegularExpression.escapedPattern(for: key)
+    let pattern = #"(?m)\b\#(escapedKey)\s*=\s*\(([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\s*,\s*([-+0-9.eE]+)\)"#
+    guard let regex = try? NSRegularExpression(pattern: pattern) else {
+        return nil
+    }
+    let nsText = text as NSString
+    guard let match = regex.firstMatch(in: text, range: NSRange(location: 0, length: nsText.length)),
+          match.numberOfRanges == 4,
+          let x = Double(nsText.substring(with: match.range(at: 1))),
+          let y = Double(nsText.substring(with: match.range(at: 2))),
+          let z = Double(nsText.substring(with: match.range(at: 3)))
+    else {
+        return nil
+    }
+    return SIMD3<Double>(x, y, z)
 }
 
 func gltfTransformForUsdUpAxis(_ upAxis: String?) -> GltfNodeTransform? {

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Zipper: builds the restaurant folder structure and creates a zip archive.
 
@@ -19,6 +21,7 @@ from typing import Optional
 import boto3
 
 from importer.utils import slugify
+from storage_keys import import_result_zip_key
 
 
 def create_zip(
@@ -48,6 +51,8 @@ def store_zip(
     zip_data: bytes,
     job_id: str,
     restaurant_name: str,
+    *,
+    org_id: str | None = None,
 ) -> str:
     """Store the zip archive and return a storage key/path.
 
@@ -58,9 +63,9 @@ def store_zip(
     filename = f"{slug}.zip"
 
     if _use_s3():
-        return _store_to_s3(zip_data, job_id, filename)
+        return _store_to_s3(zip_data, job_id, filename, org_id=org_id)
     else:
-        return _store_locally(zip_data, job_id, filename)
+        return _store_locally(zip_data, job_id, filename, org_id=org_id)
 
 
 def get_zip_data(storage_key: str) -> Optional[bytes]:
@@ -79,10 +84,10 @@ def _use_s3() -> bool:
     return bool(os.getenv("S3_BUCKET_NAME")) and os.getenv("LOCAL_UPLOADS") != "1"
 
 
-def _store_to_s3(data: bytes, job_id: str, filename: str) -> str:
+def _store_to_s3(data: bytes, job_id: str, filename: str, *, org_id: str | None = None) -> str:
     """Upload zip to S3 and return the key."""
     bucket = os.getenv("S3_BUCKET_NAME")
-    key = f"menu-importer/{job_id}/{filename}"
+    key = import_result_zip_key(job_id, filename, org_id=org_id)
 
     s3 = boto3.client(
         "s3",
@@ -116,9 +121,12 @@ def _get_from_s3(key: str) -> Optional[bytes]:
         return None
 
 
-def _store_locally(data: bytes, job_id: str, filename: str) -> str:
+def _store_locally(data: bytes, job_id: str, filename: str, *, org_id: str | None = None) -> str:
     """Store zip to local filesystem and return the path."""
-    base_dir = Path("/tmp/menu-importer") / job_id
+    if org_id:
+        base_dir = Path("/tmp/menu-importer") / "orgs" / org_id / "imports" / job_id / "output"
+    else:
+        base_dir = Path("/tmp/menu-importer") / "imports" / job_id / "output"
     base_dir.mkdir(parents=True, exist_ok=True)
     filepath = base_dir / filename
     filepath.write_bytes(data)

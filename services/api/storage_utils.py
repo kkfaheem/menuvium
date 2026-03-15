@@ -102,6 +102,37 @@ def store_file_from_path(
     return build_public_url(key, base_url=base_url)
 
 
+def store_bytes(
+    *,
+    data: bytes,
+    key: str,
+    content_type: str | None = None,
+    base_url: str | None = None,
+    cache_control: str | None = None,
+) -> str:
+    bucket_name = os.getenv("S3_BUCKET_NAME")
+    if bucket_name:
+        extra_args: dict[str, str] = {}
+        if content_type:
+            extra_args["ContentType"] = content_type
+        if cache_control:
+            extra_args["CacheControl"] = cache_control
+        boto3.client("s3").put_object(
+            Bucket=bucket_name,
+            Key=key,
+            Body=data,
+            **extra_args,
+        )
+        return build_public_url(key)
+
+    if not local_uploads_enabled():
+        raise RuntimeError("Storage not configured")
+    target = safe_local_path(key)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    return build_public_url(key, base_url=base_url)
+
+
 def materialize_storage_key_to_path(*, key: str, destination: Path) -> Path:
     bucket_name = os.getenv("S3_BUCKET_NAME")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -114,6 +145,28 @@ def materialize_storage_key_to_path(*, key: str, destination: Path) -> Path:
     source = safe_local_path(key)
     shutil.copy2(source, destination)
     return destination
+
+
+def copy_storage_key(*, source_key: str, destination_key: str, content_type: str | None = None) -> str:
+    if source_key == destination_key:
+        return build_public_url(destination_key)
+
+    bucket_name = os.getenv("S3_BUCKET_NAME")
+    if bucket_name:
+        params = {"Bucket": bucket_name, "Key": destination_key, "CopySource": {"Bucket": bucket_name, "Key": source_key}}
+        if content_type:
+            params["ContentType"] = content_type
+            params["MetadataDirective"] = "REPLACE"
+        boto3.client("s3").copy_object(**params)
+        return build_public_url(destination_key)
+
+    if not local_uploads_enabled():
+        raise RuntimeError("Storage not configured")
+    source = safe_local_path(source_key)
+    target = safe_local_path(destination_key)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+    return build_public_url(destination_key)
 
 
 def delete_storage_key_best_effort(s3_key: Optional[str]) -> None:

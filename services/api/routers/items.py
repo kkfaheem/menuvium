@@ -1,7 +1,5 @@
 import uuid
 import os
-import boto3
-from botocore.exceptions import ClientError
 from datetime import datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -43,7 +41,16 @@ from pathlib import Path
 from permissions import get_org_permissions
 from url_utils import forwarded_prefix
 from sqlalchemy.orm import selectinload
-from url_utils import normalize_upload_url
+from url_utils import append_version_query, normalize_upload_url
+from storage_keys import (
+    extension_for_filename,
+    item_ar_capture_key,
+    item_photo_original_key,
+    misc_upload_key,
+    menu_branding_banner_key,
+    menu_branding_logo_key,
+    menu_branding_title_logo_key,
+)
 from storage_utils import (
     create_upload_target,
     delete_storage_key_best_effort as storage_delete_storage_key_best_effort,
@@ -61,8 +68,12 @@ ALLOWED_DISPLAY_STYLES = {"chips", "list", "cards"}
 ALLOWED_VISIBILITY_KINDS = {"include", "exclude"}
 
 class PresignedUrlRequest(BaseModel):
-    filename: str
-    content_type: str
+    filename: Optional[str] = None
+    content_type: Optional[str] = None
+    file_type: Optional[str] = None
+    item_id: Optional[uuid.UUID] = None
+    menu_id: Optional[uuid.UUID] = None
+    asset_kind: Optional[str] = None
 
 class PresignedUrlResponse(BaseModel):
     upload_url: str
@@ -132,26 +143,57 @@ def _delete_storage_key_best_effort(s3_key: Optional[str]) -> None:
     storage_delete_storage_key_best_effort(s3_key)
 
 def _item_org_permissions(session: Session, item: Item, user: dict):
+    menu = _item_menu(session, item)
+    perms = get_org_permissions(session, menu.org_id, user)
+    return perms
+
+
+def _item_menu(session: Session, item: Item) -> Menu:
     category = session.get(Category, item.category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found")
     menu = session.get(Menu, category.menu_id)
     if not menu:
         raise HTTPException(status_code=404, detail="Menu not found")
-    perms = get_org_permissions(session, menu.org_id, user)
-    return perms
+    return menu
+
+
+def _normalize_upload_request(req: PresignedUrlRequest) -> tuple[str, str]:
+    content_type = (req.content_type or req.file_type or "").strip() or "application/octet-stream"
+    filename = (req.filename or "").strip()
+    if filename:
+        return filename, content_type
+    ext = extension_for_filename("", content_type=content_type)
+    default_name = "upload"
+    if content_type.startswith("image/"):
+        default_name = "image"
+    elif content_type.startswith("video/"):
+        default_name = "video"
+    return f"{default_name}{ext}", content_type
 
 
 def _normalize_item_media_urls(item: Item, request: Request) -> None:
+    version = (
+        str(int(item.ar_updated_at.timestamp()))
+        if item.ar_updated_at and item.ar_status in {"processing", "ready", "failed"}
+        else None
+    )
+
+    def _versioned_ar_url(url: Optional[str]) -> Optional[str]:
+        normalized = normalize_upload_url(url, request)
+        if normalized and "/ar/current/" in normalized:
+            return append_version_query(normalized, version)
+        return normalized
+
     for photo in item.photos or []:
         photo.url = normalize_upload_url(photo.url, request)
     for group in item.option_groups or []:
         for option in group.options or []:
             option.image_url = normalize_upload_url(option.image_url, request)
     item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
-    item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
-    item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
-    item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+    item.ar_model_glb_url = _versioned_ar_url(item.ar_model_glb_url)
+    item.ar_model_usdz_url = _versioned_ar_url(item.ar_model_usdz_url)
+    item.ar_model_poster_url = _versioned_ar_url(item.ar_model_poster_url)
 
 
 def _validate_visibility_rules(rules: list, *, context: str) -> None:
@@ -423,41 +465,71 @@ def get_item(item_id: uuid.UUID, request: Request, session: Session = SessionDep
     return ItemRead.model_validate(item)
 
 @router.post("/upload-url", response_model=PresignedUrlResponse)
-def generate_upload_url(req: PresignedUrlRequest, request: Request, user: dict = UserDep):
-    bucket_name = os.getenv("S3_BUCKET_NAME")
-    if not bucket_name:
-        if _local_uploads_enabled():
-            key = f"items/{uuid.uuid4()}-{os.path.basename(req.filename)}"
-            prefix = forwarded_prefix(request)
-            base = prefix or ""
-            return {
-                "upload_url": f"{base}/items/local-upload/{key}",
-                "s3_key": key,
-                "public_url": f"{base}/uploads/{key}",
-            }
-        raise HTTPException(status_code=500, detail="S3 configuration missing")
+def generate_upload_url(
+    req: PresignedUrlRequest,
+    request: Request,
+    session: Session = SessionDep,
+    user: dict = UserDep,
+):
+    filename, content_type = _normalize_upload_request(req)
+    normalized_filename = os.path.basename(filename)
 
-    s3_client = boto3.client('s3')
-    
-    # Generate unique key: org_id/items/uuid-filename ?? 
-    # specific structure: items/{uuid}-{filename}
-    key = f"items/{uuid.uuid4()}-{req.filename}"
-    
-    try:
-        response = s3_client.generate_presigned_url('put_object',
-                                                    Params={'Bucket': bucket_name,
-                                                            'Key': key,
-                                                            'ContentType': req.content_type},
-                                                    ExpiresIn=3600)
-    except ClientError as e:
-        print(e)
-        raise HTTPException(status_code=500, detail="Could not generate upload URL")
+    if req.item_id:
+        item = session.get(Item, req.item_id)
+        if not item:
+            raise HTTPException(status_code=404, detail="Item not found")
+        perms = _item_org_permissions(session, item, user)
+        if not perms.can_edit_items:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        menu = _item_menu(session, item)
+        key = item_photo_original_key(
+            menu.org_id,
+            item.id,
+            normalized_filename,
+            content_type=content_type,
+        )
+        return create_upload_target(key=key, content_type=content_type, request=request)
 
-    return {
-        "upload_url": response,
-        "s3_key": key,
-        "public_url": f"https://{bucket_name}.s3.amazonaws.com/{key}"
-    }
+    if req.menu_id:
+        menu = session.get(Menu, req.menu_id)
+        if not menu:
+            raise HTTPException(status_code=404, detail="Menu not found")
+        perms = get_org_permissions(session, menu.org_id, user)
+        if not perms.can_manage_menus:
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+        asset_kind = (req.asset_kind or "").strip().lower()
+        if asset_kind == "menu_banner":
+            key = menu_branding_banner_key(
+                menu.org_id,
+                menu.id,
+                normalized_filename,
+                content_type=content_type,
+            )
+        elif asset_kind == "menu_logo":
+            key = menu_branding_logo_key(
+                menu.org_id,
+                menu.id,
+                normalized_filename,
+                content_type=content_type,
+            )
+        elif asset_kind == "menu_title_logo":
+            key = menu_branding_title_logo_key(
+                menu.org_id,
+                menu.id,
+                normalized_filename,
+                content_type=content_type,
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported menu upload asset kind")
+        return create_upload_target(key=key, content_type=content_type, request=request)
+
+    key = misc_upload_key(
+        normalized_filename,
+        content_type=content_type,
+        asset_id=uuid.uuid4(),
+    )
+    return create_upload_target(key=key, content_type=content_type, request=request)
 
 
 @router.get("/{item_id}/ar/captures", response_model=ItemArCapturesResponse)
@@ -539,8 +611,15 @@ def generate_ar_capture_upload_url(
     if not (req.content_type.startswith("image/") or req.content_type.startswith("video/")):
         raise HTTPException(status_code=400, detail="AR captures must be image/* or video/*")
 
+    menu = _item_menu(session, item)
     filename = os.path.basename(req.filename)
-    key = f"items/ar/{item_id}/capture/{uuid.uuid4()}-{filename}"
+    key = item_ar_capture_key(
+        menu.org_id,
+        item_id,
+        filename,
+        capture_kind="video" if req.content_type.startswith("video/") else "image",
+        content_type=req.content_type,
+    )
     return create_upload_target(key=key, content_type=req.content_type, request=request)
 
 
@@ -701,8 +780,15 @@ def generate_ar_video_upload_url(
     if not req.content_type.startswith("video/"):
         raise HTTPException(status_code=400, detail="Invalid content type; expected video/*")
 
+    menu = _item_menu(session, item)
     filename = os.path.basename(req.filename)
-    key = f"items/ar/{item_id}/video/{uuid.uuid4()}-{filename}"
+    key = item_ar_capture_key(
+        menu.org_id,
+        item_id,
+        filename,
+        capture_kind="video",
+        content_type=req.content_type,
+    )
     return create_upload_target(key=key, content_type=req.content_type, request=request)
 
 

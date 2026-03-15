@@ -946,7 +946,7 @@ export default function MenuDetailPage() {
     }
   };
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = async (file: File, itemId: string) => {
     const token = await getAuthToken();
 
     // 1. Get Presigned URL
@@ -959,6 +959,7 @@ export default function MenuDetailPage() {
       body: JSON.stringify({
         filename: file.name,
         content_type: file.type,
+        item_id: itemId,
       }),
     });
 
@@ -1538,15 +1539,6 @@ export default function MenuDetailPage() {
     try {
       const token = await getAuthToken();
 
-      // Handle Photo Upload
-      let photoKey = null;
-      let photoUrl = null;
-      if (fileToUpload) {
-        const uploadData = await handleFileUpload(fileToUpload);
-        photoKey = uploadData.s3_key;
-        photoUrl = uploadData.public_url;
-      }
-
       const payload = {
         name: editingItem.name,
         description: editingItem.description,
@@ -1633,8 +1625,8 @@ export default function MenuDetailPage() {
         }
       }
 
-      if (res.ok && itemId && photoKey && photoUrl) {
-        // Link photo
+      if (res.ok && itemId && fileToUpload) {
+        const uploadData = await handleFileUpload(fileToUpload, itemId);
         await fetch(`${apiBase}/items/${itemId}/photos`, {
           method: "POST",
           headers: {
@@ -1642,8 +1634,8 @@ export default function MenuDetailPage() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            s3_key: photoKey,
-            url: photoUrl,
+            s3_key: uploadData.s3_key,
+            url: uploadData.public_url,
           }),
         });
       }

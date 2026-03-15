@@ -503,6 +503,7 @@ class ImportJob(SQLModel, table=True):
     __tablename__ = "importjob"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    org_id: Optional[uuid.UUID] = Field(default=None, foreign_key="organization.id", index=True)
     restaurant_name: str
     location_hint: Optional[str] = None
     website_override: Optional[str] = None
@@ -524,6 +525,7 @@ class ImportJob(SQLModel, table=True):
 
 
 class ImportJobCreate(SQLModel):
+    org_id: Optional[uuid.UUID] = None
     restaurant_name: str
     location_hint: Optional[str] = None
     website_override: Optional[str] = None
@@ -531,6 +533,7 @@ class ImportJobCreate(SQLModel):
 
 class ImportJobRead(SQLModel):
     id: uuid.UUID
+    org_id: Optional[uuid.UUID] = None
     restaurant_name: str
     location_hint: Optional[str] = None
     website_override: Optional[str] = None

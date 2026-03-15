@@ -24,6 +24,7 @@ from kiri_client import KiriApiError
 from kiri_client import KiriSubmittedJob
 from main import app
 from models import ArCaptureAsset, ArConversionJob, Category, Item, Menu, Organization
+from storage_keys import item_ar_run_frames_key
 
 
 @pytest.fixture(name="session")
@@ -98,6 +99,14 @@ def _auth_headers() -> dict[str, str]:
 
 def _worker_headers() -> dict[str, str]:
     return {"X-Worker-Token": "worker-secret"}
+
+
+def _org_id_for_item(session: Session, item: Item) -> uuid.UUID:
+    category = session.get(Category, item.category_id)
+    assert category is not None
+    menu = session.get(Menu, category.menu_id)
+    assert menu is not None
+    return menu.org_id
 
 
 def test_generate_ar_model_queues_kiri_from_images(
@@ -563,8 +572,15 @@ def test_process_pending_video_extracts_frames_and_submits_photo_images_at_max_q
     assert refreshed.ar_metadata_json["serialize"] == "serialize-from-frames"
     assert refreshed.ar_metadata_json["provider_input_kind"] == "images"
     assert refreshed.ar_metadata_json["video_frame_extraction"]["submitted_frame_count"] == 60
+    expected_storage_prefix = item_ar_run_frames_key(
+        _org_id_for_item(session, refreshed),
+        refreshed.id,
+        refreshed.ar_job_id,
+        "frame-0001.jpg",
+        selected=False,
+    ).rsplit("/", 1)[0]
     assert refreshed.ar_metadata_json["video_frame_extraction"]["storage_prefix"].endswith(
-        f"items/ar/{test_item.id}/debug_frames/{refreshed.ar_job_id}"
+        expected_storage_prefix
     )
     assert len(refreshed.ar_metadata_json["video_frame_extraction"]["persisted_frames"]) == 60
     assert list(captured_kwargs["image_paths"]) == extracted_paths

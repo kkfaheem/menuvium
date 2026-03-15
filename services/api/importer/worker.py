@@ -132,6 +132,7 @@ async def _process_job(job_id):
         restaurant_name = job.restaurant_name
         location_hint = job.location_hint
         website_override = job.website_override
+        org_id = str(job.org_id) if job.org_id else None
 
     def log(msg):
         _append_log(job_id, msg)
@@ -333,7 +334,7 @@ async def _process_job(job_id):
         # ---- Step 8: Store zip (96 → 100%) ----
         _log_and_update(job_id, "Storing zip...", 96, "Storing result")
 
-        storage_key = store_zip(zip_data, str(job_id), restaurant_name)
+        storage_key = store_zip(zip_data, str(job_id), restaurant_name, org_id=org_id)
         log(f"Zip stored: {storage_key}")
 
         # ---- Done ----

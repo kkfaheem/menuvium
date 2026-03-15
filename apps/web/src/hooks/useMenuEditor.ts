@@ -259,12 +259,12 @@ export function useMenuEditor({ menuId }: UseMenuEditorOptions): UseMenuEditorRe
     }, [menu, apiBase, fetchMenu]);
 
     // Item mutations
-    const uploadFile = async (file: File): Promise<{ s3_key: string; public_url: string }> => {
+    const uploadFile = async (file: File, itemId: string): Promise<{ s3_key: string; public_url: string }> => {
         const token = await getAuthToken();
         const res = await fetch(`${apiBase}/items/upload-url`, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ filename: file.name, content_type: file.type })
+            body: JSON.stringify({ filename: file.name, content_type: file.type, item_id: itemId })
         });
         if (!res.ok) throw new Error("Failed to get upload URL");
         const { upload_url, s3_key, public_url } = await res.json();
@@ -287,15 +287,6 @@ export function useMenuEditor({ menuId }: UseMenuEditorOptions): UseMenuEditorRe
 
         try {
             const token = await getAuthToken();
-
-            // Handle file upload if provided
-            let photoKey: string | null = null;
-            let photoUrl: string | null = null;
-            if (file) {
-                const uploadData = await uploadFile(file);
-                photoKey = uploadData.s3_key;
-                photoUrl = uploadData.public_url;
-            }
 
             const payload = {
                 name: item.name,
@@ -331,12 +322,13 @@ export function useMenuEditor({ menuId }: UseMenuEditorOptions): UseMenuEditorRe
                 }
             }
 
-            // Link photo if uploaded
-            if (res.ok && itemId && photoKey && photoUrl) {
+            // Upload and link photo after the item exists so storage can be item-scoped.
+            if (res.ok && itemId && file) {
+                const uploadData = await uploadFile(file, itemId);
                 await fetch(`${apiBase}/items/${itemId}/photos`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                    body: JSON.stringify({ s3_key: photoKey, url: photoUrl })
+                    body: JSON.stringify({ s3_key: uploadData.s3_key, url: uploadData.public_url })
                 });
             }
 

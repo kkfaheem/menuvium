@@ -170,8 +170,15 @@ export const itemApi = {
     delete: (id: string) =>
         api.delete<void>(`/items/${id}`),
 
-    /** Get upload URL for item photo */
-    getUploadUrl: (data: { filename: string; content_type: string }) =>
+    /** Get upload URL for item photo or menu branding assets */
+    getUploadUrl: (data: {
+        filename?: string;
+        content_type?: string;
+        file_type?: string;
+        item_id?: string;
+        menu_id?: string;
+        asset_kind?: string;
+    }) =>
         api.post<UploadUrlResponse>("/items/upload-url", data),
 
     /** Upload a file to S3 using presigned URL */
@@ -206,7 +213,8 @@ export const itemApi = {
     uploadPhoto: async (itemId: string, file: File) => {
         const { upload_url, s3_key, public_url } = await itemApi.getUploadUrl({
             filename: file.name,
-            content_type: file.type
+            content_type: file.type,
+            item_id: itemId
         });
         await itemApi.uploadToS3(upload_url, file);
         await itemApi.addPhoto(itemId, { s3_key, url: public_url });
@@ -474,7 +482,7 @@ export const adminApi = {
 
     // Menu Importer
     getImporterJobs: (status?: string) => api.get<AdminJob[]>(`/admin/menu-importer/jobs${status ? `?status=${status}` : ""}`),
-    createImporterJob: (data: { restaurant_name: string; location_hint?: string; website_override?: string }) =>
+    createImporterJob: (data: { restaurant_name: string; location_hint?: string; website_override?: string; org_id?: string }) =>
         api.post<AdminJob>("/admin/menu-importer/jobs", data),
     getImporterJobDetails: (id: string) => api.get<any>(`/admin/menu-importer/jobs/${id}`),
     importProcessedMenu: (jobId: string, data: { org_id: string }) =>

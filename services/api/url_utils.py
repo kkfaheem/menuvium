@@ -1,6 +1,6 @@
 from fastapi import Request
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 
 def external_base_url(request: Request, default_prefix: str = "") -> str:
@@ -43,3 +43,13 @@ def normalize_upload_url(url: Optional[str], request: Request, default_prefix: s
     key = path.split("/uploads/", 1)[1].lstrip("/")
     prefix = forwarded_prefix(request, default_prefix=default_prefix)
     return f"{prefix}/uploads/{key}" if prefix else f"/uploads/{key}"
+
+
+def append_version_query(url: Optional[str], version: Optional[str]) -> Optional[str]:
+    if not url or not version:
+        return url
+
+    parsed = urlparse(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query["v"] = version
+    return urlunparse(parsed._replace(query=urlencode(query)))

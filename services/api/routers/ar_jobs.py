@@ -1,3 +1,4 @@
+import json
 import os
 import uuid
 from datetime import datetime
@@ -27,8 +28,16 @@ from ar_pipeline import (
 )
 from ar_worker import handle_kiri_status_update
 from database import get_session
-from models import ArConversionJob, Item, ItemRead
-from storage_utils import create_upload_target, local_uploads_enabled
+from models import ArConversionJob, Category, Item, ItemRead, Menu
+from storage_keys import (
+    item_ar_current_glb_key,
+    item_ar_current_poster_key,
+    item_ar_current_usdz_key,
+    item_ar_run_derived_android_glb_key,
+    item_ar_run_frames_key,
+    item_ar_run_provider_submit_response_key,
+)
+from storage_utils import copy_storage_key, create_upload_target, local_uploads_enabled, store_bytes
 from url_utils import external_base_url, normalize_upload_url
 from sqlalchemy.orm import selectinload
 
@@ -100,15 +109,30 @@ class PresignedUrlResponse(BaseModel):
 
 class WorkerUploadUrlRequest(BaseModel):
     item_id: uuid.UUID
+    job_id: Optional[uuid.UUID] = None
     kind: Literal["model_glb", "model_usdz", "poster"]
     filename: str
     content_type: str
 
 
 @router.post("/upload-url", response_model=PresignedUrlResponse, dependencies=[Depends(_require_worker_token)])
-def generate_worker_upload_url(payload: WorkerUploadUrlRequest, request: Request):
+def generate_worker_upload_url(payload: WorkerUploadUrlRequest, request: Request, session: Session = SessionDep):
+    item = session.get(Item, payload.item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    org_id = _item_org_id(session, item)
     filename = os.path.basename(payload.filename)
-    key = f"items/ar/{payload.item_id}/{payload.kind}/{uuid.uuid4()}-{filename}"
+    if payload.kind == "model_glb":
+        key = item_ar_current_glb_key(org_id, item.id)
+    elif payload.kind == "model_usdz":
+        key = item_ar_current_usdz_key(org_id, item.id)
+    else:
+        key = item_ar_current_poster_key(
+            org_id,
+            item.id,
+            filename,
+            content_type=payload.content_type,
+        )
     return create_upload_target(key=key, content_type=payload.content_type, request=request)
 
 
@@ -156,6 +180,7 @@ class DebugFrameUploadUrlRead(PresignedUrlResponse):
 class GenerationDebugFrameUploadUrlsRequest(BaseModel):
     filenames: list[str]
     run_id: Optional[str] = None
+    selection: Literal["all", "selected"] = "all"
 
 
 class GenerationDebugFrameUploadUrlsResponse(BaseModel):
@@ -204,6 +229,16 @@ def _find_active_generation_item(session: Session, job_id: uuid.UUID) -> Item:
     if not item or item.ar_provider != AR_PROVIDER_KIRI:
         raise HTTPException(status_code=404, detail="AR generation job not found")
     return item
+
+
+def _item_org_id(session: Session, item: Item):
+    category = session.get(Category, item.category_id)
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    menu = session.get(Menu, category.menu_id)
+    if not menu:
+        raise HTTPException(status_code=404, detail="Menu not found")
+    return menu.org_id
 
 
 @router.post("/conversions/claim", response_model=ConversionClaimResponse, dependencies=[Depends(_require_worker_token)])
@@ -353,13 +388,27 @@ def generate_debug_frame_upload_urls(
     if not run_id:
         raise HTTPException(status_code=400, detail="A valid run_id is required")
 
-    storage_prefix = f"items/ar/{item.id}/debug_frames/{run_id}"
+    org_id = _item_org_id(session, item)
+    sample_prefix = item_ar_run_frames_key(
+        org_id,
+        item.id,
+        run_id,
+        "frame-0001.jpg",
+        selected=payload.selection == "selected",
+    )
+    storage_prefix = sample_prefix.rsplit("/", 1)[0]
     uploads: list[DebugFrameUploadUrlRead] = []
     for filename in payload.filenames:
         normalized = os.path.basename(filename)
         if not normalized:
             raise HTTPException(status_code=400, detail="Invalid debug frame filename")
-        key = f"{storage_prefix}/{normalized}"
+        key = item_ar_run_frames_key(
+            org_id,
+            item.id,
+            run_id,
+            normalized,
+            selected=payload.selection == "selected",
+        )
         target = create_upload_target(
             key=key,
             content_type="image/jpeg",
@@ -389,6 +438,29 @@ def mark_generation_submitted(
     item = _find_active_generation_item(session, job_id)
     if item.ar_status != "processing" or item.ar_stage == AR_STAGE_CANCELED:
         raise HTTPException(status_code=409, detail="AR generation job is not active")
+    org_id = _item_org_id(session, item)
+    run_id = str(item.ar_job_id or item.id)
+    submit_response_key: Optional[str] = item_ar_run_provider_submit_response_key(org_id, item.id, run_id)
+    try:
+        store_bytes(
+            data=json.dumps(
+                {
+                    "serialize": payload.serialize,
+                    "provider_calculate_type": payload.provider_calculate_type,
+                    "provider_input_kind": payload.provider_input_kind or "images",
+                    "video_frame_extraction": payload.video_frame_extraction,
+                    "submitted_at": datetime.utcnow().isoformat(),
+                },
+                sort_keys=True,
+            ).encode("utf-8"),
+            key=submit_response_key,
+            content_type="application/json",
+        )
+    except RuntimeError as exc:
+        # Keep the generation pipeline running even when optional audit storage
+        # is unavailable in local/test environments.
+        print(f"[ar-jobs] Skipping provider submit-response storage: {exc}")
+        submit_response_key = None
 
     item.ar_stage = AR_STAGE_KIRI_PROCESSING
     item.ar_stage_detail = "Processing the 3D model"
@@ -401,6 +473,7 @@ def mark_generation_submitted(
         provider_calculate_type=payload.provider_calculate_type,
         provider_message="submitted",
         provider_input_kind=payload.provider_input_kind or "images",
+        provider_submit_response_s3_key=submit_response_key,
         video_frame_extraction=payload.video_frame_extraction,
     )
     session.add(item)
@@ -487,10 +560,17 @@ def complete_conversion(
     item = session.get(Item, job.item_id)
     if not item or item.ar_status != "processing":
         raise HTTPException(status_code=409, detail="Item is not active for conversion")
+    org_id = _item_org_id(session, item)
+    derived_glb_key = item_ar_run_derived_android_glb_key(org_id, item.id, job.id)
+    derived_glb_url = copy_storage_key(
+        source_key=payload.glb_s3_key,
+        destination_key=derived_glb_key,
+        content_type="model/gltf-binary",
+    )
 
     job.status = CONVERSION_STATUS_READY
-    job.glb_s3_key = payload.glb_s3_key
-    job.glb_url = payload.glb_url
+    job.glb_s3_key = derived_glb_key
+    job.glb_url = derived_glb_url
     job.updated_at = datetime.utcnow()
 
     if payload.usdz_s3_key:

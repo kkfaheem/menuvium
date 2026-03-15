@@ -151,6 +151,8 @@ def queue_kiri_generation(
         provider_input_kind=None,
         provider_usdz_s3_key=None,
         provider_usdz_url=None,
+        provider_model_zip_s3_key=None,
+        provider_submit_response_s3_key=None,
         conversion_job_id=None,
         conversion_status=None,
         capture_input_kind=None,

@@ -51,7 +51,13 @@ async def create_job(
     user: dict = AdminDep,
 ):
     """Create a new menu import job. It will be picked up by the background worker."""
+    org_id = payload.org_id
+    if org_id:
+        org = session.get(Organization, org_id)
+        if not org:
+            raise HTTPException(status_code=404, detail="Company not found")
     job = ImportJob(
+        org_id=org_id,
         restaurant_name=payload.restaurant_name.strip(),
         location_hint=payload.location_hint.strip() if payload.location_hint else None,
         website_override=payload.website_override.strip() if payload.website_override else None,
@@ -235,6 +241,8 @@ async def import_processed_job(
         logs = json.loads(job.logs or "[]")
     except (json.JSONDecodeError, TypeError):
         logs = []
+    if job.org_id is None:
+        job.org_id = org.id
     logs.append({
         "time": datetime.utcnow().isoformat(),
         "message": f"Imported to company '{org.name}' as menu '{menu.name}' ({menu.id})",

@@ -282,6 +282,8 @@ export default function MenuThemesPage() {
         body: JSON.stringify({
           filename: file.name,
           content_type: file.type || "image/jpeg",
+          menu_id: menu.id,
+          asset_kind: "menu_banner",
         }),
       });
       if (!uploadRes.ok) {
@@ -400,6 +402,8 @@ export default function MenuThemesPage() {
         body: JSON.stringify({
           filename: file.name,
           content_type: file.type || "image/png",
+          menu_id: menu.id,
+          asset_kind: "menu_title_logo",
         }),
       });
       if (!uploadRes.ok) throw new Error("Failed to get upload url");

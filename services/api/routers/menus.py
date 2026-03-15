@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Query, R
 from pydantic import BaseModel
 from sqlmodel import Session, select, delete
 from sqlalchemy.orm import selectinload
-import boto3
 from PIL import Image, ImageOps, ImageDraw
 from zoneinfo import ZoneInfo
 from database import get_session
@@ -30,7 +29,9 @@ from models import (
 )
 from dependencies import get_current_user
 from permissions import get_org_permissions
-from url_utils import normalize_upload_url, forwarded_prefix
+from storage_keys import menu_qr_current_key, menu_qr_version_key
+from storage_utils import store_bytes
+from url_utils import append_version_query, normalize_upload_url, forwarded_prefix
 
 router = APIRouter(prefix="/menus", tags=["menus"])
 SessionDep = Depends(get_session)
@@ -394,29 +395,27 @@ def _render_logo_qr_png(menu: Menu, public_url: str, size_px: int = 1000) -> byt
     return _compose_logo_qr_png(qr_png, logo_data_url, style)
 
 
-def _store_generated_qr(png_bytes: bytes, request: Request, key_prefix: str = "menus/qr") -> str:
-    key = f"{key_prefix}/{uuid.uuid4()}-logo-qr.png"
-    bucket_name = os.getenv("S3_BUCKET_NAME")
+def _store_generated_qr(menu: Menu, png_bytes: bytes, request: Request, *, size_px: int = 1000) -> str:
+    render_id = uuid.uuid4()
+    base_url = forwarded_prefix(request) or None
+    version_key = menu_qr_version_key(menu.org_id, menu.id, render_id, size_px=size_px)
+    current_key = menu_qr_current_key(menu.org_id, menu.id, size_px=size_px)
 
-    if bucket_name:
-        s3 = boto3.client("s3")
-        s3.put_object(
-            Bucket=bucket_name,
-            Key=key,
-            Body=png_bytes,
-            ContentType="image/png",
-            CacheControl="public, max-age=31536000, immutable",
-        )
-        return f"https://{bucket_name}.s3.amazonaws.com/{key}"
-
-    if _local_uploads_enabled():
-        target = _safe_local_upload_path(key)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(png_bytes)
-        prefix = forwarded_prefix(request)
-        return f"{prefix}/uploads/{key}" if prefix else f"/uploads/{key}"
-
-    raise HTTPException(status_code=500, detail="No storage configured for QR generation")
+    version_url = store_bytes(
+        data=png_bytes,
+        key=version_key,
+        content_type="image/png",
+        base_url=base_url,
+        cache_control="public, max-age=31536000, immutable",
+    )
+    store_bytes(
+        data=png_bytes,
+        key=current_key,
+        content_type="image/png",
+        base_url=base_url,
+        cache_control="no-store",
+    )
+    return version_url
 
 @router.post("/", response_model=Menu)
 def create_menu(menu: Menu, session: Session = SessionDep, user: dict = UserDep):
@@ -612,7 +611,7 @@ def generate_logo_qr(
         style = _analyze_logo_qr_style(logo_data_url)
         qr_png = _fetch_qr_png(public_url)
         branded_qr_png = _compose_logo_qr_png(qr_png, logo_data_url, style)
-        stored_url = _store_generated_qr(branded_qr_png, request)
+        stored_url = _store_generated_qr(menu, branded_qr_png, request)
 
         menu.logo_qr_url = stored_url
         menu.logo_qr_generated_at = datetime.utcnow()
@@ -847,12 +846,24 @@ def get_public_menu(menu_id: uuid.UUID, request: Request, session: Session = Ses
                 visible_groups.append(group)
             item.option_groups = visible_groups
             item.visibility_rules = []
+            version = (
+                str(int(item.ar_updated_at.timestamp()))
+                if item.ar_updated_at and item.ar_status in {"processing", "ready", "failed"}
+                else None
+            )
+
+            def _versioned_ar_url(url: Optional[str]) -> Optional[str]:
+                normalized = normalize_upload_url(url, request)
+                if normalized and "/ar/current/" in normalized:
+                    return append_version_query(normalized, version)
+                return normalized
+
             for photo in item.photos or []:
                 photo.url = normalize_upload_url(photo.url, request)
             item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
-            item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
-            item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
-            item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
+            item.ar_model_glb_url = _versioned_ar_url(item.ar_model_glb_url)
+            item.ar_model_usdz_url = _versioned_ar_url(item.ar_model_usdz_url)
+            item.ar_model_poster_url = _versioned_ar_url(item.ar_model_poster_url)
             visible_items.append(item)
         cat.items = visible_items
     menu.categories = categories

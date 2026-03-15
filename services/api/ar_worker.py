@@ -39,8 +39,15 @@ from ar_pipeline import (
 )
 from database import get_engine
 from kiri_client import KiriApiError, KiriClient
-from models import Item
-from storage_utils import materialize_storage_key_to_path, store_file_from_path
+from models import Category, Item, Menu
+from storage_keys import (
+    item_ar_current_usdz_key,
+    item_ar_run_frames_key,
+    item_ar_run_provider_model_zip_key,
+    item_ar_run_provider_original_usdz_key,
+    item_ar_run_source_video_key,
+)
+from storage_utils import copy_storage_key, materialize_storage_key_to_path, store_file_from_path
 from video_frame_extractor import extract_video_frames_to_images
 
 
@@ -129,15 +136,21 @@ def _photo_scan_submission_options() -> dict[str, int]:
 
 def _persist_extracted_frames(
     *,
+    org_id,
     item_id,
     run_id: str,
     frame_paths: list[Path],
 ) -> dict[str, object]:
-    storage_prefix = f"items/ar/{item_id}/debug_frames/{run_id}"
+    storage_prefix = f"orgs/{org_id}/items/{item_id}/ar/runs/{run_id}/input/frames_all"
     persisted_frames: list[dict[str, object]] = []
     for index, frame_path in enumerate(frame_paths, start=1):
-        suffix = frame_path.suffix or ".jpg"
-        key = f"{storage_prefix}/frame-{index:04d}{suffix}"
+        key = item_ar_run_frames_key(
+            org_id,
+            item_id,
+            run_id,
+            f"frame-{index:04d}{frame_path.suffix or '.jpg'}",
+            selected=False,
+        )
         url = store_file_from_path(
             source_path=frame_path,
             key=key,
@@ -155,6 +168,16 @@ def _persist_extracted_frames(
         "storage_prefix": storage_prefix,
         "persisted_frames": persisted_frames,
     }
+
+
+def _item_org_id(session: Session, item: Item):
+    category = session.get(Category, item.category_id)
+    if not category:
+        raise RuntimeError(f"Category not found for item {item.id}")
+    menu = session.get(Menu, category.menu_id)
+    if not menu:
+        raise RuntimeError(f"Menu not found for item {item.id}")
+    return menu.org_id
 
 
 def _submit_next_pending_job() -> bool:
@@ -227,6 +250,7 @@ def _process_pending_item(item_id) -> None:
             return
         if item.ar_provider != AR_PROVIDER_KIRI or item.ar_status != "processing":
             return
+        org_id = _item_org_id(session, item)
         job_run_id = str(item.ar_job_id or uuid.uuid4())
 
         captures = list(item.ar_capture_assets or [])
@@ -267,6 +291,16 @@ def _process_pending_item(item_id) -> None:
 
             submission_paths = materialized_paths
             if capture_input_kind == "video":
+                store_file_from_path(
+                    source_path=materialized_paths[0],
+                    key=item_ar_run_source_video_key(
+                        org_id,
+                        item_id,
+                        job_run_id,
+                        materialized_paths[0].name,
+                    ),
+                    content_type="video/mp4",
+                )
                 extracted = extract_video_frames_to_images(
                     video_path=materialized_paths[0],
                     output_dir=temp_path / "extracted-frames",
@@ -283,6 +317,7 @@ def _process_pending_item(item_id) -> None:
                 }
                 frame_extraction_metadata.update(
                     _persist_extracted_frames(
+                        org_id=org_id,
                         item_id=item_id,
                         run_id=job_run_id,
                         frame_paths=extracted.frame_paths,
@@ -471,6 +506,8 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
         item = session.get(Item, item_id)
         if not item or not is_item_ar_active(item):
             return
+        org_id = _item_org_id(session, item)
+        run_id = str(item.ar_job_id or item.id)
         item.ar_stage = AR_STAGE_DOWNLOADING_USDZ
         item.ar_stage_detail = f"Downloading the generated model ({source})"
         item.ar_progress = max(float(item.ar_progress or 0.0), 0.72)
@@ -513,18 +550,36 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
             with zipfile.ZipFile(zip_path) as archive:
                 archive.extractall(extract_dir)
 
+            zip_storage_key = item_ar_run_provider_model_zip_key(org_id, item_id, run_id, zip_path.name)
+            store_file_from_path(
+                source_path=zip_path,
+                key=zip_storage_key,
+                content_type="application/zip",
+            )
+
             usdz_candidates = sorted(extract_dir.rglob("*.usdz"))
             if not usdz_candidates:
                 raise RuntimeError("The model provider returned a model zip without a USDZ file")
 
             usdz_path = usdz_candidates[0]
-            usdz_key = f"items/ar/{item_id}/model_usdz/{uuid.uuid4()}-{usdz_path.name}"
-            usdz_url = store_file_from_path(
+            provider_usdz_key = item_ar_run_provider_original_usdz_key(
+                org_id,
+                item_id,
+                run_id,
+                "original.usdz",
+            )
+            provider_usdz_url = store_file_from_path(
                 source_path=usdz_path,
-                key=usdz_key,
+                key=provider_usdz_key,
                 content_type="model/vnd.usdz+zip",
             )
-            _log(f"Stored USDZ for item {item_id} at {usdz_key}")
+            current_usdz_key = item_ar_current_usdz_key(org_id, item_id)
+            current_usdz_url = copy_storage_key(
+                source_key=provider_usdz_key,
+                destination_key=current_usdz_key,
+                content_type="model/vnd.usdz+zip",
+            )
+            _log(f"Stored provider USDZ for item {item_id} at {provider_usdz_key} and refreshed {current_usdz_key}")
     except Exception as exc:
         with Session(engine) as session:
             item = session.get(Item, item_id)
@@ -545,8 +600,8 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
         item = session.get(Item, item_id)
         if not item or not is_item_ar_active(item):
             return
-        item.ar_model_usdz_s3_key = usdz_key
-        item.ar_model_usdz_url = usdz_url
+        item.ar_model_usdz_s3_key = current_usdz_key
+        item.ar_model_usdz_url = current_usdz_url
         item.ar_stage = AR_STAGE_CONVERSION_QUEUED
         item.ar_stage_detail = "USDZ stored; waiting for GLB conversion"
         item.ar_progress = max(float(item.ar_progress or 0.0), 0.8)
@@ -554,11 +609,12 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
         update_item_ar_metadata(
             item,
             provider_message="model downloaded",
-            provider_usdz_s3_key=usdz_key,
-            provider_usdz_url=usdz_url,
+            provider_usdz_s3_key=provider_usdz_key,
+            provider_usdz_url=provider_usdz_url,
+            provider_model_zip_s3_key=zip_storage_key,
         )
         queue_conversion_from_existing_usdz(session=session, item=item, detail="USDZ ready for GLB conversion")
-        _log(f"Queued GLB conversion for item {item_id} using USDZ {usdz_key}")
+        _log(f"Queued GLB conversion for item {item_id} using USDZ {provider_usdz_key}")
         session.commit()
 
 
