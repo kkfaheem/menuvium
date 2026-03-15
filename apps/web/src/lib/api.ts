@@ -365,6 +365,7 @@ export interface AdminOrganization {
 
 export interface AdminJob {
     id: string;
+    org_id?: string | null;
     restaurant_name: string;
     status: string;
     progress: number;
@@ -372,6 +373,10 @@ export interface AdminJob {
     created_at: string;
     started_at?: string;
     finished_at?: string;
+    result_zip_key?: string | null;
+    error_message?: string | null;
+    logs?: string | null;
+    metadata_json?: Record<string, unknown> | null;
 }
 
 export interface ImporterDirectImportResult {

@@ -79,6 +79,24 @@ function formatDateTime(iso: string) {
     });
 }
 
+function getParsedItemCount(job: AdminJob | null | undefined): number | null {
+    if (!job || !job.metadata_json || typeof job.metadata_json !== "object") return null;
+    const rawCount = job.metadata_json.items_count;
+    return typeof rawCount === "number" ? rawCount : null;
+}
+
+function getParsedCategoryCount(job: AdminJob | null | undefined): number | null {
+    if (!job || !job.metadata_json || typeof job.metadata_json !== "object") return null;
+    const rawCount = job.metadata_json.categories_count;
+    return typeof rawCount === "number" ? rawCount : null;
+}
+
+function canCreateMenuFromJob(job: AdminJob | null | undefined): boolean {
+    if (!job || job.status !== "COMPLETED") return false;
+    const itemsCount = getParsedItemCount(job);
+    return itemsCount === null || itemsCount > 0;
+}
+
 // ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
@@ -103,6 +121,19 @@ export default function AdminMenuImporterPage() {
     const [formLocation, setFormLocation] = useState("");
     const [formUrl, setFormUrl] = useState("");
     const [creating, setCreating] = useState(false);
+
+    const openJob = useCallback(async (job: AdminJob) => {
+        setSelectedJob(job);
+        setImportResultNote(null);
+        setSelectedImportOrgId((prev) => job.org_id || prev || companies[0]?.id || "");
+        try {
+            const detailedJob = await adminApi.getImporterJobDetails(job.id);
+            setSelectedJob(detailedJob);
+            setSelectedImportOrgId((prev) => detailedJob.org_id || prev || companies[0]?.id || "");
+        } catch (err) {
+            console.error("Failed to load importer job details", err);
+        }
+    }, [companies]);
 
     // Fetch jobs
     const fetchJobs = useCallback(async () => {
@@ -323,7 +354,7 @@ export default function AdminMenuImporterPage() {
                                                 <tr
                                                     key={job.id}
                                                     className="group hover:bg-panelStrong/20 transition-colors cursor-pointer"
-                                                    onClick={() => setSelectedJob(job)}
+                                                    onClick={() => void openJob(job)}
                                                 >
                                                     <td className="px-6 py-4">
                                                         <div className="flex flex-col">
@@ -345,6 +376,15 @@ export default function AdminMenuImporterPage() {
                                                     </td>
                                                     <td className="px-6 py-4 text-right">
                                                         <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
+                                                            {canCreateMenuFromJob(job) && (
+                                                                <button
+                                                                    onClick={() => void openJob(job)}
+                                                                    className="px-2.5 py-1.5 text-xs font-semibold text-[var(--cms-accent)] hover:bg-[var(--cms-accent)]/10 rounded-lg transition-colors"
+                                                                    title="Create menu from downloaded data"
+                                                                >
+                                                                    Create Menu
+                                                                </button>
+                                                            )}
                                                             {job.status === 'COMPLETED' && (
                                                                 <button
                                                                     onClick={() => adminApi.downloadImporterZip(job.id, job.restaurant_name)}
@@ -409,6 +449,23 @@ export default function AdminMenuImporterPage() {
                                 <ProgressBar value={selectedJob.progress} status={selectedJob.status} />
                             </div>
 
+                            {selectedJob.status === "COMPLETED" && (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="rounded-2xl border border-border bg-panelStrong/20 p-4">
+                                        <div className="text-[10px] font-bold uppercase tracking-wide text-muted">Parsed Categories</div>
+                                        <div className="mt-1 text-lg font-semibold">
+                                            {getParsedCategoryCount(selectedJob) ?? "Unknown"}
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-border bg-panelStrong/20 p-4">
+                                        <div className="text-[10px] font-bold uppercase tracking-wide text-muted">Parsed Items</div>
+                                        <div className="mt-1 text-lg font-semibold">
+                                            {getParsedItemCount(selectedJob) ?? "Unknown"}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             {selectedJob.error_message && (
                                 <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
                                     <div className="flex items-center gap-2 font-bold mb-1">
@@ -436,10 +493,10 @@ export default function AdminMenuImporterPage() {
                                 )}
                             </div>
 
-                            {selectedJob.status === 'COMPLETED' && (
+                            {selectedJob.status === 'COMPLETED' && canCreateMenuFromJob(selectedJob) && (
                                 <div className="space-y-2 rounded-2xl border border-border bg-panelStrong/20 p-4">
                                     <label className="text-[10px] font-bold text-muted uppercase tracking-wide">
-                                        Direct Import to Company
+                                        Create Menu From Downloaded Data
                                     </label>
                                     <div className="flex items-center gap-2">
                                         <select
@@ -461,12 +518,23 @@ export default function AdminMenuImporterPage() {
                                             onClick={handleDirectImport}
                                         >
                                             {importingProcessed ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                                            Import
+                                            Create Menu
                                         </Button>
                                     </div>
+                                    {getParsedItemCount(selectedJob) !== null && (
+                                        <p className="text-xs text-muted">
+                                            This processed result contains {getParsedItemCount(selectedJob)} parsed item{getParsedItemCount(selectedJob) === 1 ? "" : "s"}.
+                                        </p>
+                                    )}
                                     {importResultNote && (
                                         <p className="text-xs text-emerald-400">{importResultNote}</p>
                                     )}
+                                </div>
+                            )}
+
+                            {selectedJob.status === "COMPLETED" && !canCreateMenuFromJob(selectedJob) && (
+                                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-300">
+                                    This result cannot create a menu because no parsed items were found.
                                 </div>
                             )}
 

@@ -211,6 +211,17 @@ async def import_processed_job(
     if job.status != "COMPLETED" or not job.result_zip_key:
         raise HTTPException(status_code=400, detail="Job has no importable processed result")
 
+    items_count: int | None = None
+    if isinstance(job.metadata_json, dict):
+        raw_items_count = job.metadata_json.get("items_count")
+        if isinstance(raw_items_count, (int, float)):
+            items_count = int(raw_items_count)
+    if items_count is not None and items_count < 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Processed result has no parsed items and cannot be used to create a menu",
+        )
+
     org = session.get(Organization, payload.org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Company not found")
