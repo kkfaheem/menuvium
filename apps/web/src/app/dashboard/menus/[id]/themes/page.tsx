@@ -11,6 +11,7 @@ import {
   Download,
   ExternalLink,
   Image,
+  Info,
   Loader2,
   Minus,
   Palette,
