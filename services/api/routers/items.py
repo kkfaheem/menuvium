@@ -11,14 +11,19 @@ from database import get_session
 from ar_pipeline import (
     AR_PROVIDER_KIRI,
     AR_CAPTURE_MODE_PHOTO_SCAN,
+    CONVERSION_STATUS_FAILED,
+    CONVERSION_STATUS_PROCESSING,
+    CONVERSION_STATUS_QUEUED,
     kiri_enabled,
     queue_conversion_from_existing_usdz,
     queue_kiri_generation,
     select_generation_input,
+    update_item_ar_metadata,
     validate_capture_mode,
 )
 from models import (
     ArCaptureAsset,
+    ArConversionJob,
     Item,
     Category,
     Menu,
@@ -802,17 +807,31 @@ def retry_ar_generation(
 def cancel_ar_generation(
     item_id: uuid.UUID, request: Request, session: Session = SessionDep, user: dict = UserDep
 ):
-    item = session.get(Item, item_id)
+    item = _load_item_with_relations(session, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     perms = _item_org_permissions(session, item, user)
     if not perms.can_edit_items:
         raise HTTPException(status_code=403, detail="Not authorized")
-    if item.ar_status not in ("pending", "processing"):
+    active_conversion_jobs = session.exec(
+        select(ArConversionJob).where(
+            ArConversionJob.item_id == item.id,
+            ArConversionJob.status.in_([CONVERSION_STATUS_QUEUED, CONVERSION_STATUS_PROCESSING]),
+        )
+    ).all()
+    is_active_item = item.ar_status in ("pending", "processing")
+    if not is_active_item and not active_conversion_jobs:
         raise HTTPException(
             status_code=400,
             detail=f"Cannot cancel AR job with status '{item.ar_status or 'none'}'.",
         )
+
+    now = datetime.utcnow()
+    for job in active_conversion_jobs:
+        job.status = CONVERSION_STATUS_FAILED
+        job.error_message = "Canceled by user"
+        job.updated_at = now
+        session.add(job)
 
     item.ar_status = "failed"
     item.ar_error_message = "Canceled by user"
@@ -820,18 +839,20 @@ def cancel_ar_generation(
     item.ar_stage_detail = "Canceled by user"
     item.ar_progress = None
     item.ar_job_id = None
-    item.ar_updated_at = datetime.utcnow()
-    update_item_ar_metadata(item, canceled_at=datetime.utcnow().isoformat())
+    item.ar_updated_at = now
+    update_item_ar_metadata(
+        item,
+        canceled_at=now.isoformat(),
+        conversion_status=CONVERSION_STATUS_FAILED if active_conversion_jobs else None,
+    )
 
     session.add(item)
     session.commit()
-    session.refresh(item)
-
-    item.ar_video_url = normalize_upload_url(item.ar_video_url, request)
-    item.ar_model_glb_url = normalize_upload_url(item.ar_model_glb_url, request)
-    item.ar_model_usdz_url = normalize_upload_url(item.ar_model_usdz_url, request)
-    item.ar_model_poster_url = normalize_upload_url(item.ar_model_poster_url, request)
-    return ItemRead.model_validate(item)
+    refreshed_item = _load_item_with_relations(session, item_id)
+    if not refreshed_item:
+        raise HTTPException(status_code=404, detail="Item not found after cancel")
+    _normalize_item_media_urls(refreshed_item, request)
+    return ItemRead.model_validate(refreshed_item)
 
 
 @router.delete("/{item_id}/ar/model", response_model=ItemRead)

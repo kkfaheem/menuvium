@@ -270,6 +270,44 @@ def test_retry_prefers_original_provider_usdz_from_metadata(
     assert metadata["conversion_source_usdz_s3_key"] == f"items/ar/{test_item.id}/model_usdz/original.usdz"
 
 
+def test_cancel_marks_active_conversion_jobs_failed(
+    client: TestClient,
+    session: Session,
+    test_item: Item,
+):
+    test_item.ar_provider = AR_PROVIDER_KIRI
+    test_item.ar_capture_mode = AR_CAPTURE_MODE_PHOTO_SCAN
+    test_item.ar_status = "processing"
+    test_item.ar_stage = "converting_glb"
+    test_item.ar_job_id = uuid.uuid4()
+    session.add(test_item)
+    session.flush()
+
+    conversion_job = ArConversionJob(
+        item_id=test_item.id,
+        status="processing",
+        usdz_s3_key=f"items/ar/{test_item.id}/model_usdz/model.usdz",
+        usdz_url="https://example.com/model.usdz",
+    )
+    session.add(conversion_job)
+    session.commit()
+
+    response = client.post(
+        f"/items/{test_item.id}/ar/cancel",
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["ar_status"] == "failed"
+    assert payload["ar_stage"] == "canceled"
+    assert payload["ar_error_message"] == "Canceled by user"
+
+    session.refresh(conversion_job)
+    assert conversion_job.status == "failed"
+    assert conversion_job.error_message == "Canceled by user"
+
+
 def test_generation_worker_claims_pending_item_and_returns_capture_downloads(
     client: TestClient,
     session: Session,

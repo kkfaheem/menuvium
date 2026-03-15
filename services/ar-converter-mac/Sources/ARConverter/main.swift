@@ -217,7 +217,7 @@ struct OrientationNormalizationResult {
     let usdzUrl: URL
     let updatedUsdzUpload: PresignedUrlResponse?
     let appliedRotationDescription: String?
-    let glbRootTransform: GltfNodeTransform?
+    let glbRootTransforms: [GltfNodeTransform]
 }
 
 struct GltfNodeTransform {
@@ -225,6 +225,10 @@ struct GltfNodeTransform {
     let rotationQuaternion: SIMD4<Double>
     let scale: SIMD3<Double>
     let description: String
+}
+
+struct UsdStageMetadata {
+    let upAxis: String?
 }
 
 enum WorkerError: Error, CustomStringConvertible {
@@ -694,6 +698,7 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
         progress: 0.915,
         config: config
     )
+    logInfo("conversion \(claim.jobId): starting orientation normalization for \(claim.usdzS3Key)")
     let normalized = try await normalizeUsdzOrientationIfNeeded(
         jobId: claim.jobId,
         itemId: claim.itemId,
@@ -718,7 +723,9 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
         config: config
     )
     let modelObj = convertDir.appendingPathComponent("model.obj")
+    logInfo("conversion \(claim.jobId): exporting \(normalized.usdzUrl.lastPathComponent) to OBJ")
     try exportUsdzToObj(usdzUrl: normalized.usdzUrl, objUrl: modelObj)
+    logInfo("conversion \(claim.jobId): exported USDZ to OBJ")
 
     await tryUpdateProgress(
         jobId: claim.jobId,
@@ -727,7 +734,9 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
         progress: 0.95,
         config: config
     )
+    logInfo("conversion \(claim.jobId): extracting textures with usdextract")
     _ = try runProcess("usdextract", args: ["-o", convertDir.path, normalized.usdzUrl.path])
+    logInfo("conversion \(claim.jobId): usdextract completed")
     try prepareMtlForObj2Gltf(mtlUrl: convertDir.appendingPathComponent("model.mtl"))
 
     await tryUpdateProgress(
@@ -738,6 +747,7 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
         config: config
     )
     let modelGlb = tempDir.appendingPathComponent("model.glb")
+    logInfo("conversion \(claim.jobId): running obj2gltf")
     try runProcess(
         "npx",
         args: [
@@ -752,12 +762,15 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
             "--packOcclusion",
         ]
     )
-    if let transform = normalized.glbRootTransform {
+    logInfo("conversion \(claim.jobId): obj2gltf completed")
+    if !normalized.glbRootTransforms.isEmpty {
         let rotatedGlb = tempDir.appendingPathComponent("rotated-model.glb")
-        try applyTransformToGlb(glbUrl: modelGlb, outputUrl: rotatedGlb, transform: transform)
+        logInfo("conversion \(claim.jobId): applying GLB root transform chain")
+        try applyTransformsToGlb(glbUrl: modelGlb, outputUrl: rotatedGlb, transforms: normalized.glbRootTransforms)
         try? FileManager.default.removeItem(at: modelGlb)
         try FileManager.default.moveItem(at: rotatedGlb, to: modelGlb)
-        logInfo("conversion \(claim.jobId): applied provider-preserving root transform to GLB scene root: \(transform.description)")
+        let transformDescriptions = normalized.glbRootTransforms.map(\.description).joined(separator: " | ")
+        logInfo("conversion \(claim.jobId): applied source-preserving GLB root transforms: \(transformDescriptions)")
     }
 
     let upload = try await getUploadUrl(
@@ -789,14 +802,28 @@ func normalizeUsdzOrientationIfNeeded(
     tempDir: URL,
     config: Config
 ) async throws -> OrientationNormalizationResult {
+    logInfo("conversion \(jobId): inspecting USD stage metadata")
+    let stageMetadata = inspectUsdStageMetadata(from: inputUsdz)
+    logInfo("conversion \(jobId): loading USD scene into SceneKit")
     let scene = try SCNScene(url: inputUsdz, options: nil)
+    logInfo("conversion \(jobId): SceneKit loaded USD scene")
+    let upAxisTransform = gltfTransformForUsdUpAxis(stageMetadata.upAxis)
+    var sourceTransforms: [GltfNodeTransform] = []
     if let providerTransform = extractProviderRootTransform(from: scene) {
-        logInfo("conversion \(jobId): preserving provider root transform for GLB output: \(providerTransform.description)")
+        sourceTransforms.append(providerTransform)
+    }
+    if let upAxisTransform {
+        sourceTransforms.append(upAxisTransform)
+    }
+    if !sourceTransforms.isEmpty {
+        let descriptions = sourceTransforms.map(\.description).joined(separator: " | ")
+        let stageDescription = stageMetadata.upAxis.map { "upAxis=\($0)" } ?? "upAxis=unspecified"
+        logInfo("conversion \(jobId): preserving source transforms for GLB output (\(stageDescription)): \(descriptions)")
         return OrientationNormalizationResult(
             usdzUrl: inputUsdz,
             updatedUsdzUpload: nil,
-            appliedRotationDescription: "preserving provider-authored scene transform for derived assets",
-            glbRootTransform: providerTransform
+            appliedRotationDescription: "preserving provider-authored scene orientation for derived assets",
+            glbRootTransforms: sourceTransforms
         )
     }
     if let forcedRotation = forcedOrientationRotation() {
@@ -818,7 +845,7 @@ func normalizeUsdzOrientationIfNeeded(
             usdzUrl: inputUsdz,
             updatedUsdzUpload: nil,
             appliedRotationDescription: "applying forced rotation \(describeRotation(forcedRotation)) to derived assets while keeping the original USDZ",
-            glbRootTransform: forcedTransform
+            glbRootTransforms: [forcedTransform]
         )
     }
     if !autoOrientationEnabled() {
@@ -827,7 +854,7 @@ func normalizeUsdzOrientationIfNeeded(
             usdzUrl: inputUsdz,
             updatedUsdzUpload: nil,
             appliedRotationDescription: nil,
-            glbRootTransform: nil
+            glbRootTransforms: []
         )
     }
     let analysis = analyzeOrientation(scene: scene)
@@ -840,7 +867,7 @@ func normalizeUsdzOrientationIfNeeded(
             usdzUrl: inputUsdz,
             updatedUsdzUpload: nil,
             appliedRotationDescription: nil,
-            glbRootTransform: nil
+            glbRootTransforms: []
         )
     }
     if !rewriteUsdzEnabled() {
@@ -853,7 +880,7 @@ func normalizeUsdzOrientationIfNeeded(
             usdzUrl: inputUsdz,
             updatedUsdzUpload: nil,
             appliedRotationDescription: "\(analysis.description ?? "applied auto-rotation") while keeping the original USDZ",
-            glbRootTransform: heuristicTransform
+            glbRootTransforms: [heuristicTransform]
         )
     }
     return try await writeRotatedUsdz(
@@ -907,7 +934,7 @@ func writeRotatedUsdz(
         usdzUrl: normalizedUsdz,
         updatedUsdzUpload: upload,
         appliedRotationDescription: description,
-        glbRootTransform: gltfTransform(fromEulerRotation: rotation, description: description)
+        glbRootTransforms: [gltfTransform(fromEulerRotation: rotation, description: description)]
     )
 }
 
@@ -1108,6 +1135,50 @@ func extractProviderRootTransform(from scene: SCNScene) -> GltfNodeTransform? {
     return transform
 }
 
+func inspectUsdStageMetadata(from usdzUrl: URL) -> UsdStageMetadata {
+    do {
+        let output = try runProcess("usdcat", args: [usdzUrl.path])
+        let upAxis = parseUsdMetadataValue(named: "upAxis", in: output)
+        return UsdStageMetadata(upAxis: upAxis)
+    } catch {
+        logInfo("provider transform: failed to inspect USD stage metadata via usdcat: \(error)")
+        return UsdStageMetadata(upAxis: nil)
+    }
+}
+
+func parseUsdMetadataValue(named key: String, in text: String) -> String? {
+    let pattern = #"(?m)\b\#(key)\s*=\s*"([^"]+)""#
+    let resolvedPattern = pattern.replacingOccurrences(of: "#(key)", with: NSRegularExpression.escapedPattern(for: key))
+    guard let regex = try? NSRegularExpression(pattern: resolvedPattern) else {
+        return nil
+    }
+    let nsText = text as NSString
+    guard let match = regex.firstMatch(in: text, range: NSRange(location: 0, length: nsText.length)),
+          match.numberOfRanges >= 2
+    else {
+        return nil
+    }
+    return nsText.substring(with: match.range(at: 1))
+}
+
+func gltfTransformForUsdUpAxis(_ upAxis: String?) -> GltfNodeTransform? {
+    guard let normalized = upAxis?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() else {
+        return nil
+    }
+    switch normalized {
+    case "Z":
+        return gltfTransform(
+            fromEulerRotation: SCNVector3(-Float.pi / 2, 0, 0),
+            description: "converted USD stage upAxis Z to glTF Y-up"
+        )
+    case "Y":
+        return nil
+    default:
+        logInfo("provider transform: unsupported USD upAxis '\(normalized)'; skipping up-axis transform preservation")
+        return nil
+    }
+}
+
 func accumulatedWrapperTransform(startingAt node: SCNNode) -> simd_float4x4 {
     var accumulated = matrix_identity_float4x4
     var current: SCNNode? = node
@@ -1227,13 +1298,14 @@ func describeQuaternion(_ quaternion: SIMD4<Float>) -> String {
     "(\(formatNumber(Double(quaternion.x), decimals: 5)), \(formatNumber(Double(quaternion.y), decimals: 5)), \(formatNumber(Double(quaternion.z), decimals: 5)), \(formatNumber(Double(quaternion.w), decimals: 5)))"
 }
 
-func applyTransformToGlb(glbUrl: URL, outputUrl: URL, transform: GltfNodeTransform) throws {
+func applyTransformsToGlb(glbUrl: URL, outputUrl: URL, transforms: [GltfNodeTransform]) throws {
     let tempDir = outputUrl.deletingLastPathComponent().appendingPathComponent("gltf-rotate-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
     defer {
         try? FileManager.default.removeItem(at: tempDir)
     }
     let tempGltfUrl = tempDir.appendingPathComponent("model.gltf")
+    let workingGltfUrl = tempDir.appendingPathComponent("model-working.gltf")
     let scriptUrl = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
@@ -1249,30 +1321,39 @@ func applyTransformToGlb(glbUrl: URL, outputUrl: URL, transform: GltfNodeTransfo
             tempGltfUrl.path,
         ]
     )
-    try runProcess(
-        "node",
-        args: [
-            scriptUrl.path,
-            tempGltfUrl.path,
-            String(format: "%.8f", transform.translation.x),
-            String(format: "%.8f", transform.translation.y),
-            String(format: "%.8f", transform.translation.z),
-            String(format: "%.8f", transform.rotationQuaternion.x),
-            String(format: "%.8f", transform.rotationQuaternion.y),
-            String(format: "%.8f", transform.rotationQuaternion.z),
-            String(format: "%.8f", transform.rotationQuaternion.w),
-            String(format: "%.8f", transform.scale.x),
-            String(format: "%.8f", transform.scale.y),
-            String(format: "%.8f", transform.scale.z),
-        ]
-    )
+    var currentGltfUrl = tempGltfUrl
+    for (index, transform) in transforms.enumerated() {
+        let targetUrl = index == transforms.count - 1 ? currentGltfUrl : workingGltfUrl
+        try runProcess(
+            "node",
+            args: [
+                scriptUrl.path,
+                currentGltfUrl.path,
+                String(format: "%.8f", transform.translation.x),
+                String(format: "%.8f", transform.translation.y),
+                String(format: "%.8f", transform.translation.z),
+                String(format: "%.8f", transform.rotationQuaternion.x),
+                String(format: "%.8f", transform.rotationQuaternion.y),
+                String(format: "%.8f", transform.rotationQuaternion.z),
+                String(format: "%.8f", transform.rotationQuaternion.w),
+                String(format: "%.8f", transform.scale.x),
+                String(format: "%.8f", transform.scale.y),
+                String(format: "%.8f", transform.scale.z),
+            ]
+        )
+        if targetUrl != currentGltfUrl {
+            try? FileManager.default.removeItem(at: currentGltfUrl)
+            try FileManager.default.moveItem(at: currentGltfUrl, to: targetUrl)
+            currentGltfUrl = targetUrl
+        }
+    }
     try runProcess(
         "npx",
         args: [
             "--yes",
             "@gltf-transform/cli",
             "copy",
-            tempGltfUrl.path,
+            currentGltfUrl.path,
             outputUrl.path,
         ]
     )
@@ -2108,15 +2189,41 @@ func runProcess(_ executable: String, args: [String]) throws -> String {
     process.standardOutput = stdout
     process.standardError = stderr
 
-    try process.run()
-    process.waitUntilExit()
+    let waitGroup = DispatchGroup()
+    waitGroup.enter()
+    process.terminationHandler = { _ in
+        waitGroup.leave()
+    }
 
-    let stdoutData = stdout.fileHandleForReading.readDataToEndOfFile()
-    let stderrData = stderr.fileHandleForReading.readDataToEndOfFile()
-    let output = (String(data: stdoutData, encoding: .utf8) ?? "") + (String(data: stderrData, encoding: .utf8) ?? "")
+    try process.run()
+
+    let timeoutSeconds = processTimeoutSeconds()
+    let waitResult = waitGroup.wait(timeout: .now() + timeoutSeconds)
+    if waitResult == .timedOut {
+        if process.isRunning {
+            process.terminate()
+        }
+        _ = waitGroup.wait(timeout: .now() + 2)
+        let output = readProcessOutput(stdout: stdout, stderr: stderr)
+        throw WorkerError.processing(
+            "Command timed out after \(Int(timeoutSeconds))s: \(executable) \(args.joined(separator: " "))\n\(output)"
+        )
+    }
+
+    let output = readProcessOutput(stdout: stdout, stderr: stderr)
 
     if process.terminationStatus != 0 {
         throw WorkerError.processing("Command failed: \(executable) \(args.joined(separator: " "))\n\(output)")
     }
     return output
+}
+
+func readProcessOutput(stdout: Pipe, stderr: Pipe) -> String {
+    let stdoutData = stdout.fileHandleForReading.readDataToEndOfFile()
+    let stderrData = stderr.fileHandleForReading.readDataToEndOfFile()
+    return (String(data: stdoutData, encoding: .utf8) ?? "") + (String(data: stderrData, encoding: .utf8) ?? "")
+}
+
+func processTimeoutSeconds() -> TimeInterval {
+    envDouble("MENUVIUM_AR_PROCESS_TIMEOUT_SECONDS", defaultValue: 900)
 }

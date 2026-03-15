@@ -1318,8 +1318,17 @@ export default function MenuDetailPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || res.statusText || "Unknown error");
+        const rawBody = await res.text();
+        let detail: string | undefined;
+        try {
+          const err = rawBody ? JSON.parse(rawBody) : {};
+          detail = typeof err.detail === "string" ? err.detail : undefined;
+        } catch {
+          detail = rawBody || undefined;
+        }
+        throw new Error(
+          detail || res.statusText || `Failed to cancel AR generation (${res.status})`,
+        );
       }
       const updated = await res.json();
       setEditingItem((prev) => (prev ? ({ ...prev, ...updated } as any) : prev));
