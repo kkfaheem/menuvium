@@ -16,6 +16,7 @@ from ar_pipeline import (
     AR_STAGE_QUEUED,
     AR_STAGE_UPLOADING_TO_KIRI,
     CONVERSION_STATUS_QUEUED,
+    get_item_ar_metadata,
 )
 from database import get_session
 from dependencies import get_current_user
@@ -229,6 +230,44 @@ def test_retry_rebuilds_from_existing_usdz_even_when_glb_exists(
     ).all()
     assert len(jobs) == 1
     assert jobs[0].status == CONVERSION_STATUS_QUEUED
+
+
+def test_retry_prefers_original_provider_usdz_from_metadata(
+    client: TestClient,
+    session: Session,
+    test_item: Item,
+):
+    test_item.ar_provider = AR_PROVIDER_KIRI
+    test_item.ar_capture_mode = AR_CAPTURE_MODE_PHOTO_SCAN
+    test_item.ar_status = "ready"
+    test_item.ar_stage = "ready"
+    test_item.ar_model_usdz_s3_key = f"items/ar/{test_item.id}/model_usdz/rewritten.usdz"
+    test_item.ar_model_usdz_url = "https://example.com/rewritten.usdz"
+    test_item.ar_metadata_json = {
+        "provider_usdz_s3_key": f"items/ar/{test_item.id}/model_usdz/original.usdz",
+        "provider_usdz_url": "https://example.com/original.usdz",
+    }
+    session.add(test_item)
+    session.commit()
+
+    response = client.post(
+        f"/items/{test_item.id}/ar/retry",
+        headers=_auth_headers(),
+    )
+
+    assert response.status_code == 200, response.text
+
+    conversion_job = session.exec(
+        select(ArConversionJob).where(ArConversionJob.item_id == test_item.id)
+    ).first()
+    assert conversion_job is not None
+    assert conversion_job.usdz_s3_key == f"items/ar/{test_item.id}/model_usdz/original.usdz"
+    assert conversion_job.usdz_url == "https://example.com/original.usdz"
+
+    session.refresh(test_item)
+    metadata = get_item_ar_metadata(test_item)
+    assert metadata["conversion_source_kind"] == "provider_original"
+    assert metadata["conversion_source_usdz_s3_key"] == f"items/ar/{test_item.id}/model_usdz/original.usdz"
 
 
 def test_generation_worker_claims_pending_item_and_returns_capture_downloads(

@@ -5,6 +5,7 @@ import ImageIO
 import ModelIO
 import SceneKit
 import UniformTypeIdentifiers
+import simd
 
 struct Config {
     let apiBase: String
@@ -216,7 +217,14 @@ struct OrientationNormalizationResult {
     let usdzUrl: URL
     let updatedUsdzUpload: PresignedUrlResponse?
     let appliedRotationDescription: String?
-    let appliedRotationEulerRadians: SCNVector3?
+    let glbRootTransform: GltfNodeTransform?
+}
+
+struct GltfNodeTransform {
+    let translation: SIMD3<Double>
+    let rotationQuaternion: SIMD4<Double>
+    let scale: SIMD3<Double>
+    let description: String
 }
 
 enum WorkerError: Error, CustomStringConvertible {
@@ -711,10 +719,6 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
     )
     let modelObj = convertDir.appendingPathComponent("model.obj")
     try exportUsdzToObj(usdzUrl: normalized.usdzUrl, objUrl: modelObj)
-    if let rotation = normalized.appliedRotationEulerRadians {
-        try applyRotationToObj(objUrl: modelObj, rotation: rotation)
-        logInfo("conversion \(claim.jobId): baked rotation \(describeRotation(rotation)) into OBJ vertices and normals")
-    }
 
     await tryUpdateProgress(
         jobId: claim.jobId,
@@ -748,6 +752,13 @@ func processJob(claim: ConversionClaimResponse, config: Config) async throws {
             "--packOcclusion",
         ]
     )
+    if let transform = normalized.glbRootTransform {
+        let rotatedGlb = tempDir.appendingPathComponent("rotated-model.glb")
+        try applyTransformToGlb(glbUrl: modelGlb, outputUrl: rotatedGlb, transform: transform)
+        try? FileManager.default.removeItem(at: modelGlb)
+        try FileManager.default.moveItem(at: rotatedGlb, to: modelGlb)
+        logInfo("conversion \(claim.jobId): applied provider-preserving root transform to GLB scene root: \(transform.description)")
+    }
 
     let upload = try await getUploadUrl(
         itemId: claim.itemId,
@@ -779,9 +790,49 @@ func normalizeUsdzOrientationIfNeeded(
     config: Config
 ) async throws -> OrientationNormalizationResult {
     let scene = try SCNScene(url: inputUsdz, options: nil)
+    if let providerTransform = extractProviderRootTransform(from: scene) {
+        logInfo("conversion \(jobId): preserving provider root transform for GLB output: \(providerTransform.description)")
+        return OrientationNormalizationResult(
+            usdzUrl: inputUsdz,
+            updatedUsdzUpload: nil,
+            appliedRotationDescription: "preserving provider-authored scene transform for derived assets",
+            glbRootTransform: providerTransform
+        )
+    }
+    if let forcedRotation = forcedOrientationRotation() {
+        logInfo("conversion \(jobId): auto-orientation bypassed; using forced rotation \(describeRotation(forcedRotation))")
+        if rewriteUsdzEnabled() {
+            return try await writeRotatedUsdz(
+                jobId: jobId,
+                itemId: itemId,
+                sourceScene: scene,
+                rotation: forcedRotation,
+                description: "applied forced rotation \(describeRotation(forcedRotation)) from worker environment",
+                tempDir: tempDir,
+                config: config
+            )
+        }
+        logInfo("conversion \(jobId): USDZ rewrite disabled; keeping original USDZ and applying forced rotation only to derived assets")
+        let forcedTransform = gltfTransform(fromEulerRotation: forcedRotation, description: "forced rotation \(describeRotation(forcedRotation))")
+        return OrientationNormalizationResult(
+            usdzUrl: inputUsdz,
+            updatedUsdzUpload: nil,
+            appliedRotationDescription: "applying forced rotation \(describeRotation(forcedRotation)) to derived assets while keeping the original USDZ",
+            glbRootTransform: forcedTransform
+        )
+    }
+    if !autoOrientationEnabled() {
+        logInfo("conversion \(jobId): auto-orientation disabled; keeping original USDZ")
+        return OrientationNormalizationResult(
+            usdzUrl: inputUsdz,
+            updatedUsdzUpload: nil,
+            appliedRotationDescription: nil,
+            glbRootTransform: nil
+        )
+    }
     let analysis = analyzeOrientation(scene: scene)
     logInfo(
-        "conversion \(jobId): orientation analysis extents x=\(formatNumber(analysis.xExtent, decimals: 4)) y=\(formatNumber(analysis.yExtent, decimals: 4)) z=\(formatNumber(analysis.zExtent, decimals: 4)) smallest=\(analysis.smallestAxis) middle=\(analysis.middleAxis) largest=\(analysis.largestAxis) flatnessRatio=\(formatNumber(analysis.flatnessRatio, decimals: 4)) threshold=\(formatNumber(analysis.flatnessThreshold, decimals: 4)) decision=\(analysis.description ?? "none")"
+        "conversion \(jobId): orientation analysis extents x=\(formatNumber(analysis.xExtent, decimals: 4)) y=\(formatNumber(analysis.yExtent, decimals: 4)) z=\(formatNumber(analysis.zExtent, decimals: 4)) smallest=\(analysis.smallestAxis) middle=\(analysis.middleAxis) largest=\(analysis.largestAxis) flatnessRatio=\(formatNumber(analysis.flatnessRatio, decimals: 4)) strictThreshold=\(formatNumber(analysis.flatnessThreshold, decimals: 4)) nearFlatThreshold=\(formatNumber(analysis.nearFlatnessThreshold, decimals: 4)) footprintRatio=\(formatNumber(analysis.footprintRatio, decimals: 4)) footprintThreshold=\(formatNumber(analysis.footprintRatioThreshold, decimals: 4)) decision=\(analysis.description ?? "none")"
     )
     guard let rotation = analysis.rotationEulerRadians else {
         logInfo("conversion \(jobId): no orientation rotation applied")
@@ -789,15 +840,47 @@ func normalizeUsdzOrientationIfNeeded(
             usdzUrl: inputUsdz,
             updatedUsdzUpload: nil,
             appliedRotationDescription: nil,
-            appliedRotationEulerRadians: nil
+            glbRootTransform: nil
         )
     }
+    if !rewriteUsdzEnabled() {
+        logInfo("conversion \(jobId): USDZ rewrite disabled; keeping original USDZ and applying rotation only to derived assets")
+        let heuristicTransform = gltfTransform(
+            fromEulerRotation: rotation,
+            description: analysis.description ?? "auto-rotation"
+        )
+        return OrientationNormalizationResult(
+            usdzUrl: inputUsdz,
+            updatedUsdzUpload: nil,
+            appliedRotationDescription: "\(analysis.description ?? "applied auto-rotation") while keeping the original USDZ",
+            glbRootTransform: heuristicTransform
+        )
+    }
+    return try await writeRotatedUsdz(
+        jobId: jobId,
+        itemId: itemId,
+        sourceScene: scene,
+        rotation: rotation,
+        description: analysis.description ?? "applied auto-rotation",
+        tempDir: tempDir,
+        config: config
+    )
+}
 
+func writeRotatedUsdz(
+    jobId: String,
+    itemId: String,
+    sourceScene: SCNScene,
+    rotation: SCNVector3,
+    description: String,
+    tempDir: URL,
+    config: Config
+) async throws -> OrientationNormalizationResult {
     let normalizedScene = SCNScene()
     let wrapper = SCNNode()
     wrapper.eulerAngles = rotation
 
-    for child in scene.rootNode.childNodes {
+    for child in sourceScene.rootNode.childNodes {
         child.removeFromParentNode()
         wrapper.addChildNode(child)
     }
@@ -823,8 +906,8 @@ func normalizeUsdzOrientationIfNeeded(
     return OrientationNormalizationResult(
         usdzUrl: normalizedUsdz,
         updatedUsdzUpload: upload,
-        appliedRotationDescription: analysis.description,
-        appliedRotationEulerRadians: rotation
+        appliedRotationDescription: description,
+        glbRootTransform: gltfTransform(fromEulerRotation: rotation, description: description)
     )
 }
 
@@ -837,6 +920,9 @@ struct OrientationAnalysis {
     let largestAxis: String
     let flatnessRatio: Double
     let flatnessThreshold: Double
+    let nearFlatnessThreshold: Double
+    let footprintRatio: Double
+    let footprintRatioThreshold: Double
     let rotationEulerRadians: SCNVector3?
     let description: String?
 }
@@ -852,6 +938,8 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
     let zExtent = Double(maximum.z - minimum.z)
     let axes = [("x", xExtent), ("y", yExtent), ("z", zExtent)].sorted { $0.1 < $1.1 }
     let flatnessThreshold = envDouble("MENUVIUM_AR_FLATNESS_RATIO_THRESHOLD", defaultValue: 0.6)
+    let nearFlatnessThreshold = envDouble("MENUVIUM_AR_NEAR_FLATNESS_RATIO_THRESHOLD", defaultValue: 0.8)
+    let footprintRatioThreshold = envDouble("MENUVIUM_AR_FOOTPRINT_RATIO_THRESHOLD", defaultValue: 1.35)
 
     guard axes.count == 3 else {
         return OrientationAnalysis(
@@ -863,6 +951,9 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
             largestAxis: "unknown",
             flatnessRatio: Double.infinity,
             flatnessThreshold: flatnessThreshold,
+            nearFlatnessThreshold: nearFlatnessThreshold,
+            footprintRatio: Double.infinity,
+            footprintRatioThreshold: footprintRatioThreshold,
             rotationEulerRadians: nil,
             description: "Could not determine axis extents; skipped auto-rotation"
         )
@@ -872,6 +963,7 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
     let middle = axes[1]
     let largest = axes[2]
     let flatnessRatio = middle.1 > 0 ? smallest.1 / middle.1 : Double.infinity
+    let footprintRatio = middle.1 > 0 ? largest.1 / middle.1 : Double.infinity
     guard middle.1 > 0 else {
         return OrientationAnalysis(
             xExtent: xExtent,
@@ -882,11 +974,16 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
             largestAxis: largest.0,
             flatnessRatio: flatnessRatio,
             flatnessThreshold: flatnessThreshold,
+            nearFlatnessThreshold: nearFlatnessThreshold,
+            footprintRatio: footprintRatio,
+            footprintRatioThreshold: footprintRatioThreshold,
             rotationEulerRadians: nil,
             description: "Bounding box is degenerate; skipped auto-rotation"
         )
     }
-    guard flatnessRatio <= flatnessThreshold else {
+    let qualifiesAsStrictFlat = flatnessRatio <= flatnessThreshold
+    let qualifiesAsDishLike = flatnessRatio <= nearFlatnessThreshold && footprintRatio <= footprintRatioThreshold
+    guard qualifiesAsStrictFlat || qualifiesAsDishLike else {
         return OrientationAnalysis(
             xExtent: xExtent,
             yExtent: yExtent,
@@ -896,10 +993,17 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
             largestAxis: largest.0,
             flatnessRatio: flatnessRatio,
             flatnessThreshold: flatnessThreshold,
+            nearFlatnessThreshold: nearFlatnessThreshold,
+            footprintRatio: footprintRatio,
+            footprintRatioThreshold: footprintRatioThreshold,
             rotationEulerRadians: nil,
-            description: "Flatness ratio exceeded threshold; skipped auto-rotation"
+            description: "Flatness and dish-like footprint checks both failed; skipped auto-rotation"
         )
     }
+
+    let qualificationDescription = qualifiesAsStrictFlat
+        ? "strict flatness check"
+        : "dish-like footprint check"
 
     switch smallest.0 {
     case "y":
@@ -912,6 +1016,9 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
             largestAxis: largest.0,
             flatnessRatio: flatnessRatio,
             flatnessThreshold: flatnessThreshold,
+            nearFlatnessThreshold: nearFlatnessThreshold,
+            footprintRatio: footprintRatio,
+            footprintRatioThreshold: footprintRatioThreshold,
             rotationEulerRadians: nil,
             description: "Smallest axis is already Y; no auto-rotation needed"
         )
@@ -925,9 +1032,13 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
             largestAxis: largest.0,
             flatnessRatio: flatnessRatio,
             flatnessThreshold: flatnessThreshold,
+            nearFlatnessThreshold: nearFlatnessThreshold,
+            footprintRatio: footprintRatio,
+            footprintRatioThreshold: footprintRatioThreshold,
             rotationEulerRadians: SCNVector3(-Float.pi / 2, 0, 0),
             description: String(
-                format: "rotated existing USDZ by -90deg around X to make Y the up axis (extents x=%.4f y=%.4f z=%.4f)",
+                format: "rotated existing USDZ by -90deg around X to make Y the up axis using the %@ (extents x=%.4f y=%.4f z=%.4f)",
+                qualificationDescription,
                 xExtent,
                 yExtent,
                 zExtent
@@ -943,9 +1054,13 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
             largestAxis: largest.0,
             flatnessRatio: flatnessRatio,
             flatnessThreshold: flatnessThreshold,
+            nearFlatnessThreshold: nearFlatnessThreshold,
+            footprintRatio: footprintRatio,
+            footprintRatioThreshold: footprintRatioThreshold,
             rotationEulerRadians: SCNVector3(0, 0, Float.pi / 2),
             description: String(
-                format: "rotated existing USDZ by +90deg around Z to make Y the up axis (extents x=%.4f y=%.4f z=%.4f)",
+                format: "rotated existing USDZ by +90deg around Z to make Y the up axis using the %@ (extents x=%.4f y=%.4f z=%.4f)",
+                qualificationDescription,
                 xExtent,
                 yExtent,
                 zExtent
@@ -961,76 +1076,206 @@ func analyzeOrientation(scene: SCNScene) -> OrientationAnalysis {
             largestAxis: largest.0,
             flatnessRatio: flatnessRatio,
             flatnessThreshold: flatnessThreshold,
+            nearFlatnessThreshold: nearFlatnessThreshold,
+            footprintRatio: footprintRatio,
+            footprintRatioThreshold: footprintRatioThreshold,
             rotationEulerRadians: nil,
             description: "No auto-rotation rule matched"
         )
     }
 }
 
-func applyRotationToObj(objUrl: URL, rotation: SCNVector3) throws {
-    let contents = try String(contentsOf: objUrl, encoding: .utf8)
-    var outputLines: [String] = []
-    outputLines.reserveCapacity(contents.split(whereSeparator: \.isNewline).count)
+func extractProviderRootTransform(from scene: SCNScene) -> GltfNodeTransform? {
+    let topLevelNodes = scene.rootNode.childNodes.filter { !$0.isHidden }
+    guard !topLevelNodes.isEmpty else {
+        return nil
+    }
 
-    for rawLine in contents.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
-        let line = String(rawLine)
-        if line.hasPrefix("v ") || line.hasPrefix("vn ") {
-            let prefix = line.hasPrefix("vn ") ? "vn" : "v"
-            let components = line.split(separator: " ", omittingEmptySubsequences: true)
-            guard components.count >= 4,
-                  let x = Double(components[1]),
-                  let y = Double(components[2]),
-                  let z = Double(components[3]) else {
-                outputLines.append(line)
-                continue
-            }
-            let rotated = rotateVector(SCNVector3(Float(x), Float(y), Float(z)), by: rotation)
-            let formatted = String(
-                format: "%@ %.8f %.8f %.8f",
-                prefix,
-                Double(rotated.x),
-                Double(rotated.y),
-                Double(rotated.z)
-            )
-            outputLines.append(formatted)
+    let accumulatedTransform: simd_float4x4
+    if topLevelNodes.count == 1 {
+        accumulatedTransform = accumulatedWrapperTransform(startingAt: topLevelNodes[0])
+    } else if let commonTransform = commonTopLevelHelperTransform(nodes: topLevelNodes) {
+        accumulatedTransform = commonTransform
+    } else {
+        logInfo("provider transform: multiple top-level scene nodes with different transforms; skipping explicit transform preservation")
+        return nil
+    }
+
+    let transform = decomposeTransform(matrix: accumulatedTransform, description: "provider root transform")
+    guard !isIdentityTransform(transform) else {
+        return nil
+    }
+    return transform
+}
+
+func accumulatedWrapperTransform(startingAt node: SCNNode) -> simd_float4x4 {
+    var accumulated = matrix_identity_float4x4
+    var current: SCNNode? = node
+
+    while let node = current {
+        accumulated = simd_mul(accumulated, node.simdTransform)
+        let isHelperNode = node.geometry == nil && node.camera == nil && node.light == nil
+        if isHelperNode, node.childNodes.count == 1 {
+            current = node.childNodes[0]
         } else {
-            outputLines.append(line)
+            break
         }
     }
 
-    try outputLines.joined(separator: "\n").appending("\n").write(to: objUrl, atomically: true, encoding: .utf8)
+    return accumulated
 }
 
-func rotateVector(_ vector: SCNVector3, by rotation: SCNVector3) -> SCNVector3 {
-    var result = vector
-    if rotation.x != 0 {
-        let cosine = cos(rotation.x)
-        let sine = sin(rotation.x)
-        result = SCNVector3(
-            result.x,
-            (result.y * cosine) - (result.z * sine),
-            (result.y * sine) + (result.z * cosine)
-        )
+func commonTopLevelHelperTransform(nodes: [SCNNode]) -> simd_float4x4? {
+    guard let first = nodes.first else {
+        return nil
     }
-    if rotation.y != 0 {
-        let cosine = cos(rotation.y)
-        let sine = sin(rotation.y)
-        result = SCNVector3(
-            (result.x * cosine) + (result.z * sine),
-            result.y,
-            (-result.x * sine) + (result.z * cosine)
-        )
+    let candidate = first.simdTransform
+    guard nodes.dropFirst().allSatisfy({ matricesApproximatelyEqual($0.simdTransform, candidate) }) else {
+        return nil
     }
-    if rotation.z != 0 {
-        let cosine = cos(rotation.z)
-        let sine = sin(rotation.z)
-        result = SCNVector3(
-            (result.x * cosine) - (result.y * sine),
-            (result.x * sine) + (result.y * cosine),
-            result.z
-        )
+    return candidate
+}
+
+func matricesApproximatelyEqual(_ lhs: simd_float4x4, _ rhs: simd_float4x4, epsilon: Float = 1e-5) -> Bool {
+    for column in 0..<4 {
+        for row in 0..<4 {
+            if abs(lhs[column][row] - rhs[column][row]) > epsilon {
+                return false
+            }
+        }
     }
-    return result
+    return true
+}
+
+func decomposeTransform(matrix: simd_float4x4, description: String) -> GltfNodeTransform {
+    let translation = SIMD3<Double>(
+        Double(matrix.columns.3.x),
+        Double(matrix.columns.3.y),
+        Double(matrix.columns.3.z)
+    )
+
+    let basisX = SIMD3<Float>(matrix.columns.0.x, matrix.columns.0.y, matrix.columns.0.z)
+    let basisY = SIMD3<Float>(matrix.columns.1.x, matrix.columns.1.y, matrix.columns.1.z)
+    let basisZ = SIMD3<Float>(matrix.columns.2.x, matrix.columns.2.y, matrix.columns.2.z)
+    let scaleX = max(simd_length(basisX), Float.ulpOfOne)
+    let scaleY = max(simd_length(basisY), Float.ulpOfOne)
+    let scaleZ = max(simd_length(basisZ), Float.ulpOfOne)
+    let normalizedRotation = simd_float3x3(
+        SIMD3<Float>(basisX.x / scaleX, basisX.y / scaleX, basisX.z / scaleX),
+        SIMD3<Float>(basisY.x / scaleY, basisY.y / scaleY, basisY.z / scaleY),
+        SIMD3<Float>(basisZ.x / scaleZ, basisZ.y / scaleZ, basisZ.z / scaleZ)
+    )
+    let quaternion = simd_quatf(normalizedRotation)
+
+    return GltfNodeTransform(
+        translation: translation,
+        rotationQuaternion: SIMD4<Double>(
+            Double(quaternion.vector.x),
+            Double(quaternion.vector.y),
+            Double(quaternion.vector.z),
+            Double(quaternion.vector.w)
+        ),
+        scale: SIMD3<Double>(Double(scaleX), Double(scaleY), Double(scaleZ)),
+        description: "\(description) translation=\(describeVector(translation)) rotation=\(describeQuaternion(quaternion.vector)) scale=\(describeVector(SIMD3<Double>(Double(scaleX), Double(scaleY), Double(scaleZ))))"
+    )
+}
+
+func isIdentityTransform(_ transform: GltfNodeTransform, epsilon: Double = 1e-5) -> Bool {
+    let translationIdentity =
+        abs(transform.translation.x) <= epsilon &&
+        abs(transform.translation.y) <= epsilon &&
+        abs(transform.translation.z) <= epsilon
+    let rotationIdentity =
+        abs(transform.rotationQuaternion.x) <= epsilon &&
+        abs(transform.rotationQuaternion.y) <= epsilon &&
+        abs(transform.rotationQuaternion.z) <= epsilon &&
+        abs(transform.rotationQuaternion.w - 1.0) <= epsilon
+    let scaleIdentity =
+        abs(transform.scale.x - 1.0) <= epsilon &&
+        abs(transform.scale.y - 1.0) <= epsilon &&
+        abs(transform.scale.z - 1.0) <= epsilon
+    return translationIdentity && rotationIdentity && scaleIdentity
+}
+
+func gltfTransform(fromEulerRotation rotation: SCNVector3, description: String) -> GltfNodeTransform {
+    let quaternion = quaternionFromEuler(rotation)
+    return GltfNodeTransform(
+        translation: SIMD3<Double>(0, 0, 0),
+        rotationQuaternion: SIMD4<Double>(
+            Double(quaternion.vector.x),
+            Double(quaternion.vector.y),
+            Double(quaternion.vector.z),
+            Double(quaternion.vector.w)
+        ),
+        scale: SIMD3<Double>(1, 1, 1),
+        description: "\(description) translation=(0.0000, 0.0000, 0.0000) rotation=\(describeQuaternion(quaternion.vector)) scale=(1.0000, 1.0000, 1.0000)"
+    )
+}
+
+func quaternionFromEuler(_ rotation: SCNVector3) -> simd_quatf {
+    let qx = simd_quatf(angle: Float(rotation.x), axis: SIMD3<Float>(1, 0, 0))
+    let qy = simd_quatf(angle: Float(rotation.y), axis: SIMD3<Float>(0, 1, 0))
+    let qz = simd_quatf(angle: Float(rotation.z), axis: SIMD3<Float>(0, 0, 1))
+    return simd_mul(qz, simd_mul(qy, qx))
+}
+
+func describeVector(_ vector: SIMD3<Double>) -> String {
+    "(\(formatNumber(vector.x, decimals: 4)), \(formatNumber(vector.y, decimals: 4)), \(formatNumber(vector.z, decimals: 4)))"
+}
+
+func describeQuaternion(_ quaternion: SIMD4<Float>) -> String {
+    "(\(formatNumber(Double(quaternion.x), decimals: 5)), \(formatNumber(Double(quaternion.y), decimals: 5)), \(formatNumber(Double(quaternion.z), decimals: 5)), \(formatNumber(Double(quaternion.w), decimals: 5)))"
+}
+
+func applyTransformToGlb(glbUrl: URL, outputUrl: URL, transform: GltfNodeTransform) throws {
+    let tempDir = outputUrl.deletingLastPathComponent().appendingPathComponent("gltf-rotate-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer {
+        try? FileManager.default.removeItem(at: tempDir)
+    }
+    let tempGltfUrl = tempDir.appendingPathComponent("model.gltf")
+    let scriptUrl = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("scripts/rotate-gltf-json.mjs")
+    try runProcess(
+        "npx",
+        args: [
+            "--yes",
+            "@gltf-transform/cli",
+            "copy",
+            glbUrl.path,
+            tempGltfUrl.path,
+        ]
+    )
+    try runProcess(
+        "node",
+        args: [
+            scriptUrl.path,
+            tempGltfUrl.path,
+            String(format: "%.8f", transform.translation.x),
+            String(format: "%.8f", transform.translation.y),
+            String(format: "%.8f", transform.translation.z),
+            String(format: "%.8f", transform.rotationQuaternion.x),
+            String(format: "%.8f", transform.rotationQuaternion.y),
+            String(format: "%.8f", transform.rotationQuaternion.z),
+            String(format: "%.8f", transform.rotationQuaternion.w),
+            String(format: "%.8f", transform.scale.x),
+            String(format: "%.8f", transform.scale.y),
+            String(format: "%.8f", transform.scale.z),
+        ]
+    )
+    try runProcess(
+        "npx",
+        args: [
+            "--yes",
+            "@gltf-transform/cli",
+            "copy",
+            tempGltfUrl.path,
+            outputUrl.path,
+        ]
+    )
 }
 
 func reportGenerationSubmitted(
@@ -1541,6 +1786,45 @@ func envDouble(_ name: String, defaultValue: Double) -> Double {
         return defaultValue
     }
     return value
+}
+
+func envBool(_ name: String, defaultValue: Bool) -> Bool {
+    guard let raw = ProcessInfo.processInfo.environment[name]?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased() else {
+        return defaultValue
+    }
+    switch raw {
+    case "1", "true", "yes", "on":
+        return true
+    case "0", "false", "no", "off":
+        return false
+    default:
+        return defaultValue
+    }
+}
+
+func autoOrientationEnabled() -> Bool {
+    envBool("MENUVIUM_AR_AUTO_ROTATE", defaultValue: false)
+}
+
+func rewriteUsdzEnabled() -> Bool {
+    envBool("MENUVIUM_AR_REWRITE_USDZ", defaultValue: false)
+}
+
+func forcedOrientationRotation() -> SCNVector3? {
+    let xDegrees = envDouble("MENUVIUM_AR_FORCE_ROTATION_X_DEGREES", defaultValue: 0)
+    let yDegrees = envDouble("MENUVIUM_AR_FORCE_ROTATION_Y_DEGREES", defaultValue: 0)
+    let zDegrees = envDouble("MENUVIUM_AR_FORCE_ROTATION_Z_DEGREES", defaultValue: 0)
+    guard xDegrees != 0 || yDegrees != 0 || zDegrees != 0 else {
+        return nil
+    }
+    let radians = Double.pi / 180.0
+    return SCNVector3(
+        Float(xDegrees * radians),
+        Float(yDegrees * radians),
+        Float(zDegrees * radians)
+    )
 }
 
 func exportUsdzToObj(usdzUrl: URL, objUrl: URL) throws {

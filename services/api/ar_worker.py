@@ -551,7 +551,12 @@ def _finalize_successful_kiri_job(item_id, *, serialize: str, source: str) -> No
         item.ar_stage_detail = "USDZ stored; waiting for GLB conversion"
         item.ar_progress = max(float(item.ar_progress or 0.0), 0.8)
         item.ar_updated_at = datetime.utcnow()
-        update_item_ar_metadata(item, provider_message="model downloaded")
+        update_item_ar_metadata(
+            item,
+            provider_message="model downloaded",
+            provider_usdz_s3_key=usdz_key,
+            provider_usdz_url=usdz_url,
+        )
         queue_conversion_from_existing_usdz(session=session, item=item, detail="USDZ ready for GLB conversion")
         _log(f"Queued GLB conversion for item {item_id} using USDZ {usdz_key}")
         session.commit()

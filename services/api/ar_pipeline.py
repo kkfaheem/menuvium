@@ -114,6 +114,15 @@ def reset_ar_outputs(item: Item, *, preserve_usdz: bool = False) -> None:
     item.ar_model_poster_url = None
 
 
+def canonical_usdz_source(item: Item) -> tuple[str | None, str | None]:
+    metadata = get_item_ar_metadata(item)
+    provider_key = metadata.get("provider_usdz_s3_key")
+    provider_url = metadata.get("provider_usdz_url")
+    if provider_key and provider_url:
+        return str(provider_key), str(provider_url)
+    return item.ar_model_usdz_s3_key, item.ar_model_usdz_url
+
+
 def queue_kiri_generation(
     *,
     session: Session,
@@ -140,6 +149,8 @@ def queue_kiri_generation(
         provider_message=None,
         provider_calculate_type=None,
         provider_input_kind=None,
+        provider_usdz_s3_key=None,
+        provider_usdz_url=None,
         conversion_job_id=None,
         conversion_status=None,
         capture_input_kind=None,
@@ -156,7 +167,8 @@ def queue_conversion_from_existing_usdz(
     item: Item,
     detail: str | None = None,
 ) -> ArConversionJob:
-    if not item.ar_model_usdz_s3_key or not item.ar_model_usdz_url:
+    source_usdz_s3_key, source_usdz_url = canonical_usdz_source(item)
+    if not source_usdz_s3_key or not source_usdz_url:
         raise ValueError("Cannot queue conversion without an existing USDZ model.")
 
     for existing in session.exec(
@@ -173,8 +185,8 @@ def queue_conversion_from_existing_usdz(
     job = ArConversionJob(
         item_id=item.id,
         status=CONVERSION_STATUS_QUEUED,
-        usdz_s3_key=item.ar_model_usdz_s3_key,
-        usdz_url=item.ar_model_usdz_url,
+        usdz_s3_key=source_usdz_s3_key,
+        usdz_url=source_usdz_url,
     )
     session.add(job)
     session.flush()
@@ -190,6 +202,12 @@ def queue_conversion_from_existing_usdz(
         item,
         conversion_job_id=str(job.id),
         conversion_status=CONVERSION_STATUS_QUEUED,
+        conversion_source_usdz_s3_key=source_usdz_s3_key,
+        conversion_source_kind=(
+            "provider_original"
+            if source_usdz_s3_key != item.ar_model_usdz_s3_key or source_usdz_url != item.ar_model_usdz_url
+            else "current_item"
+        ),
     )
     session.add(item)
     return job
