@@ -278,5 +278,5 @@ class TestMenuQrEndpoints:
 
         refreshed_menu = session.get(Menu, test_menu.id)
         assert refreshed_menu is not None
-        assert refreshed_menu.logo_qr_url == payload["qr_url"]
-        assert refreshed_menu.logo_qr_generated_at is not None
+        assert refreshed_menu.qr_url == payload["qr_url"]
+        assert refreshed_menu.qr_generated_at is not None

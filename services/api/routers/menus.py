@@ -340,14 +340,13 @@ def _regenerate_plain_menu_qr(
     stored_assets = _store_generated_qr(menu, qr_png, request, size_px=size_px)
     generated_at = datetime.utcnow()
 
-    # Persist into the existing menu QR columns until the schema is cleaned up.
-    menu.logo_qr_url = stored_assets.version_url
-    menu.logo_qr_generated_at = generated_at
+    menu.qr_url = stored_assets.version_url
+    menu.qr_generated_at = generated_at
     session.add(menu)
     session.commit()
     session.refresh(menu)
 
-    normalized_qr_url = normalize_upload_url(menu.logo_qr_url, request) or stored_assets.version_url
+    normalized_qr_url = normalize_upload_url(menu.qr_url, request) or stored_assets.version_url
     normalized_current_qr_url = (
         normalize_upload_url(stored_assets.current_url, request) or stored_assets.current_url
     )
@@ -572,7 +571,7 @@ def list_menus(org_id: uuid.UUID, request: Request, session: Session = SessionDe
     for menu in menus:
         menu.banner_url = normalize_upload_url(menu.banner_url, request)
         menu.logo_url = normalize_upload_url(menu.logo_url, request)
-        menu.logo_qr_url = normalize_upload_url(menu.logo_qr_url, request)
+        menu.qr_url = normalize_upload_url(menu.qr_url, request)
     return menus
 
 @router.get("/{menu_id}", response_model=Menu)
@@ -582,7 +581,7 @@ def get_menu(menu_id: uuid.UUID, request: Request, session: Session = SessionDep
         raise HTTPException(status_code=404, detail="Menu not found")
     menu.banner_url = normalize_upload_url(menu.banner_url, request)
     menu.logo_url = normalize_upload_url(menu.logo_url, request)
-    menu.logo_qr_url = normalize_upload_url(menu.logo_qr_url, request)
+    menu.qr_url = normalize_upload_url(menu.qr_url, request)
     return menu
 
 @router.patch("/{menu_id}", response_model=Menu)
@@ -743,7 +742,7 @@ def get_public_menu(menu_id: uuid.UUID, request: Request, session: Session = Ses
     menu.categories = categories
     menu.banner_url = normalize_upload_url(menu.banner_url, request)
     menu.logo_url = normalize_upload_url(menu.logo_url, request)
-    menu.logo_qr_url = normalize_upload_url(menu.logo_qr_url, request)
+    menu.qr_url = normalize_upload_url(menu.qr_url, request)
 
     # Validate explicitly so nested tag/allergen IDs are included consistently.
     return MenuRead.model_validate(menu)

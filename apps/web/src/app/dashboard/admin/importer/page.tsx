@@ -112,6 +112,7 @@ export default function AdminMenuImporterPage() {
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [companies, setCompanies] = useState<AdminOrganization[]>([]);
     const [loadingCompanies, setLoadingCompanies] = useState(false);
+    const [companiesError, setCompaniesError] = useState<string | null>(null);
     const [selectedImportOrgId, setSelectedImportOrgId] = useState("");
     const [importingProcessed, setImportingProcessed] = useState(false);
     const [importResultNote, setImportResultNote] = useState<string | null>(null);
@@ -155,12 +156,26 @@ export default function AdminMenuImporterPage() {
 
     const fetchCompanies = useCallback(async () => {
         setLoadingCompanies(true);
+        setCompaniesError(null);
         try {
-            const data = await adminApi.getOrganizations(1, 200);
-            setCompanies(data.items);
-            setSelectedImportOrgId((prev) => prev || data.items[0]?.id || "");
+            const allCompanies: AdminOrganization[] = [];
+            let page = 1;
+            const size = 100;
+            let total = 0;
+
+            do {
+                const data = await adminApi.getOrganizations(page, size);
+                allCompanies.push(...data.items);
+                total = data.total;
+                page += 1;
+            } while (allCompanies.length < total);
+
+            setCompanies(allCompanies);
+            setSelectedImportOrgId((prev) => prev || allCompanies[0]?.id || "");
         } catch (err) {
             console.error("Failed to fetch companies for import", err);
+            setCompanies([]);
+            setCompaniesError("Failed to load companies.");
         } finally {
             setLoadingCompanies(false);
         }
@@ -502,9 +517,16 @@ export default function AdminMenuImporterPage() {
                                         <select
                                             value={selectedImportOrgId}
                                             onChange={(e) => setSelectedImportOrgId(e.target.value)}
+                                            disabled={loadingCompanies || companies.length === 0}
                                             className="flex-1 px-3 py-2 rounded-lg bg-panelStrong border border-border focus:border-[var(--cms-accent)] outline-none transition-colors text-sm"
                                         >
-                                            <option value="">Select company…</option>
+                                            <option value="">
+                                                {loadingCompanies
+                                                    ? "Loading companies…"
+                                                    : companies.length === 0
+                                                        ? "No companies available"
+                                                        : "Select company…"}
+                                            </option>
                                             {companies.map((company) => (
                                                 <option key={company.id} value={company.id}>
                                                     {company.name}
@@ -525,6 +547,9 @@ export default function AdminMenuImporterPage() {
                                         <p className="text-xs text-muted">
                                             This processed result contains {getParsedItemCount(selectedJob)} parsed item{getParsedItemCount(selectedJob) === 1 ? "" : "s"}.
                                         </p>
+                                    )}
+                                    {companiesError && (
+                                        <p className="text-xs text-red-400">{companiesError}</p>
                                     )}
                                     {importResultNote && (
                                         <p className="text-xs text-emerald-400">{importResultNote}</p>

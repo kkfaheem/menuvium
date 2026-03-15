@@ -136,14 +136,14 @@ def _migrate_menu_assets(session: Session, migrator: Migrator, menu_contexts: di
             migrator.copy_key(logo_source, target_key, content_type=_infer_content_type(logo_source))
             menu.logo_url = _public_url(target_key)
 
-        qr_source = storage_key_from_url(menu.logo_qr_url)
+        qr_source = storage_key_from_url(menu.qr_url)
         if qr_source:
             render_id = f"legacy-{menu.id}"
             version_key = menu_qr_version_key(org_id, menu.id, render_id, size_px=1000)
             current_key = menu_qr_current_key(org_id, menu.id, size_px=1000)
             migrator.copy_key(qr_source, version_key, content_type="image/png")
             migrator.copy_key(qr_source, current_key, content_type="image/png")
-            menu.logo_qr_url = _public_url(version_key)
+            menu.qr_url = _public_url(version_key)
 
         if isinstance(menu.title_design_config, dict):
             config = dict(menu.title_design_config)
