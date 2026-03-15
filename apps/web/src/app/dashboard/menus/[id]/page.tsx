@@ -26,7 +26,6 @@ import {
   QrCode,
   RefreshCw,
   Copy,
-  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { useAuthenticator } from "@aws-amplify/ui-react";
@@ -2880,21 +2879,18 @@ export default function MenuDetailPage() {
                     </div>
                   </div>
 
-                  <div className="cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] flex flex-col gap-3 sm:flex-row sm:justify-end flex-shrink-0 rounded-b-2xl">
-                    <a
-                      href={publicMenuUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      Open Menu
-                    </a>
+                  <div
+                    className={`cms-modal-footer p-6 pt-4 border-t border-[var(--cms-border)] grid gap-3 flex-shrink-0 rounded-b-2xl ${
+                      canManageMenus
+                        ? "grid-cols-1 sm:grid-cols-3"
+                        : "grid-cols-1 sm:grid-cols-2"
+                    }`}
+                  >
                     <a
                       href={qrUrls.openUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]"
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[var(--cms-accent)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--cms-accent-strong)]"
                     >
                       <QrCode className="h-4 w-4" />
                       Open QR Image
@@ -2902,7 +2898,7 @@ export default function MenuDetailPage() {
                     <a
                       href={qrUrls.pdfUrl}
                       rel="noreferrer"
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill"
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill"
                     >
                       <Download className="h-4 w-4" />
                       Download QR PDF
@@ -2912,7 +2908,7 @@ export default function MenuDetailPage() {
                         type="button"
                         onClick={handleRegenerateQr}
                         disabled={isRegeneratingQr}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill disabled:opacity-60"
+                        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-panelStrong px-4 text-sm font-semibold text-foreground transition-colors hover:bg-pill disabled:opacity-60"
                       >
                         {isRegeneratingQr ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
